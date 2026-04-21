@@ -1,0 +1,11 @@
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.fieldset-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}

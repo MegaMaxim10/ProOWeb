@@ -1,0 +1,62 @@
+.dashboard-layout {
+  width: min(1200px, 100% - 2rem);
+  margin: 1.25rem auto;
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 980px) {
+  .dashboard-layout {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+}
+
+.sidebar nav {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+}
+
+.sidebar a {
+  color: var(--text);
+  text-decoration: none;
+  background: #f5f9ff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+}
+
+.sidebar a:hover {
+  border-color: #a9c4e4;
+}
+
+.content {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-block {
+  margin-top: 0.8rem;
+  padding: 0.8rem;
+  background: #f7fbff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.command-list {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.command-list li + li {
+  margin-top: 0.45rem;
+}
+
+.tree-view {
+  margin: 0;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  padding: 0.75rem;
+  background: #f6fbff;
+  overflow-x: auto;
+}

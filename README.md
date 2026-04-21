@@ -14,7 +14,7 @@ ProOWeb est un editeur web (IDE) qui aide une equipe a construire une applicatio
 - Recupere les informations de base du projet, du super administrateur, du depot Git,
   et des options backend Swagger UI.
 - Genere automatiquement le projet cible **a la racine du depot courant**:
-  - `src/backend/springboot` (Spring Boot + `/api/meta` + `/actuator/health`),
+  - `src/backend/springboot` (Spring Boot + `/api/meta` + `/api/system-health`),
   - `src/frontend/web/react` (React/Vite connecte au backend),
   - `src/frontend/mobile` (placeholder),
   - `deployment/docker` avec profils `dev`, `demo`, `test`, `preprod`, `prod`,
@@ -43,13 +43,13 @@ Quand active, ProOWeb:
 
 ## Migration intelligente
 
-`POST /api/migrate` applique une migration managée avec les regles suivantes:
+`POST /api/migrate` applique une migration geree avec les regles suivantes:
 
-- Compare les fichiers generes cibles avec le dernier manifest manage.
-- Detecte les modifications manuelles sur fichiers manages (conflits).
+- Compare les fichiers generes cibles avec le dernier manifest gere.
+- Detecte les modifications manuelles sur fichiers geres (conflits).
 - Cree automatiquement un backup avant ecrasement:
   - `.prooweb/backups/<migration-id>/<fichier>`
-- Gere aussi les collisions de chemin (fichier existant non-manage sur un chemin desormais managé),
+- Gere aussi les collisions de chemin (fichier existant non gere sur un chemin desormais gere),
   avec backup puis ecrasement.
 - Retourne un rapport detaille:
   - compteurs (`created`, `updated`, `unchanged`, `conflictsResolved`, `collisionsResolved`, `backupsCreated`),
@@ -78,11 +78,31 @@ npm run start:preprod
 npm run start:prod
 ```
 
+## Architecture interne de l'editeur
+
+Le code ProOWeb est separe en couches explicites:
+
+- `ProOWeb/src/server.js`: composition root (assemblage des dependances).
+- `ProOWeb/src/routes`: mapping des routes HTTP vers les controleurs.
+- `ProOWeb/src/controllers`: adaptation HTTP (parsing request / mapping reponses).
+- `ProOWeb/src/services`: logique metier (initialisation, statut, migration).
+- `ProOWeb/src/http`: primitives HTTP reutilisables (JSON body, responses, static files).
+- `ProOWeb/src/lib/generator.js`: orchestration de generation (workflow + manifest + ecriture).
+- `ProOWeb/src/lib/generator/templates/`: templates des sources generees, un fichier par template (classes par techno/framework).
+
 ## Fichiers clefs
 
-- `ProOWeb/src/server.js`: serveur editor + API wizard/dashboard/migration.
+- `ProOWeb/src/server.js`: composition root du serveur editor.
+- `ProOWeb/src/routes/app-router.js`: routage HTTP centralise.
+- `ProOWeb/src/controllers/workspace-controller.js`: controleur des endpoints workspace.
+- `ProOWeb/src/services/workspace-service.js`: cas d'usage metier workspace.
+- `ProOWeb/src/http/*`: utilitaires HTTP mutualises.
 - `ProOWeb/src/lib/workspace.js`: validation + persistance + versionnage management.
-- `ProOWeb/src/lib/generator.js`: generation backend/frontend/docker/scripts + manifest managé.
+- `ProOWeb/src/lib/generator.js`: orchestration generation et manifest.
+- `ProOWeb/src/lib/generator/templates/index.js`: index d'assemblage des templates.
+- `ProOWeb/src/lib/generator/templates/**`: un template = un fichier, organise par domaine/technologie.
 - `ProOWeb/src/lib/migration.js`: moteur de migration intelligente (conflits/backups/rapport).
 - `ProOWeb/src/lib/git.js`: politique Git appliquee par le wizard.
-- `ProOWeb/public/*`: interface wizard et dashboard.
+- `ProOWeb/public/assets/js/*`: frontend modulaire (shared, wizard, dashboard).
+- `ProOWeb/public/assets/css/*`: styles modularises (tokens, base, components, pages).
+- `ProOWeb/public/*`: pages HTML + shims de compatibilite.

@@ -1,0 +1,41 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top right, var(--bg-accent) 0%, #f0f6ff 20%, var(--bg) 54%, #f9fbff 100%);
+}
+
+.page {
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3 {
+  margin-top: 0.5rem;
+}
+
+p {
+  line-height: 1.5;
+}
+
+small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+input,
+select,
+button {
+  font: inherit;
+}
