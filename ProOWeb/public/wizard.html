@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ProOWeb - Initialisation</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="page wizard-page">
+    <main class="shell two-columns">
+      <section class="panel hero-panel">
+        <p class="kicker">Process-Oriented Web Application Builder</p>
+        <h1>Configurer le workspace ProOWeb</h1>
+        <p>
+          Ce wizard initialise l'application cible dans un espace isole <code>workspace/</code>
+          et versionne les sources generees pour les migrations futures.
+        </p>
+        <ul class="checklist">
+          <li>Modele organisationnel (RBAC + hierarchie)</li>
+          <li>Flux BPMN centres metier</li>
+          <li>Modele de donnees orientee processus</li>
+          <li>Generation de code maitrisable par l'equipe</li>
+        </ul>
+      </section>
+
+      <section class="panel form-panel">
+        <h2>Wizard d'initialisation</h2>
+        <form id="init-form" class="wizard-form" novalidate>
+          <label>
+            Titre du projet
+            <input type="text" name="projectTitle" required placeholder="Ex: Gestion des achats" />
+          </label>
+
+          <label>
+            Lien du depot Git (optionnel)
+            <input
+              type="text"
+              name="gitRepositoryUrl"
+              placeholder="https://github.com/org/projet.git ou git@github.com:org/projet.git"
+            />
+            <small>
+              Si vide: le dossier <code>.git</code> courant sera supprime. Si renseigne: un nouveau depot Git sera
+              initialise avec ce remote <code>origin</code>.
+            </small>
+          </label>
+
+          <label>
+            Backend
+            <select name="backendTech" required>
+              <option value="springboot">Spring Boot (supporte)</option>
+            </select>
+          </label>
+
+          <fieldset>
+            <legend>Swagger UI backend</legend>
+            <label class="inline-row">
+              <input id="swagger-toggle" type="checkbox" name="swaggerUiEnabled" />
+              Activer Swagger UI
+            </label>
+            <p class="fieldset-hint">Choisir uniquement des profils non preprod/prod.</p>
+            <div id="swagger-profiles" class="checkbox-grid">
+              <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="dev" /> dev</label>
+              <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="demo" /> demo</label>
+              <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="test" /> test</label>
+            </div>
+          </fieldset>
+
+          <label>
+            Frontend web
+            <select name="frontendWebTech" required>
+              <option value="react">React (supporte)</option>
+            </select>
+          </label>
+
+          <label>
+            Frontend mobile
+            <select name="frontendMobileTech" required>
+              <option value="none">Non active (support a venir)</option>
+            </select>
+          </label>
+
+          <label>
+            SGBD
+            <select name="databaseTech" required>
+              <option value="postgresql">PostgreSQL (supporte)</option>
+            </select>
+          </label>
+
+          <fieldset>
+            <legend>Super administrateur</legend>
+            <label>
+              Nom complet
+              <input type="text" name="superAdminName" required />
+            </label>
+            <label>
+              Email
+              <input type="email" name="superAdminEmail" required />
+            </label>
+            <label>
+              Identifiant
+              <input type="text" name="superAdminUsername" required />
+            </label>
+            <label>
+              Mot de passe
+              <input type="password" name="superAdminPassword" required minlength="8" />
+            </label>
+          </fieldset>
+
+          <button id="submit-button" type="submit">Initialiser le workspace</button>
+          <p id="feedback" class="feedback" aria-live="polite"></p>
+        </form>
+      </section>
+    </main>
+
+    <script type="module" src="/wizard.js"></script>
+  </body>
+</html>

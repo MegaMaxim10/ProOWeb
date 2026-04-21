@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ProOWeb - Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="page dashboard-page">
+    <div class="dashboard-layout">
+      <aside class="sidebar panel">
+        <p class="kicker">ProOWeb IDE</p>
+        <h2>Commandes</h2>
+        <nav>
+          <a href="#overview">Vue generale</a>
+          <a href="#management">Gestion projet manage</a>
+          <a href="#org-model">Modele organisationnel</a>
+          <a href="#process-model">Flux BPMN</a>
+          <a href="#data-model">Modele de donnees</a>
+          <a href="#codegen">Generation code</a>
+          <a href="#deployment">Deployment profiles</a>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <section id="overview" class="panel">
+          <p class="kicker">Workspace initialise</p>
+          <h1 id="project-title">Chargement...</h1>
+          <p id="stack-line" class="muted"></p>
+          <div id="admin-block" class="admin-block"></div>
+          <div id="project-options" class="admin-block"></div>
+        </section>
+
+        <section id="management" class="panel">
+          <h3>Versionnage et migration</h3>
+          <p id="management-line" class="muted">Chargement...</p>
+          <button id="migrate-button" type="button" class="hidden">Migrer vers la version editeur courante</button>
+          <p id="migrate-feedback" class="feedback" aria-live="polite"></p>
+        </section>
+
+        <section id="process-model" class="panel">
+          <h3>Developpement centre processus</h3>
+          <p>
+            Le socle est pret. Vous pouvez maintenant modeliser l'organisation, les flux BPMN et les donnees,
+            puis faire evoluer les generateurs selon vos publications/recherches.
+          </p>
+        </section>
+
+        <section id="codegen" class="panel">
+          <h3>Commandes npm rapides</h3>
+          <ul class="command-list">
+            <li><code>npm run compile</code> - build backend + frontend</li>
+            <li><code>npm test</code> - tests backend + frontend</li>
+            <li><code>npm run start:dev</code> - docker compose profile dev</li>
+            <li><code>npm run start:demo</code> - docker compose profile demo</li>
+            <li><code>npm run start:test</code> - docker compose profile test</li>
+            <li><code>npm run start:preprod</code> - docker compose profile preprod</li>
+            <li><code>npm run start:prod</code> - docker compose profile prod</li>
+          </ul>
+        </section>
+
+        <section id="deployment" class="panel">
+          <h3>Arborescence generee (isolee)</h3>
+          <pre class="tree-view">workspace/
+  src/
+    backend/springboot/
+    frontend/web/react/
+    frontend/mobile/
+  deployment/docker/
+    docker-compose.dev.yml
+    docker-compose.demo.yml
+    docker-compose.test.yml
+    docker-compose.preprod.yml
+    docker-compose.prod.yml
+  .prooweb-managed.json</pre>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/dashboard.js"></script>
+  </body>
+</html>
