@@ -5,7 +5,7 @@ const crypto = require("node:crypto");
 const ROOT_DIR = path.resolve(__dirname, "../../..");
 const PROOWEB_DIR = path.join(ROOT_DIR, ".prooweb");
 const WORKSPACE_FILE = path.join(PROOWEB_DIR, "workspace.json");
-const GENERATED_ROOT_DIRNAME = "workspace";
+const GENERATED_ROOT_DIRNAME = "root";
 
 const SUPPORTED_STACK = {
   backendTech: ["springboot"],
@@ -121,6 +121,11 @@ function normalizeManagedBy(config) {
   };
 }
 
+function resolveManagedProjectRoot(generatedRoot) {
+  const normalized = normalizeString(generatedRoot) || GENERATED_ROOT_DIRNAME;
+  return normalized === GENERATED_ROOT_DIRNAME ? ROOT_DIR : path.join(ROOT_DIR, normalized);
+}
+
 function isWorkspaceInitialized() {
   return fs.existsSync(WORKSPACE_FILE);
 }
@@ -160,8 +165,8 @@ function readGeneratedManifest(config) {
     return null;
   }
 
-  const generatedRoot = path.join(ROOT_DIR, config.managedBy.generatedRoot || GENERATED_ROOT_DIRNAME);
-  const manifestPath = path.join(generatedRoot, ".prooweb-managed.json");
+  const generatedProjectRoot = resolveManagedProjectRoot(config.managedBy.generatedRoot);
+  const manifestPath = path.join(generatedProjectRoot, ".prooweb-managed.json");
 
   if (!fs.existsSync(manifestPath)) {
     return null;
@@ -337,6 +342,7 @@ module.exports = {
   GENERATED_ROOT_DIRNAME,
   SUPPORTED_STACK,
   SWAGGER_ALLOWED_PROFILES,
+  resolveManagedProjectRoot,
   isWorkspaceInitialized,
   readWorkspaceConfig,
   readGeneratedManifest,

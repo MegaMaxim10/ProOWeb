@@ -11,6 +11,10 @@ function setFeedback(element, message, type) {
   element.className = `feedback ${type}`;
 }
 
+function describeGeneratedRoot(generatedRoot) {
+  return generatedRoot === "root" ? "racine du depot" : generatedRoot;
+}
+
 async function runMigration(feedback) {
   setFeedback(feedback, "Migration en cours...", "");
 
@@ -58,7 +62,7 @@ function renderWorkspace(status) {
   `;
 
   const managementLine = document.getElementById("management-line");
-  managementLine.textContent = `Projet manag\u00e9 dans ${management.generatedRoot} | Version projet ${management.projectEditorVersion || management.editorVersion} | Version editeur ${management.editorVersion} | Fichiers suivis ${management.managedFilesCount}`;
+  managementLine.textContent = `Projet manage dans ${describeGeneratedRoot(management.generatedRoot)} | Version projet ${management.projectEditorVersion || management.editorVersion} | Version editeur ${management.editorVersion} | Fichiers suivis ${management.managedFilesCount}`;
 
   const migrateButton = document.getElementById("migrate-button");
   const migrateFeedback = document.getElementById("migrate-feedback");

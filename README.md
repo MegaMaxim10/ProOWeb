@@ -13,13 +13,13 @@ ProOWeb est un editeur web (IDE) qui aide une equipe a construire une applicatio
 - Affiche un wizard si le workspace n'est pas initialise.
 - Recupere les informations de base du projet, du super administrateur, du depot Git,
   et des options backend Swagger UI.
-- Genere automatiquement un projet **isole** dans `workspace/`:
-  - `workspace/src/backend/springboot` (Spring Boot + `/api/meta` + `/actuator/health`),
-  - `workspace/src/frontend/web/react` (React/Vite connecte au backend),
-  - `workspace/src/frontend/mobile` (placeholder),
-  - `workspace/deployment/docker` avec profils `dev`, `demo`, `test`, `preprod`, `prod`,
-  - scripts raccourcis dans `workspace/` (build/test/start).
-- Versionne les sources generees via `workspace/.prooweb-managed.json`.
+- Genere automatiquement le projet cible **a la racine du depot courant**:
+  - `src/backend/springboot` (Spring Boot + `/api/meta` + `/actuator/health`),
+  - `src/frontend/web/react` (React/Vite connecte au backend),
+  - `src/frontend/mobile` (placeholder),
+  - `deployment/docker` avec profils `dev`, `demo`, `test`, `preprod`, `prod`,
+  - scripts raccourcis racine (build/test/start).
+- Versionne les sources generees via `.prooweb-managed.json`.
 - Expose un endpoint de migration (`POST /api/migrate`) pour re-aligner un projet sur
   la version courante de l'editeur (migration infra non destructive).
 

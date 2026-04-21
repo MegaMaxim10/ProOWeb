@@ -773,7 +773,14 @@ docker compose -f "$COMPOSE_FILE" up --build
 `;
 }
 
+function resolveProjectRoot(rootDir, generatedRoot) {
+  const normalized = String(generatedRoot || "").trim() || "root";
+  return normalized === "root" ? path.resolve(rootDir) : path.join(rootDir, normalized);
+}
+
 function buildWorkspaceReadme(config, generatedRoot) {
+  const displayedRoot = generatedRoot === "root" ? "." : generatedRoot;
+
   return `# Generated Workspace
 
 This workspace was generated and managed by ProOWeb.
@@ -781,7 +788,7 @@ This workspace was generated and managed by ProOWeb.
 ## Project
 - Title: ${config.project.title}
 - Slug: ${config.project.slug}
-- Generated root: ${generatedRoot}
+- Generated root: ${displayedRoot}
 
 ## Stack
 - Backend: ${config.stack.backendTech}
@@ -793,7 +800,7 @@ This workspace was generated and managed by ProOWeb.
 - Swagger UI: ${config.backendOptions.swaggerUi.enabled ? "enabled" : "disabled"}
 - Swagger profiles: ${config.backendOptions.swaggerUi.profiles.join(", ") || "none"}
 
-## Workspace helper scripts (inside ${generatedRoot})
+## Workspace helper scripts (inside ${displayedRoot})
 - Windows: build-all.ps1, test-all.ps1, start-profile.ps1
 - Linux: build-all.sh, test-all.sh, start-profile.sh
 
@@ -807,7 +814,6 @@ This workspace was generated and managed by ProOWeb.
 - npm run start:prod
 `;
 }
-
 function buildManagedManifest(config, generatedRoot, managedFiles, mode) {
   return `${JSON.stringify(
     {
@@ -915,8 +921,8 @@ function generateInfrastructure(projectRoot, config, generatedRoot, writeManaged
 
 function generateWorkspace(rootDir, config, options = {}) {
   const mode = options.mode === "infra" ? "infra" : "full";
-  const generatedRoot = config.managedBy?.generatedRoot || "workspace";
-  const projectRoot = path.join(rootDir, generatedRoot);
+  const generatedRoot = config.managedBy?.generatedRoot || "root";
+  const projectRoot = resolveProjectRoot(rootDir, generatedRoot);
   const managedFiles = [];
   const writeManagedFile = makeWriter(rootDir, managedFiles);
 
@@ -943,3 +949,5 @@ function generateWorkspace(rootDir, config, options = {}) {
 module.exports = {
   generateWorkspace,
 };
+
+

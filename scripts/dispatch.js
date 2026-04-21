@@ -12,31 +12,36 @@ const isWindows = process.platform === "win32";
 function resolveGeneratedRoot() {
   const configPath = path.join(rootDir, ".prooweb", "workspace.json");
   if (!existsSync(configPath)) {
-    return "workspace";
+    return "root";
   }
 
   try {
-    const config = JSON.parse(readFileSync(configPath, "utf8"));
-    return config?.managedBy?.generatedRoot || "workspace";
+    const raw = readFileSync(configPath, "utf8").replace(/^\uFEFF/, "");
+    const config = JSON.parse(raw);
+    return config?.managedBy?.generatedRoot || "root";
   } catch (_) {
-    return "workspace";
+    return "root";
   }
 }
 
-const generatedRoot = path.join(rootDir, resolveGeneratedRoot());
+function resolveProjectRoot(generatedRoot) {
+  return generatedRoot === "root" ? rootDir : path.join(rootDir, generatedRoot);
+}
+
+const projectRoot = resolveProjectRoot(resolveGeneratedRoot());
 
 function resolveCommand() {
   if (action === "build") {
     return isWindows
       ? {
           cmd: "powershell",
-          args: ["-ExecutionPolicy", "Bypass", "-File", path.join(generatedRoot, "build-all.ps1")],
-          requiredFile: path.join(generatedRoot, "build-all.ps1"),
+          args: ["-ExecutionPolicy", "Bypass", "-File", path.join(projectRoot, "build-all.ps1")],
+          requiredFile: path.join(projectRoot, "build-all.ps1"),
         }
       : {
           cmd: "bash",
-          args: [path.join(generatedRoot, "build-all.sh")],
-          requiredFile: path.join(generatedRoot, "build-all.sh"),
+          args: [path.join(projectRoot, "build-all.sh")],
+          requiredFile: path.join(projectRoot, "build-all.sh"),
         };
   }
 
@@ -44,13 +49,13 @@ function resolveCommand() {
     return isWindows
       ? {
           cmd: "powershell",
-          args: ["-ExecutionPolicy", "Bypass", "-File", path.join(generatedRoot, "test-all.ps1")],
-          requiredFile: path.join(generatedRoot, "test-all.ps1"),
+          args: ["-ExecutionPolicy", "Bypass", "-File", path.join(projectRoot, "test-all.ps1")],
+          requiredFile: path.join(projectRoot, "test-all.ps1"),
         }
       : {
           cmd: "bash",
-          args: [path.join(generatedRoot, "test-all.sh")],
-          requiredFile: path.join(generatedRoot, "test-all.sh"),
+          args: [path.join(projectRoot, "test-all.sh")],
+          requiredFile: path.join(projectRoot, "test-all.sh"),
         };
   }
 
@@ -63,16 +68,16 @@ function resolveCommand() {
             "-ExecutionPolicy",
             "Bypass",
             "-File",
-            path.join(generatedRoot, "start-profile.ps1"),
+            path.join(projectRoot, "start-profile.ps1"),
             "-Profile",
             profile,
           ],
-          requiredFile: path.join(generatedRoot, "start-profile.ps1"),
+          requiredFile: path.join(projectRoot, "start-profile.ps1"),
         }
       : {
           cmd: "bash",
-          args: [path.join(generatedRoot, "start-profile.sh"), profile],
-          requiredFile: path.join(generatedRoot, "start-profile.sh"),
+          args: [path.join(projectRoot, "start-profile.sh"), profile],
+          requiredFile: path.join(projectRoot, "start-profile.sh"),
         };
   }
 
