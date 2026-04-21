@@ -15,6 +15,7 @@ const {
 } = require("./lib/workspace");
 const { generateWorkspace } = require("./lib/generator");
 const { applyGitRepositoryPolicy } = require("./lib/git");
+const { runSmartMigration } = require("./lib/migration");
 
 const PORT = Number(process.env.PROOWEB_PORT || 1755);
 const PUBLIC_DIR = path.resolve(__dirname, "../public");
@@ -153,25 +154,34 @@ async function handleMigrateWorkspace(request, response) {
     return;
   }
 
+  let payload;
   try {
-    await readJsonBody(request);
+    payload = await readJsonBody(request);
   } catch (error) {
     sendJson(response, 400, { error: error.message });
     return;
   }
 
+  const mode = payload?.mode === "full" ? "full" : "infra";
+
   try {
     const currentConfig = readWorkspaceConfig();
     const migratedConfig = markWorkspaceMigrated(currentConfig);
-    const generationReport = generateWorkspace(ROOT_DIR, migratedConfig, { mode: "infra" });
+
+    const migrationReport = runSmartMigration({
+      rootDir: ROOT_DIR,
+      currentConfig,
+      targetConfig: migratedConfig,
+      mode,
+    });
 
     writeWorkspaceConfig(migratedConfig);
 
     sendJson(response, 200, {
-      message: "Migration appliquee avec succes.",
+      message: "Migration intelligente appliquee avec succes.",
       workspace: toPublicWorkspaceConfig(migratedConfig),
       management: getManagementStatus(migratedConfig),
-      generation: generationReport,
+      migration: migrationReport,
     });
   } catch (error) {
     sendJson(response, 500, { error: error.message || "Erreur de migration." });

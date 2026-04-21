@@ -15,6 +15,23 @@ function describeGeneratedRoot(generatedRoot) {
   return generatedRoot === "root" ? "racine du depot" : generatedRoot;
 }
 
+function buildMigrationSummary(migration) {
+  if (!migration || !migration.summary) {
+    return "Migration terminee.";
+  }
+
+  const summary = migration.summary;
+  return [
+    `Migration ${migration.mode} terminee`,
+    `crees ${summary.created}`,
+    `maj ${summary.updated}`,
+    `inchanges ${summary.unchanged}`,
+    `conflits resolus ${summary.conflictsResolved}`,
+    `collisions resolues ${summary.collisionsResolved}`,
+    `backups ${summary.backupsCreated}`,
+  ].join(" | ");
+}
+
 async function runMigration(feedback) {
   setFeedback(feedback, "Migration en cours...", "");
 
@@ -83,11 +100,16 @@ function renderWorkspace(status) {
     migrateButton.disabled = true;
 
     try {
-      await runMigration(migrateFeedback);
-      setFeedback(migrateFeedback, "Migration terminee avec succes. Rechargement...", "success");
+      const migrationResponse = await runMigration(migrateFeedback);
+      const summaryLine = buildMigrationSummary(migrationResponse.migration);
+      const backupLine = migrationResponse?.migration?.backupRoot
+        ? ` | backups: ${migrationResponse.migration.backupRoot}`
+        : "";
+
+      setFeedback(migrateFeedback, `${summaryLine}${backupLine}`, "success");
       window.setTimeout(() => {
         window.location.reload();
-      }, 900);
+      }, 1100);
     } catch (error) {
       setFeedback(migrateFeedback, error.message || "Erreur de migration.", "error");
       migrateButton.disabled = false;

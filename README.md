@@ -20,8 +20,8 @@ ProOWeb est un editeur web (IDE) qui aide une equipe a construire une applicatio
   - `deployment/docker` avec profils `dev`, `demo`, `test`, `preprod`, `prod`,
   - scripts raccourcis racine (build/test/start).
 - Versionne les sources generees via `.prooweb-managed.json`.
-- Expose un endpoint de migration (`POST /api/migrate`) pour re-aligner un projet sur
-  la version courante de l'editeur (migration infra non destructive).
+- Expose un endpoint de migration (`POST /api/migrate`) avec strategie de conflits,
+  backup automatique et rapport detaille.
 
 ## Regle Git du wizard
 
@@ -40,6 +40,21 @@ Quand active, ProOWeb:
 - ajoute la dependance `springdoc-openapi-starter-webmvc-ui`,
 - garde Swagger desactive par defaut,
 - active Swagger sur les profils selectionnes via `application-<profile>.yml`.
+
+## Migration intelligente
+
+`POST /api/migrate` applique une migration managée avec les regles suivantes:
+
+- Compare les fichiers generes cibles avec le dernier manifest manage.
+- Detecte les modifications manuelles sur fichiers manages (conflits).
+- Cree automatiquement un backup avant ecrasement:
+  - `.prooweb/backups/<migration-id>/<fichier>`
+- Gere aussi les collisions de chemin (fichier existant non-manage sur un chemin desormais managé),
+  avec backup puis ecrasement.
+- Retourne un rapport detaille:
+  - compteurs (`created`, `updated`, `unchanged`, `conflictsResolved`, `collisionsResolved`, `backupsCreated`),
+  - listes detaillees par fichier,
+  - chemin de backup racine.
 
 ## Utilisation
 
@@ -68,5 +83,6 @@ npm run start:prod
 - `ProOWeb/src/server.js`: serveur editor + API wizard/dashboard/migration.
 - `ProOWeb/src/lib/workspace.js`: validation + persistance + versionnage management.
 - `ProOWeb/src/lib/generator.js`: generation backend/frontend/docker/scripts + manifest managé.
+- `ProOWeb/src/lib/migration.js`: moteur de migration intelligente (conflits/backups/rapport).
 - `ProOWeb/src/lib/git.js`: politique Git appliquee par le wizard.
 - `ProOWeb/public/*`: interface wizard et dashboard.
