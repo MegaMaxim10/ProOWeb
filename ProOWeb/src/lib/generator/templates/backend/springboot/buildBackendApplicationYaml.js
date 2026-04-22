@@ -10,6 +10,21 @@ function buildBackendApplicationYaml(config) {
 spring:
   application:
     name: ${config.project.slug}-backend
+  datasource:
+    url: \${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/prooweb}
+    username: \${SPRING_DATASOURCE_USERNAME:prooweb}
+    password: \${SPRING_DATASOURCE_PASSWORD:prooweb}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+  mail:
+    host: \${SPRING_MAIL_HOST:localhost}
+    port: \${SPRING_MAIL_PORT:1025}
+    username: \${SPRING_MAIL_USERNAME:}
+    password: \${SPRING_MAIL_PASSWORD:}
 
 management:
   endpoints:
@@ -32,6 +47,9 @@ app:
     swagger-ui:
       enabled: ${swaggerEnabled}
       profiles: "${escapeYamlDoubleQuotes(swaggerProfiles)}"
+  notifications:
+    email:
+      from: "no-reply@prooweb.local"
 `;
 }
 

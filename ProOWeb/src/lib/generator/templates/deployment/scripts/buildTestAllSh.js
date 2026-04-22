@@ -17,7 +17,7 @@ if ! command -v npm >/dev/null 2>&1; then
 fi
 
 cd "$ROOT_DIR/src/backend/springboot"
-mvn test
+mvn clean verify
 
 cd "$ROOT_DIR/src/frontend/web/react"
 npm run test --if-present

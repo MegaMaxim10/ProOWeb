@@ -14,7 +14,12 @@ ProOWeb est un editeur web (IDE) qui aide une equipe a construire une applicatio
 - Recupere les informations de base du projet, du super administrateur, du depot Git,
   et des options backend Swagger UI.
 - Genere automatiquement le projet cible **a la racine du depot courant**:
-  - `src/backend/springboot` (Spring Boot + `/api/meta` + `/api/system-health`),
+  - `src/backend/springboot` (Spring Boot multi-modules strict type Njangui):
+    `gateway`, `kernel` (`*-domain`, `*-application`, `*-infrastructure`),
+    `common` (`*-domain`, `*-application`, `*-infrastructure`),
+    `system` (`*-domain`, `*-application`, `*-infrastructure`),
+    `prooweb-application` (composition executable),
+    `tests` (`test-support`, `vanilla-unit-tests/*-ut`, `*-it`),
   - `src/frontend/web/react` (React/Vite connecte au backend),
   - `src/frontend/mobile` (placeholder),
   - `deployment/docker` avec profils `dev`, `demo`, `test`, `preprod`, `prod`,

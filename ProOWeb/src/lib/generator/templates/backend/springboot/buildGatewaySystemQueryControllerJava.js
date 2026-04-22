@@ -1,9 +1,10 @@
-function buildHexSystemMetadataControllerJava() {
-  return `package com.prooweb.generated.system.infrastructure.adapter.in.api;
+function buildGatewaySystemQueryControllerJava() {
+  return `package com.prooweb.generated.gateway.api;
 
 import com.prooweb.generated.system.application.port.in.ReadSystemHealthUseCase;
 import com.prooweb.generated.system.application.port.in.ReadSystemMetadataUseCase;
 import com.prooweb.generated.system.domain.model.SystemMetadata;
+import io.swagger.v3.oas.annotations.Operation;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,11 +12,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api")
-public class SystemMetadataController {
+public class SystemQueryController {
   private final ReadSystemMetadataUseCase readSystemMetadataUseCase;
   private final ReadSystemHealthUseCase readSystemHealthUseCase;
 
-  public SystemMetadataController(
+  public SystemQueryController(
     ReadSystemMetadataUseCase readSystemMetadataUseCase,
     ReadSystemHealthUseCase readSystemHealthUseCase
   ) {
@@ -23,10 +24,10 @@ public class SystemMetadataController {
     this.readSystemHealthUseCase = readSystemHealthUseCase;
   }
 
+  @Operation(summary = "Read generated system metadata")
   @GetMapping("/meta")
   public Map<String, Object> readMeta() {
     SystemMetadata metadata = readSystemMetadataUseCase.read();
-
     return Map.of(
       "siteTitle", metadata.siteTitle(),
       "backend", metadata.backend(),
@@ -36,6 +37,7 @@ public class SystemMetadataController {
     );
   }
 
+  @Operation(summary = "Read generated system health")
   @GetMapping("/system-health")
   public Map<String, String> readSystemHealth() {
     return Map.of("status", readSystemHealthUseCase.read().status());
@@ -45,5 +47,5 @@ public class SystemMetadataController {
 }
 
 module.exports = {
-  buildHexSystemMetadataControllerJava,
+  buildGatewaySystemQueryControllerJava,
 };

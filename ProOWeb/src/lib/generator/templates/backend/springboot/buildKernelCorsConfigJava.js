@@ -1,12 +1,12 @@
-function buildHexBackendCorsConfigJava() {
-  return `package com.prooweb.generated.system.infrastructure.config;
+function buildKernelCorsConfigJava() {
+  return `package com.prooweb.generated.kernel.infrastructure.web;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
-public class BackendCorsConfig implements WebMvcConfigurer {
+public class KernelCorsConfig implements WebMvcConfigurer {
   @Override
   public void addCorsMappings(CorsRegistry registry) {
     registry
@@ -20,5 +20,5 @@ public class BackendCorsConfig implements WebMvcConfigurer {
 }
 
 module.exports = {
-  buildHexBackendCorsConfigJava,
+  buildKernelCorsConfigJava,
 };

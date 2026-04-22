@@ -14,7 +14,7 @@ try {
   Assert-CommandExists "npm"
 
   Push-Location "src/backend/springboot"
-  mvn test
+  mvn clean verify
   Pop-Location
 
   Push-Location "src/frontend/web/react"

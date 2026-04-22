@@ -17,7 +17,13 @@ This workspace was generated and managed by ProOWeb.
 - Database: ${config.stack.databaseTech}
 
 ## Generated architecture
-- Backend: modular hexagonal architecture (system/domain, system/application, system/infrastructure).
+- Backend: strict modular architecture inspired by Njangui:
+  - gateway (request orchestration),
+  - kernel (kernel-domain, kernel-application, kernel-infrastructure),
+  - common (common-domain, common-application, common-infrastructure),
+  - system (system-domain, system-application, system-infrastructure),
+  - composition module (${config.project.slug}-application),
+  - tests (test-support, vanilla-unit-tests/*-ut, *-it).
 - Frontend: feature module system split into domain, application, infrastructure, ui.
 
 ## Backend options

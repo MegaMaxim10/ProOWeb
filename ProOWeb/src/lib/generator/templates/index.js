@@ -1,8 +1,28 @@
-const { buildBackendPomXml } = require("./backend/springboot/buildBackendPomXml");
+const { buildBackendRootPomXml } = require("./backend/springboot/buildBackendRootPomXml");
+const { buildBackendKernelPomXml } = require("./backend/springboot/buildBackendKernelPomXml");
+const { buildBackendKernelDomainPomXml } = require("./backend/springboot/buildBackendKernelDomainPomXml");
+const { buildBackendKernelApplicationPomXml } = require("./backend/springboot/buildBackendKernelApplicationPomXml");
+const { buildBackendKernelInfrastructurePomXml } = require("./backend/springboot/buildBackendKernelInfrastructurePomXml");
+const { buildBackendCommonPomXml } = require("./backend/springboot/buildBackendCommonPomXml");
+const { buildBackendCommonDomainPomXml } = require("./backend/springboot/buildBackendCommonDomainPomXml");
+const { buildBackendCommonApplicationPomXml } = require("./backend/springboot/buildBackendCommonApplicationPomXml");
+const { buildBackendCommonInfrastructurePomXml } = require("./backend/springboot/buildBackendCommonInfrastructurePomXml");
+const { buildBackendGatewayPomXml } = require("./backend/springboot/buildBackendGatewayPomXml");
+const { buildBackendSystemPomXml } = require("./backend/springboot/buildBackendSystemPomXml");
+const { buildBackendSystemDomainPomXml } = require("./backend/springboot/buildBackendSystemDomainPomXml");
+const { buildBackendSystemApplicationPomXml } = require("./backend/springboot/buildBackendSystemApplicationPomXml");
+const { buildBackendSystemInfrastructurePomXml } = require("./backend/springboot/buildBackendSystemInfrastructurePomXml");
+const { buildBackendApplicationModulePomXml } = require("./backend/springboot/buildBackendApplicationModulePomXml");
+const { buildBackendTestsPomXml } = require("./backend/springboot/buildBackendTestsPomXml");
+const { buildBackendCoveragePomXml } = require("./backend/springboot/buildBackendCoveragePomXml");
+const { buildBackendTestSupportPomXml } = require("./backend/springboot/buildBackendTestSupportPomXml");
+const { buildBackendVanillaUnitTestsPomXml } = require("./backend/springboot/buildBackendVanillaUnitTestsPomXml");
+const { buildBackendSystemApplicationUtPomXml } = require("./backend/springboot/buildBackendSystemApplicationUtPomXml");
+const { buildBackendSystemInfrastructureItPomXml } = require("./backend/springboot/buildBackendSystemInfrastructureItPomXml");
 const { buildBackendApplicationJava } = require("./backend/springboot/buildBackendApplicationJava");
-const { buildBackendTestJava } = require("./backend/springboot/buildBackendTestJava");
 const { buildBackendApplicationYaml } = require("./backend/springboot/buildBackendApplicationYaml");
 const { buildBackendSwaggerProfileYaml } = require("./backend/springboot/buildBackendSwaggerProfileYaml");
+const { buildBackendDockerfile } = require("./backend/springboot/buildBackendDockerfile");
 const { buildHexSystemDomainMarkerJava } = require("./backend/springboot/buildHexSystemDomainMarkerJava");
 const { buildHexSystemMetadataModelJava } = require("./backend/springboot/buildHexSystemMetadataModelJava");
 const { buildHexSystemHealthModelJava } = require("./backend/springboot/buildHexSystemHealthModelJava");
@@ -14,11 +34,23 @@ const { buildHexReadSystemHealthUseCaseJava } = require("./backend/springboot/bu
 const { buildHexReadSystemMetadataServiceJava } = require("./backend/springboot/buildHexReadSystemMetadataServiceJava");
 const { buildHexReadSystemHealthServiceJava } = require("./backend/springboot/buildHexReadSystemHealthServiceJava");
 const { buildHexSystemInfrastructureMarkerJava } = require("./backend/springboot/buildHexSystemInfrastructureMarkerJava");
-const { buildHexBackendCorsConfigJava } = require("./backend/springboot/buildHexBackendCorsConfigJava");
 const { buildHexSystemModuleConfigJava } = require("./backend/springboot/buildHexSystemModuleConfigJava");
 const { buildHexAppPropertiesSystemMetadataAdapterJava } = require("./backend/springboot/buildHexAppPropertiesSystemMetadataAdapterJava");
 const { buildHexStaticSystemHealthAdapterJava } = require("./backend/springboot/buildHexStaticSystemHealthAdapterJava");
-const { buildHexSystemMetadataControllerJava } = require("./backend/springboot/buildHexSystemMetadataControllerJava");
+const { buildGatewaySystemQueryControllerJava } = require("./backend/springboot/buildGatewaySystemQueryControllerJava");
+const { buildKernelDomainMarkerJava } = require("./backend/springboot/buildKernelDomainMarkerJava");
+const { buildKernelApplicationMarkerJava } = require("./backend/springboot/buildKernelApplicationMarkerJava");
+const { buildKernelInfrastructureMarkerJava } = require("./backend/springboot/buildKernelInfrastructureMarkerJava");
+const { buildKernelCorsConfigJava } = require("./backend/springboot/buildKernelCorsConfigJava");
+const { buildCommonEmailNotificationJava } = require("./backend/springboot/buildCommonEmailNotificationJava");
+const { buildCommonSendEmailNotificationPortJava } = require("./backend/springboot/buildCommonSendEmailNotificationPortJava");
+const { buildCommonNotifyByEmailUseCaseJava } = require("./backend/springboot/buildCommonNotifyByEmailUseCaseJava");
+const { buildCommonNotifyByEmailServiceJava } = require("./backend/springboot/buildCommonNotifyByEmailServiceJava");
+const { buildCommonModuleConfigJava } = require("./backend/springboot/buildCommonModuleConfigJava");
+const { buildCommonMailSenderEmailNotificationAdapterJava } = require("./backend/springboot/buildCommonMailSenderEmailNotificationAdapterJava");
+const { buildTestSupportMarkerJava } = require("./backend/springboot/buildTestSupportMarkerJava");
+const { buildSystemApplicationUtJava } = require("./backend/springboot/buildSystemApplicationUtJava");
+const { buildSystemInfrastructureItJava } = require("./backend/springboot/buildSystemInfrastructureItJava");
 const { buildFrontendPackageJson } = require("./frontend/react/buildFrontendPackageJson");
 const { buildFrontendIndexHtml } = require("./frontend/react/buildFrontendIndexHtml");
 const { buildFrontendMainJsx } = require("./frontend/react/buildFrontendMainJsx");
@@ -31,7 +63,6 @@ const { buildFrontendShellAppJsx } = require("./frontend/react/buildFrontendShel
 const { buildFrontendCss } = require("./frontend/react/buildFrontendCss");
 const { buildFrontendViteConfig } = require("./frontend/react/buildFrontendViteConfig");
 const { buildComposeFile } = require("./deployment/docker/buildComposeFile");
-const { buildBackendDockerfile } = require("./backend/springboot/buildBackendDockerfile");
 const { buildFrontendDockerfile } = require("./frontend/react/buildFrontendDockerfile");
 const { buildNginxConf } = require("./deployment/docker/buildNginxConf");
 const { buildBuildAllPs1 } = require("./deployment/scripts/buildBuildAllPs1");
@@ -45,11 +76,31 @@ const { buildWorkspaceReadme } = require("./workspace/buildWorkspaceReadme");
 const { buildManagedManifest } = require("./workspace/buildManagedManifest");
 
 module.exports = {
-  buildBackendPomXml,
+  buildBackendRootPomXml,
+  buildBackendKernelPomXml,
+  buildBackendKernelDomainPomXml,
+  buildBackendKernelApplicationPomXml,
+  buildBackendKernelInfrastructurePomXml,
+  buildBackendCommonPomXml,
+  buildBackendCommonDomainPomXml,
+  buildBackendCommonApplicationPomXml,
+  buildBackendCommonInfrastructurePomXml,
+  buildBackendGatewayPomXml,
+  buildBackendSystemPomXml,
+  buildBackendSystemDomainPomXml,
+  buildBackendSystemApplicationPomXml,
+  buildBackendSystemInfrastructurePomXml,
+  buildBackendApplicationModulePomXml,
+  buildBackendTestsPomXml,
+  buildBackendCoveragePomXml,
+  buildBackendTestSupportPomXml,
+  buildBackendVanillaUnitTestsPomXml,
+  buildBackendSystemApplicationUtPomXml,
+  buildBackendSystemInfrastructureItPomXml,
   buildBackendApplicationJava,
-  buildBackendTestJava,
   buildBackendApplicationYaml,
   buildBackendSwaggerProfileYaml,
+  buildBackendDockerfile,
   buildHexSystemDomainMarkerJava,
   buildHexSystemMetadataModelJava,
   buildHexSystemHealthModelJava,
@@ -61,11 +112,23 @@ module.exports = {
   buildHexReadSystemMetadataServiceJava,
   buildHexReadSystemHealthServiceJava,
   buildHexSystemInfrastructureMarkerJava,
-  buildHexBackendCorsConfigJava,
   buildHexSystemModuleConfigJava,
   buildHexAppPropertiesSystemMetadataAdapterJava,
   buildHexStaticSystemHealthAdapterJava,
-  buildHexSystemMetadataControllerJava,
+  buildGatewaySystemQueryControllerJava,
+  buildKernelDomainMarkerJava,
+  buildKernelApplicationMarkerJava,
+  buildKernelInfrastructureMarkerJava,
+  buildKernelCorsConfigJava,
+  buildCommonEmailNotificationJava,
+  buildCommonSendEmailNotificationPortJava,
+  buildCommonNotifyByEmailUseCaseJava,
+  buildCommonNotifyByEmailServiceJava,
+  buildCommonModuleConfigJava,
+  buildCommonMailSenderEmailNotificationAdapterJava,
+  buildTestSupportMarkerJava,
+  buildSystemApplicationUtJava,
+  buildSystemInfrastructureItJava,
   buildFrontendPackageJson,
   buildFrontendIndexHtml,
   buildFrontendMainJsx,
@@ -78,7 +141,6 @@ module.exports = {
   buildFrontendCss,
   buildFrontendViteConfig,
   buildComposeFile,
-  buildBackendDockerfile,
   buildFrontendDockerfile,
   buildNginxConf,
   buildBuildAllPs1,
