@@ -116,9 +116,11 @@ const {
   buildNginxConf,
   buildBuildAllPs1,
   buildTestAllPs1,
+  buildVerifyAllPs1,
   buildStartProfilePs1,
   buildBuildAllSh,
   buildTestAllSh,
+  buildVerifyAllSh,
   buildStartProfileSh,
   resolveProjectRoot,
   buildWorkspaceReadme,
@@ -449,22 +451,27 @@ function generateInfrastructure(projectRoot, config, generatedRoot, writeManaged
 
     const buildPs1 = path.join(projectRoot, "build-all.ps1");
     const testPs1 = path.join(projectRoot, "test-all.ps1");
+    const verifyPs1 = path.join(projectRoot, "verify-all.ps1");
     const startPs1 = path.join(projectRoot, "start-profile.ps1");
 
     const buildSh = path.join(projectRoot, "build-all.sh");
     const testSh = path.join(projectRoot, "test-all.sh");
+    const verifySh = path.join(projectRoot, "verify-all.sh");
     const startSh = path.join(projectRoot, "start-profile.sh");
 
     writeManagedFile(buildPs1, buildBuildAllPs1(), metadata);
     writeManagedFile(testPs1, buildTestAllPs1(), metadata);
+    writeManagedFile(verifyPs1, buildVerifyAllPs1(), metadata);
     writeManagedFile(startPs1, buildStartProfilePs1(), metadata);
 
     writeManagedFile(buildSh, buildBuildAllSh(), metadata);
     writeManagedFile(testSh, buildTestAllSh(), metadata);
+    writeManagedFile(verifySh, buildVerifyAllSh(), metadata);
     writeManagedFile(startSh, buildStartProfileSh(), metadata);
 
     ensureExecutable(buildSh);
     ensureExecutable(testSh);
+    ensureExecutable(verifySh);
     ensureExecutable(startSh);
   }
 

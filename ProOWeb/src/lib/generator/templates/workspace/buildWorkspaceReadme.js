@@ -37,12 +37,13 @@ This workspace was generated and managed by ProOWeb.
 ${activeFeaturePacks.length > 0 ? activeFeaturePacks.map((packId) => `- ${packId}`).join("\n") : "- none"}
 
 ## Workspace helper scripts (inside ${displayedRoot})
-- Windows: build-all.ps1, test-all.ps1, start-profile.ps1
-- Linux: build-all.sh, test-all.sh, start-profile.sh
+- Windows: build-all.ps1, test-all.ps1, verify-all.ps1, start-profile.ps1
+- Linux: build-all.sh, test-all.sh, verify-all.sh, start-profile.sh
 
 ## NPM shortcuts (from repository root)
 - npm run compile
 - npm test
+- npm run verify
 - npm run start:dev
 - npm run start:demo
 - npm run start:test

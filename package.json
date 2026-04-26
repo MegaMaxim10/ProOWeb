@@ -8,6 +8,7 @@
     "prooweb": "node ProOWeb/src/server.js",
     "compile": "node scripts/dispatch.js build",
     "test": "node scripts/dispatch.js test",
+    "verify": "node scripts/dispatch.js verify",
     "start:dev": "node scripts/dispatch.js start dev",
     "start:demo": "node scripts/dispatch.js start demo",
     "start:test": "node scripts/dispatch.js start test",

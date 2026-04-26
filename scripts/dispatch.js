@@ -59,6 +59,20 @@ function resolveCommand() {
         };
   }
 
+  if (action === "verify") {
+    return isWindows
+      ? {
+          cmd: "powershell",
+          args: ["-ExecutionPolicy", "Bypass", "-File", path.join(projectRoot, "verify-all.ps1")],
+          requiredFile: path.join(projectRoot, "verify-all.ps1"),
+        }
+      : {
+          cmd: "bash",
+          args: [path.join(projectRoot, "verify-all.sh")],
+          requiredFile: path.join(projectRoot, "verify-all.sh"),
+        };
+  }
+
   if (action === "start") {
     const profile = (maybeProfile || "dev").toLowerCase();
     return isWindows
@@ -86,7 +100,7 @@ function resolveCommand() {
 
 const command = resolveCommand();
 if (!command) {
-  console.error("Action non supportee. Utiliser: build, test, start <profile>.");
+  console.error("Unsupported action. Use: build, test, verify, start <profile>.");
   process.exit(1);
 }
 

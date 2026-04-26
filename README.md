@@ -24,7 +24,7 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
   - `src/frontend/web/react` (React/Vite connected to backend),
   - `src/frontend/mobile` (placeholder),
   - `deployment/docker` with `dev`, `demo`, `test`, `preprod`, `prod` profiles,
-  - root shortcut scripts for build, tests, and profile startup.
+  - root shortcut scripts for build, tests, verification, and profile startup.
 - Tracks generated sources through `.prooweb-managed.json`.
 - Applies feature-pack driven generation with dependency validation and ownership metadata.
 - Exposes smart migration (`POST /api/migrate`) with conflict strategy,
@@ -77,6 +77,7 @@ npm run prooweb
 ```bash
 npm run compile
 npm test
+npm run verify
 npm run start:dev
 npm run start:demo
 npm run start:test

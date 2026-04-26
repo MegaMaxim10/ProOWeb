@@ -67,9 +67,11 @@ const { buildFrontendDockerfile } = require("./frontend/react/buildFrontendDocke
 const { buildNginxConf } = require("./deployment/docker/buildNginxConf");
 const { buildBuildAllPs1 } = require("./deployment/scripts/buildBuildAllPs1");
 const { buildTestAllPs1 } = require("./deployment/scripts/buildTestAllPs1");
+const { buildVerifyAllPs1 } = require("./deployment/scripts/buildVerifyAllPs1");
 const { buildStartProfilePs1 } = require("./deployment/scripts/buildStartProfilePs1");
 const { buildBuildAllSh } = require("./deployment/scripts/buildBuildAllSh");
 const { buildTestAllSh } = require("./deployment/scripts/buildTestAllSh");
+const { buildVerifyAllSh } = require("./deployment/scripts/buildVerifyAllSh");
 const { buildStartProfileSh } = require("./deployment/scripts/buildStartProfileSh");
 const { resolveProjectRoot } = require("./workspace/resolveProjectRoot");
 const { buildWorkspaceReadme } = require("./workspace/buildWorkspaceReadme");
@@ -145,9 +147,11 @@ module.exports = {
   buildNginxConf,
   buildBuildAllPs1,
   buildTestAllPs1,
+  buildVerifyAllPs1,
   buildStartProfilePs1,
   buildBuildAllSh,
   buildTestAllSh,
+  buildVerifyAllSh,
   buildStartProfileSh,
   resolveProjectRoot,
   buildWorkspaceReadme,
