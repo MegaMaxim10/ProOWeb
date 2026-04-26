@@ -1,0 +1,75 @@
+# Delivery Roadmap
+
+This roadmap defines the step by step construction plan and acceptance criteria.
+
+## Phase 1 - Product Contract and Baseline Documentation
+- Lock scope, vocabulary, architecture principles, and initial ADR set.
+- Deliver English documentation baseline and repository-level entry points.
+- Exit criteria: contract and roadmap validated.
+
+## Phase 2 - Generator Platform v2 (Feature-Pack Ready)
+- Introduce explicit feature-pack metadata and dependency rules.
+- Strengthen managed file boundaries and migration hooks.
+- Exit criteria: a feature pack can be toggled with deterministic regeneration behavior.
+
+## Phase 3 - Baseline Generated App Hardening
+- Keep backend/frontend baseline operational across profiles.
+- Ensure Docker, scripts, tests, and coverage aggregation remain stable.
+- Exit criteria: clean generation + build + verify on supported profiles.
+
+## Phase 4 - Identity and RBAC Foundation
+- Generate complete internal identity and authorization model.
+- Provide backend APIs + frontend screens for user and role administration.
+- Exit criteria: end-to-end RBAC enforcement validated.
+
+## Phase 5 - Authentication Flows
+- Implement account creation, activation, login, password reset, MFA (OTP/TOTP).
+- Add frontend journeys and integration tests for each flow.
+- Exit criteria: all auth flows pass automated tests.
+
+## Phase 6 - External IAM (Authentication Only)
+- Add configurable external IdP support (OIDC-first) for authentication.
+- Keep RBAC and permission ownership internal to platform.
+- Exit criteria: external login works while authorization remains internal.
+
+## Phase 7 - Session and Device Security
+- Add session observation, device awareness, suspicious behavior detection, and session revocation.
+- Exit criteria: high-risk scenarios trigger expected controls and audit events.
+
+## Phase 8 - Organization Hierarchy Management
+- Generate generic organization structure module (units, supervisors, assignments).
+- Support hierarchy-aware task assignment rules.
+- Exit criteria: hierarchy model is editable and usable in assignment strategies.
+
+## Phase 9 - Notifications and Database Migration Maturity
+- Expand email notification templates/channels.
+- Provide robust Liquibase baseline and migration conventions.
+- Exit criteria: notification workflows operational and Liquibase migrations reproducible.
+
+## Phase 10 - Wizard v2 and Reconfiguration Lifecycle
+- Wizard captures preferences for all baseline capability packs.
+- Reconfiguration regenerates, updates, or removes impacted code with migration reports.
+- Exit criteria: capability changes are safe and traceable.
+
+## Phase 11 - Process Modeling and Version Management
+- Add BPMN modeling, model repository, and version lifecycle.
+- Exit criteria: process definitions are versioned, diffable, and deployable.
+
+## Phase 12 - Process Runtime Engine
+- Execute modeled processes with manual and automatic activities.
+- Enforce assignment strategies and runtime transitions.
+- Exit criteria: representative process runs end-to-end in generated app.
+
+## Phase 13 - Process Data and Mapping Engine
+- Implement input/output mapping, shared data integration, and persistence strategies.
+- Exit criteria: data lineage across activities and shared data is testable.
+
+## Phase 14 - Simulation, Testing, and Deployment of Process Versions
+- Add simulation mode, scenario testing, deployment, rollback, and retirement workflows.
+- Exit criteria: developers can model, test, deploy, and evolve process versions with generated source code.
+
+## Program-Wide Cross-Cutting Tracks
+- Documentation in English only.
+- Security and auditability by default.
+- Test automation and coverage aggregation at each milestone.
+- Backward-compatible migration path for managed projects.
