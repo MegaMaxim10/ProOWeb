@@ -25,6 +25,7 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 ## Phase 5 - Authentication Flows
 - Implement account creation, activation, login, password reset, MFA (OTP/TOTP).
 - Add frontend journeys and integration tests for each flow.
+- Implementation baseline: `auth-flows` feature pack (depends on `identity-rbac`).
 - Exit criteria: all auth flows pass automated tests.
 
 ## Phase 6 - External IAM (Authentication Only)

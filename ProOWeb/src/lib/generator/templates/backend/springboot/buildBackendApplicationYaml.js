@@ -3,6 +3,13 @@ const { escapeYamlDoubleQuotes } = require("../../_shared/escape");
 function buildBackendApplicationYaml(config, options = {}) {
   const swaggerEnabled = config.backendOptions.swaggerUi.enabled;
   const swaggerProfiles = config.backendOptions.swaggerUi.profiles.join(",");
+  const authSection = options.authEnabled
+    ? `
+  auth:
+    login:
+      mfa-enabled: true
+      totp-window-seconds: 30`
+    : "";
   const identitySection = options.identityEnabled
     ? `
   identity:
@@ -68,6 +75,7 @@ app:
     swagger-ui:
       enabled: ${swaggerEnabled}
       profiles: "${escapeYamlDoubleQuotes(swaggerProfiles)}"
+${authSection}
 ${identitySection}
   notifications:
     email:

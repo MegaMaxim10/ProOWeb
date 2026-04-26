@@ -24,6 +24,14 @@ const FEATURE_PACK_DEFINITIONS = Object.freeze([
     description: "Generate identity and RBAC foundation (backend + frontend admin panel).",
   },
   {
+    id: "auth-flows",
+    category: "application",
+    defaultEnabled: true,
+    supportedModes: ["full"],
+    dependencies: ["identity-rbac", "frontend-web-react"],
+    description: "Generate account lifecycle auth flows (register, activate, login, reset, OTP/TOTP MFA).",
+  },
+  {
     id: "mobile-placeholder",
     category: "application",
     defaultEnabled: true,

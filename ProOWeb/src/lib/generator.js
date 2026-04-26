@@ -101,11 +101,13 @@ const {
   buildHexStaticSystemHealthAdapterJava,
   buildGatewaySystemQueryControllerJava,
   buildGatewayIdentityAdminControllerJava,
+  buildGatewayAuthenticationFlowControllerJava,
   buildGatewaySecurityConfigJava,
   buildGatewayPbkdf2WorkspacePasswordEncoderJava,
   buildTestSupportMarkerJava,
   buildSystemApplicationUtJava,
   buildSystemInfrastructureItJava,
+  buildAuthenticationFlowsItJava,
   buildIdentityDomainMarkerJava,
   buildIdentityApplicationMarkerJava,
   buildIdentityInfrastructureMarkerJava,
@@ -113,6 +115,7 @@ const {
   buildIdentityRoleModelJava,
   buildIdentityUserAccountModelJava,
   buildIdentityUserCredentialsModelJava,
+  buildIdentityAuthenticationFlowResultJava,
   buildIdentityCreateUserCommandJava,
   buildIdentityCreateRoleCommandJava,
   buildIdentityLoadUsersPortJava,
@@ -121,18 +124,21 @@ const {
   buildIdentityLoadRolesPortJava,
   buildIdentityCreateRolePortJava,
   buildIdentityLoadUserCredentialsPortJava,
+  buildIdentityRunAuthenticationFlowPortJava,
   buildIdentityReadUsersUseCaseJava,
   buildIdentityCreateUserUseCaseJava,
   buildIdentityAssignRoleToUserUseCaseJava,
   buildIdentityReadRolesUseCaseJava,
   buildIdentityCreateRoleUseCaseJava,
   buildIdentityReadUserCredentialsUseCaseJava,
+  buildIdentityRunAuthenticationFlowUseCaseJava,
   buildIdentityReadUsersServiceJava,
   buildIdentityCreateUserServiceJava,
   buildIdentityAssignRoleToUserServiceJava,
   buildIdentityReadRolesServiceJava,
   buildIdentityCreateRoleServiceJava,
   buildIdentityReadUserCredentialsServiceJava,
+  buildIdentityAuthenticationFlowServiceJava,
   buildIdentityModuleConfigJava,
   buildIdentityBootstrapPropertiesJava,
   buildIdentityBootstrapSeederJava,
@@ -141,6 +147,7 @@ const {
   buildIdentityRoleJpaRepositoryJava,
   buildIdentityUserJpaRepositoryJava,
   buildIdentityJpaIdentityRepositoryAdapterJava,
+  buildIdentityJpaAuthenticationFlowAdapterJava,
   buildFrontendPackageJson,
   buildFrontendIndexHtml,
   buildFrontendMainJsx,
@@ -165,6 +172,9 @@ const {
   buildFrontendHttpIdentityAdminAdapterJs,
   buildFrontendUseIdentityAdminHookJs,
   buildFrontendIdentityAdminPanelJsx,
+  buildFrontendHttpAuthFlowsAdapterJs,
+  buildFrontendUseAuthFlowsHookJs,
+  buildFrontendAuthenticationWorkbenchJsx,
   buildFrontendCss,
   buildFrontendViteConfig,
   buildComposeFile,
@@ -202,6 +212,7 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
   const projectTitle = config.project.title;
   const swaggerEnabled = config.backendOptions.swaggerUi.enabled;
   const identityEnabled = generationPlan.isEnabled("identity-rbac");
+  const authEnabled = generationPlan.isEnabled("auth-flows");
 
   writeFiles(
     backendRoot,
@@ -376,6 +387,14 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
               relativePath: "gateway/src/main/java/com/prooweb/generated/gateway/api/IdentityAdminController.java",
               content: buildGatewayIdentityAdminControllerJava(),
             },
+            ...(authEnabled
+              ? [
+                  {
+                    relativePath: "gateway/src/main/java/com/prooweb/generated/gateway/api/AuthenticationFlowController.java",
+                    content: buildGatewayAuthenticationFlowControllerJava(),
+                  },
+                ]
+              : []),
             {
               relativePath: "gateway/src/main/java/com/prooweb/generated/gateway/security/GatewaySecurityConfig.java",
               content: buildGatewaySecurityConfigJava(),
@@ -413,6 +432,20 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       category: "backend",
     },
   );
+
+  if (authEnabled) {
+    writeManagedFile(
+      path.join(
+        backendRoot,
+        "tests/system-infrastructure-it/src/test/java/com/prooweb/generated/tests/system/AuthenticationFlowsIT.java",
+      ),
+      buildAuthenticationFlowsItJava(),
+      {
+        owners: ["auth-flows"],
+        category: "backend-tests",
+      },
+    );
+  }
 
   if (identityEnabled) {
     writeFiles(
@@ -562,7 +595,7 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
         {
           relativePath:
             "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/config/IdentityModuleConfig.java",
-          content: buildIdentityModuleConfigJava(),
+          content: buildIdentityModuleConfigJava({ authEnabled }),
         },
         {
           relativePath:
@@ -606,11 +639,49 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
         category: "backend",
       },
     );
+
+    if (authEnabled) {
+      writeFiles(
+        backendRoot,
+        [
+          {
+            relativePath:
+              "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/model/AuthenticationFlowResult.java",
+            content: buildIdentityAuthenticationFlowResultJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/port/out/RunAuthenticationFlowPort.java",
+            content: buildIdentityRunAuthenticationFlowPortJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/port/in/RunAuthenticationFlowUseCase.java",
+            content: buildIdentityRunAuthenticationFlowUseCaseJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/service/AuthenticationFlowService.java",
+            content: buildIdentityAuthenticationFlowServiceJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/adapter/out/persistence/JpaAuthenticationFlowAdapter.java",
+            content: buildIdentityJpaAuthenticationFlowAdapterJava(),
+          },
+        ],
+        writeManagedFile,
+        {
+          owners: ["auth-flows"],
+          category: "backend",
+        },
+      );
+    }
   }
 
   writeManagedFile(
     path.join(backendRoot, "prooweb-application/src/main/resources/application.yml"),
-    buildBackendApplicationYaml(config, { identityEnabled }),
+    buildBackendApplicationYaml(config, { identityEnabled, authEnabled }),
     {
       owners: ["backend-platform"],
       category: "backend",
@@ -631,6 +702,7 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
 
 function generateFrontendScaffold(frontendRoot, config, writeManagedFile, generationPlan) {
   const identityEnabled = generationPlan.isEnabled("identity-rbac");
+  const authEnabled = generationPlan.isEnabled("auth-flows");
   const metadata = {
     owners: ["frontend-web-react"],
     category: "frontend",
@@ -662,7 +734,7 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
   writeManagedFile(path.join(frontendRoot, "src/modules/system/ui/useSystemSnapshot.js"), buildFrontendUseSystemSnapshotHookJs(), metadata);
   writeManagedFile(
     path.join(frontendRoot, "src/modules/system/ui/ShellApp.jsx"),
-    buildFrontendShellAppJsx({ identityEnabled }),
+    buildFrontendShellAppJsx({ identityEnabled, authEnabled }),
     metadata,
   );
 
@@ -746,6 +818,29 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
       path.join(frontendRoot, "src/modules/identity/ui/IdentityAdminPanel.jsx"),
       buildFrontendIdentityAdminPanelJsx(),
       identityMetadata,
+    );
+  }
+
+  if (authEnabled) {
+    const authMetadata = {
+      owners: ["auth-flows"],
+      category: "frontend",
+    };
+
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/auth/infrastructure/adapter/out/http/HttpAuthFlowsAdapter.js"),
+      buildFrontendHttpAuthFlowsAdapterJs(),
+      authMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/auth/ui/useAuthFlows.js"),
+      buildFrontendUseAuthFlowsHookJs(),
+      authMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/auth/ui/AuthenticationWorkbench.jsx"),
+      buildFrontendAuthenticationWorkbenchJsx(),
+      authMetadata,
     );
   }
 

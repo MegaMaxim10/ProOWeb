@@ -1,4 +1,18 @@
-function buildIdentityModuleConfigJava() {
+function buildIdentityModuleConfigJava(options = {}) {
+  const authImports = options.authEnabled
+    ? `
+import com.prooweb.generated.identity.application.port.in.RunAuthenticationFlowUseCase;
+import com.prooweb.generated.identity.application.service.AuthenticationFlowService;
+import com.prooweb.generated.identity.domain.port.out.RunAuthenticationFlowPort;`
+    : "";
+  const authBean = options.authEnabled
+    ? `
+  @Bean
+  RunAuthenticationFlowUseCase runAuthenticationFlowUseCase(RunAuthenticationFlowPort runAuthenticationFlowPort) {
+    return new AuthenticationFlowService(runAuthenticationFlowPort);
+  }`
+    : "";
+
   return `package com.prooweb.generated.identity.infrastructure.config;
 
 import com.prooweb.generated.identity.application.port.in.AssignRoleToIdentityUserUseCase;
@@ -26,6 +40,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+${authImports}
 
 @Configuration
 @EnableConfigurationProperties(IdentityBootstrapProperties.class)
@@ -60,7 +75,7 @@ public class IdentityModuleConfig {
     LoadUserCredentialsPort loadUserCredentialsPort
   ) {
     return new ReadIdentityUserCredentialsService(loadUserCredentialsPort);
-  }
+  }${authBean}
 
   @Bean
   IdentityBootstrapSeeder identityBootstrapSeeder(

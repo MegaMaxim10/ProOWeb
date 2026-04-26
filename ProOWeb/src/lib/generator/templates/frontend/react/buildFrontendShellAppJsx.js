@@ -2,10 +2,15 @@ function buildFrontendShellAppJsx(options = {}) {
   const identityImport = options.identityEnabled
     ? `import { IdentityAdminPanel } from "../../identity/ui/IdentityAdminPanel";\n`
     : "";
+  const authImport = options.authEnabled
+    ? `import { AuthenticationWorkbench } from "../../auth/ui/AuthenticationWorkbench";\n`
+    : "";
   const identitySection = options.identityEnabled ? "\n      <IdentityAdminPanel />" : "";
+  const authSection = options.authEnabled ? "\n      <AuthenticationWorkbench />" : "";
 
   return `import { useSystemSnapshot } from "./useSystemSnapshot";
 ${identityImport}
+${authImport}
 export function ShellApp() {
   const { snapshot, loading, error, healthLabel } = useSystemSnapshot();
   const meta = snapshot?.meta;
@@ -35,7 +40,7 @@ export function ShellApp() {
             Healthcheck: <span className={healthLabel === "UP" ? "ok" : "warn"}>{healthLabel}</span>
           </p>
         ) : null}
-      </section>${identitySection}
+      </section>${identitySection}${authSection}
     </main>
   );
 }

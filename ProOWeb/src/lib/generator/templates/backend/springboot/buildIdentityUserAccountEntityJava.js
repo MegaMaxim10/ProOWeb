@@ -33,6 +33,21 @@ public class UserAccountEntity {
   @Column(name = "password_digest", nullable = false, length = 255)
   private String passwordDigest;
 
+  @Column(name = "activation_token", unique = true, length = 64)
+  private String activationToken;
+
+  @Column(name = "password_reset_token", unique = true, length = 64)
+  private String passwordResetToken;
+
+  @Column(name = "mfa_mode", nullable = false, length = 16)
+  private String mfaMode = "NONE";
+
+  @Column(name = "mfa_totp_secret", length = 128)
+  private String mfaTotpSecret;
+
+  @Column(name = "mfa_otp_code", length = 16)
+  private String mfaOtpCode;
+
   @Column(name = "active", nullable = false)
   private boolean active = true;
 
@@ -82,6 +97,46 @@ public class UserAccountEntity {
 
   public void setPasswordDigest(String passwordDigest) {
     this.passwordDigest = passwordDigest;
+  }
+
+  public String getActivationToken() {
+    return activationToken;
+  }
+
+  public void setActivationToken(String activationToken) {
+    this.activationToken = activationToken;
+  }
+
+  public String getPasswordResetToken() {
+    return passwordResetToken;
+  }
+
+  public void setPasswordResetToken(String passwordResetToken) {
+    this.passwordResetToken = passwordResetToken;
+  }
+
+  public String getMfaMode() {
+    return mfaMode;
+  }
+
+  public void setMfaMode(String mfaMode) {
+    this.mfaMode = mfaMode;
+  }
+
+  public String getMfaTotpSecret() {
+    return mfaTotpSecret;
+  }
+
+  public void setMfaTotpSecret(String mfaTotpSecret) {
+    this.mfaTotpSecret = mfaTotpSecret;
+  }
+
+  public String getMfaOtpCode() {
+    return mfaOtpCode;
+  }
+
+  public void setMfaOtpCode(String mfaOtpCode) {
+    this.mfaOtpCode = mfaOtpCode;
   }
 
   public boolean isActive() {

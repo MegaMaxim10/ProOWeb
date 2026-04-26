@@ -26,6 +26,8 @@ public class GatewaySecurityConfig {
     http
       .csrf(AbstractHttpConfigurer::disable)
       .authorizeHttpRequests((auth) -> auth
+        .requestMatchers("/api/auth/**")
+        .permitAll()
         .requestMatchers("/api/meta", "/api/system-health", "/actuator/health", "/error")
         .permitAll()
         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")

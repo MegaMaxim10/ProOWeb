@@ -146,6 +146,60 @@ h1 {
 .assign-row select {
   flex: 1;
 }
+
+.auth-grid {
+  margin-top: 1rem;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.auth-box {
+  border: 1px solid #d7e2ee;
+  border-radius: 12px;
+  background: #fbfdff;
+  padding: 0.85rem;
+}
+
+.auth-box h3 {
+  margin-top: 0;
+}
+
+.auth-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.auth-form input {
+  width: 100%;
+  border: 1px solid #c4d1de;
+  border-radius: 8px;
+  padding: 0.42rem 0.55rem;
+  font-size: 0.95rem;
+}
+
+.auth-form button {
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  background: #1d6f5f;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.auth-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.auth-result {
+  margin-top: 0.85rem;
+  border-radius: 10px;
+  border: 1px solid #dce7f2;
+  background: #f7fbff;
+  padding: 0.75rem;
+  overflow: auto;
+}
 `;
 }
 

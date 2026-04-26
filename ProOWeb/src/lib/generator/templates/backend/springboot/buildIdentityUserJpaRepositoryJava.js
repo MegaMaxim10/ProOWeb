@@ -9,6 +9,10 @@ public interface IdentityUserJpaRepository extends JpaRepository<UserAccountEnti
   Optional<UserAccountEntity> findByUsernameIgnoreCase(String username);
 
   Optional<UserAccountEntity> findByEmailIgnoreCase(String email);
+
+  Optional<UserAccountEntity> findByActivationToken(String activationToken);
+
+  Optional<UserAccountEntity> findByPasswordResetToken(String passwordResetToken);
 }
 `;
 }
