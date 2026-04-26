@@ -4,6 +4,7 @@ const os = require("node:os");
 const crypto = require("node:crypto");
 
 const { generateWorkspace } = require("./generator");
+const { compareFeaturePackSelection, runFeaturePackMigrationHooks } = require("./feature-packs");
 
 function normalizePath(relativePath) {
   return String(relativePath || "").replace(/\\/g, "/").replace(/^\/+/, "");
@@ -94,6 +95,8 @@ function buildBaselineMap(rootDir, currentConfig) {
 
     baselineMap.set(normalizePath(entry.path), {
       sha256: entry.sha256 || null,
+      owners: Array.isArray(entry.owners) ? entry.owners : [],
+      category: entry.category || null,
     });
   }
 
@@ -116,6 +119,8 @@ function createGenerationSnapshot(targetConfig, mode) {
       return {
         path: relPath,
         sha256: entry.sha256,
+        owners: Array.isArray(entry.owners) ? entry.owners : [],
+        category: entry.category || null,
         content,
       };
     });
@@ -134,6 +139,7 @@ function createGenerationSnapshot(targetConfig, mode) {
 function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra" }) {
   const migrationId = toMigrationId();
   const { baselineMap } = buildBaselineMap(rootDir, currentConfig);
+  const featurePackChangeSet = compareFeaturePackSelection(currentConfig, targetConfig);
 
   const snapshot = createGenerationSnapshot(targetConfig, mode);
   const generatedPaths = new Set(snapshot.generatedFiles.map((file) => file.path));
@@ -161,9 +167,29 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
       staleManagedFiles: [],
       backups: [],
     },
+    featurePacks: {
+      current: featurePackChangeSet.current,
+      target: featurePackChangeSet.target,
+      added: featurePackChangeSet.added,
+      removed: featurePackChangeSet.removed,
+      unchanged: featurePackChangeSet.unchanged,
+      hooks: {
+        before: [],
+        after: [],
+      },
+    },
   };
 
   try {
+    report.featurePacks.hooks.before = runFeaturePackMigrationHooks({
+      phase: "before",
+      changeSet: featurePackChangeSet,
+      rootDir,
+      mode,
+      currentConfig,
+      targetConfig,
+    });
+
     for (const generatedFile of snapshot.generatedFiles) {
       const relPath = generatedFile.path;
       const projectFilePath = resolveProjectFilePath(rootDir, relPath);
@@ -178,13 +204,23 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
         fs.mkdirSync(path.dirname(projectFilePath), { recursive: true });
         fs.writeFileSync(projectFilePath, generatedFile.content, "utf8");
         report.summary.created += 1;
-        report.details.created.push({ path: relPath, action: "create" });
+        report.details.created.push({
+          path: relPath,
+          action: "create",
+          owners: generatedFile.owners,
+          category: generatedFile.category,
+        });
         continue;
       }
 
       if (currentHash === newHash) {
         report.summary.unchanged += 1;
-        report.details.unchanged.push({ path: relPath, action: "unchanged" });
+        report.details.unchanged.push({
+          path: relPath,
+          action: "unchanged",
+          owners: generatedFile.owners,
+          category: generatedFile.category,
+        });
         continue;
       }
 
@@ -206,6 +242,8 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
           currentHash,
           newHash,
           backupPath,
+          owners: generatedFile.owners,
+          category: generatedFile.category,
         });
         continue;
       }
@@ -224,6 +262,8 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
           currentHash,
           newHash,
           backupPath,
+          owners: generatedFile.owners,
+          category: generatedFile.category,
         });
         continue;
       }
@@ -236,6 +276,8 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
         previousManagedHash: previousHash,
         currentHash,
         newHash,
+        owners: generatedFile.owners,
+        category: generatedFile.category,
       });
     }
 
@@ -257,8 +299,23 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
         path: oldPath,
         action: "stale_managed_file",
         manuallyChanged,
+        owners: baselineEntry.owners,
+        category: baselineEntry.category,
+        reason:
+          baselineEntry.owners && baselineEntry.owners.some((owner) => featurePackChangeSet.removed.includes(owner))
+            ? "feature_pack_removed"
+            : "not_generated_anymore",
       });
     }
+
+    report.featurePacks.hooks.after = runFeaturePackMigrationHooks({
+      phase: "after",
+      changeSet: featurePackChangeSet,
+      rootDir,
+      mode,
+      currentConfig,
+      targetConfig,
+    });
 
     return report;
   } finally {

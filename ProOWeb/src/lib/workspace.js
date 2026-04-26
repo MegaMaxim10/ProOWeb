@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { normalizeFeaturePacks } = require("./feature-packs");
 
 const ROOT_DIR = path.resolve(__dirname, "../../..");
 const PROOWEB_DIR = path.join(ROOT_DIR, ".prooweb");
@@ -156,6 +157,7 @@ function readWorkspaceConfig() {
     profiles: normalizeStringList(swaggerUi.profiles).map((value) => value.toLowerCase()),
   };
 
+  parsed.featurePacks = normalizeFeaturePacks(parsed.featurePacks);
   parsed.managedBy = normalizeManagedBy(parsed);
   return parsed;
 }
@@ -186,11 +188,14 @@ function getManagementStatus(config) {
       editorVersion: getEditorVersion(),
       migrationRequired: false,
       generatedRoot: GENERATED_ROOT_DIRNAME,
+      activeFeaturePackCount: 0,
+      activeFeaturePacks: [],
     };
   }
 
   const editorVersion = getEditorVersion();
   const managedBy = normalizeManagedBy(config);
+  const featurePacks = normalizeFeaturePacks(config.featurePacks);
   const migrationRequired = managedBy.editorVersion !== editorVersion;
   const generatedManifest = readGeneratedManifest(config);
 
@@ -206,6 +211,8 @@ function getManagementStatus(config) {
     managedFilesCount: Array.isArray(generatedManifest?.managedFiles)
       ? generatedManifest.managedFiles.length
       : 0,
+    activeFeaturePackCount: featurePacks.enabled.length,
+    activeFeaturePacks: featurePacks.enabled,
   };
 }
 
@@ -240,6 +247,8 @@ function buildWorkspaceConfig(payload) {
 
   const swaggerUiEnabled = normalizeBool(payload.swaggerUiEnabled);
   const swaggerProfiles = normalizeStringList(payload.swaggerProfiles).map((entry) => entry.toLowerCase());
+  const featurePacksEnabled = normalizeStringList(payload.featurePacksEnabled).map((entry) => entry.toLowerCase());
+  const featurePackConfigs = payload?.featurePackConfigs;
 
   assertRequired("projectTitle", projectTitle);
   assertRequired("superAdminName", superAdminName);
@@ -277,6 +286,15 @@ function buildWorkspaceConfig(payload) {
   }
 
   const uniqueSwaggerProfiles = Array.from(new Set(swaggerUiEnabled ? swaggerProfiles : []));
+  const featurePacks = normalizeFeaturePacks(
+    payload?.featurePacks ||
+      (featurePacksEnabled.length > 0
+        ? {
+            enabled: featurePacksEnabled,
+            configs: featurePackConfigs,
+          }
+        : null),
+  );
 
   const { hash, salt } = hashPassword(superAdminPassword);
 
@@ -300,6 +318,7 @@ function buildWorkspaceConfig(payload) {
         profiles: uniqueSwaggerProfiles,
       },
     },
+    featurePacks,
     managedBy: {
       editorVersion: getEditorVersion(),
       managedProjectVersion: 1,
@@ -317,12 +336,31 @@ function buildWorkspaceConfig(payload) {
   };
 }
 
+function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
+  const safePayload = payload && typeof payload === "object" ? payload : {};
+  const featurePacksEnabled = normalizeStringList(safePayload.featurePacksEnabled).map((entry) => entry.toLowerCase());
+  const rawFeaturePacks =
+    safePayload.featurePacks ||
+    (featurePacksEnabled.length > 0
+      ? {
+          enabled: featurePacksEnabled,
+          configs: safePayload.featurePackConfigs,
+        }
+      : currentConfig.featurePacks);
+
+  return {
+    ...currentConfig,
+    featurePacks: normalizeFeaturePacks(rawFeaturePacks),
+  };
+}
+
 function markWorkspaceMigrated(config) {
   const editorVersion = getEditorVersion();
   const managedBy = normalizeManagedBy(config);
 
   return {
     ...config,
+    featurePacks: normalizeFeaturePacks(config.featurePacks),
     managedBy: {
       ...managedBy,
       editorVersion,
@@ -350,6 +388,7 @@ module.exports = {
   getManagementStatus,
   toPublicWorkspaceConfig,
   buildWorkspaceConfig,
+  buildWorkspaceMigrationTargetConfig,
   writeWorkspaceConfig,
   markWorkspaceMigrated,
 };

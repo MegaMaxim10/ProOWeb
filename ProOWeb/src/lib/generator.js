@@ -29,14 +29,19 @@ function hashContent(content) {
 function makeWriter(rootDir, registry) {
   const resolvedRoot = path.resolve(rootDir);
 
-  return function writeManagedFile(targetPath, content) {
+  return function writeManagedFile(targetPath, content, metadata = {}) {
     fs.mkdirSync(path.dirname(targetPath), { recursive: true });
     fs.writeFileSync(targetPath, content, "utf8");
 
     const relativePath = toPosixPath(path.relative(resolvedRoot, targetPath));
+    const owners = Array.isArray(metadata.owners)
+      ? Array.from(new Set(metadata.owners.map((owner) => String(owner).trim()).filter(Boolean)))
+      : [];
     registry.push({
       path: relativePath,
       sha256: hashContent(content),
+      owners,
+      category: metadata.category || null,
     });
   };
 }
@@ -119,10 +124,17 @@ const {
   buildWorkspaceReadme,
   buildManagedManifest,
 } = require("./generator/templates");
+const { resolveFeaturePackSelection } = require("./feature-packs");
 
-function writeFiles(baseDir, definitions, writeManagedFile) {
+function writeFiles(baseDir, definitions, writeManagedFile, options = {}) {
+  const defaultOwners = Array.isArray(options.owners) ? options.owners : [];
+  const defaultCategory = options.category || null;
+
   for (const { relativePath, content } of definitions) {
-    writeManagedFile(path.join(baseDir, relativePath), content);
+    writeManagedFile(path.join(baseDir, relativePath), content, {
+      owners: defaultOwners,
+      category: defaultCategory,
+    });
   }
 }
 
@@ -166,6 +178,10 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile) {
       { relativePath: "tests/coverage/pom.xml", content: buildBackendCoveragePomXml(projectSlug) },
     ],
     writeManagedFile,
+    {
+      owners: ["backend-platform"],
+      category: "backend",
+    },
   );
 
   writeFiles(
@@ -312,104 +328,166 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile) {
       },
     ],
     writeManagedFile,
+    {
+      owners: ["backend-platform"],
+      category: "backend",
+    },
   );
 
   writeManagedFile(
     path.join(backendRoot, "prooweb-application/src/main/resources/application.yml"),
     buildBackendApplicationYaml(config),
+    {
+      owners: ["backend-platform"],
+      category: "backend",
+    },
   );
 
   for (const swaggerProfile of config.backendOptions.swaggerUi.profiles) {
     writeManagedFile(
       path.join(backendRoot, `prooweb-application/src/main/resources/application-${swaggerProfile}.yml`),
       buildBackendSwaggerProfileYaml(),
+      {
+        owners: ["backend-platform"],
+        category: "backend",
+      },
     );
   }
 }
 
 function generateFrontendScaffold(frontendRoot, config, writeManagedFile) {
-  writeManagedFile(path.join(frontendRoot, "package.json"), buildFrontendPackageJson(config.project.slug));
-  writeManagedFile(path.join(frontendRoot, "index.html"), buildFrontendIndexHtml());
-  writeManagedFile(path.join(frontendRoot, "src/main.jsx"), buildFrontendMainJsx());
+  const metadata = {
+    owners: ["frontend-web-react"],
+    category: "frontend",
+  };
+
+  writeManagedFile(path.join(frontendRoot, "package.json"), buildFrontendPackageJson(config.project.slug), metadata);
+  writeManagedFile(path.join(frontendRoot, "index.html"), buildFrontendIndexHtml(), metadata);
+  writeManagedFile(path.join(frontendRoot, "src/main.jsx"), buildFrontendMainJsx(), metadata);
   writeManagedFile(
     path.join(frontendRoot, "src/modules/system/domain/model/SystemSnapshot.js"),
     buildFrontendSystemSnapshotModelJs(config.project.title),
+    metadata,
   );
   writeManagedFile(
     path.join(frontendRoot, "src/modules/system/domain/port/out/LoadSystemSnapshotPort.js"),
     buildFrontendLoadSystemSnapshotPortJs(),
+    metadata,
   );
   writeManagedFile(
     path.join(frontendRoot, "src/modules/system/application/usecase/ReadSystemSnapshot.js"),
     buildFrontendReadSystemSnapshotUseCaseJs(),
+    metadata,
   );
   writeManagedFile(
     path.join(frontendRoot, "src/modules/system/infrastructure/adapter/out/http/HttpSystemSnapshotAdapter.js"),
     buildFrontendHttpSystemSnapshotAdapterJs(),
+    metadata,
   );
-  writeManagedFile(path.join(frontendRoot, "src/modules/system/ui/useSystemSnapshot.js"), buildFrontendUseSystemSnapshotHookJs());
-  writeManagedFile(path.join(frontendRoot, "src/modules/system/ui/ShellApp.jsx"), buildFrontendShellAppJsx());
-  writeManagedFile(path.join(frontendRoot, "src/shared/ui/app-shell.css"), buildFrontendCss());
-  writeManagedFile(path.join(frontendRoot, "vite.config.js"), buildFrontendViteConfig());
+  writeManagedFile(path.join(frontendRoot, "src/modules/system/ui/useSystemSnapshot.js"), buildFrontendUseSystemSnapshotHookJs(), metadata);
+  writeManagedFile(path.join(frontendRoot, "src/modules/system/ui/ShellApp.jsx"), buildFrontendShellAppJsx(), metadata);
+  writeManagedFile(path.join(frontendRoot, "src/shared/ui/app-shell.css"), buildFrontendCss(), metadata);
+  writeManagedFile(path.join(frontendRoot, "vite.config.js"), buildFrontendViteConfig(), metadata);
 }
 
 function generateMobilePlaceholder(mobileRoot, writeManagedFile) {
   writeManagedFile(
     path.join(mobileRoot, "README.md"),
     "Mobile frontend generation is not enabled yet in this ProOWeb MVP.\n",
+    {
+      owners: ["mobile-placeholder"],
+      category: "frontend-mobile",
+    },
   );
 }
 
-function generateApplicationScaffold(projectRoot, config, writeManagedFile) {
+function generateApplicationScaffold(projectRoot, config, writeManagedFile, generationPlan) {
   const backendRoot = path.join(projectRoot, "src/backend/springboot");
   const frontendRoot = path.join(projectRoot, "src/frontend/web/react");
   const mobileRoot = path.join(projectRoot, "src/frontend/mobile");
 
-  generateBackendScaffold(backendRoot, config, writeManagedFile);
-  generateFrontendScaffold(frontendRoot, config, writeManagedFile);
-  generateMobilePlaceholder(mobileRoot, writeManagedFile);
-}
-
-function generateInfrastructure(projectRoot, config, generatedRoot, writeManagedFile) {
-  const dockerRoot = path.join(projectRoot, "deployment/docker");
-
-  writeManagedFile(path.join(dockerRoot, "backend.Dockerfile"), buildBackendDockerfile(config.project.slug));
-  writeManagedFile(path.join(dockerRoot, "frontend.Dockerfile"), buildFrontendDockerfile());
-  writeManagedFile(path.join(dockerRoot, "nginx.conf"), buildNginxConf());
-
-  for (const [profile, ports] of Object.entries(PROFILE_PORTS)) {
-    writeManagedFile(
-      path.join(dockerRoot, `docker-compose.${profile}.yml`),
-      buildComposeFile(config, profile, ports),
-    );
+  if (generationPlan.isEnabled("backend-platform")) {
+    generateBackendScaffold(backendRoot, config, writeManagedFile);
   }
 
-  const buildPs1 = path.join(projectRoot, "build-all.ps1");
-  const testPs1 = path.join(projectRoot, "test-all.ps1");
-  const startPs1 = path.join(projectRoot, "start-profile.ps1");
+  if (generationPlan.isEnabled("frontend-web-react")) {
+    generateFrontendScaffold(frontendRoot, config, writeManagedFile);
+  }
 
-  const buildSh = path.join(projectRoot, "build-all.sh");
-  const testSh = path.join(projectRoot, "test-all.sh");
-  const startSh = path.join(projectRoot, "start-profile.sh");
+  if (generationPlan.isEnabled("mobile-placeholder")) {
+    generateMobilePlaceholder(mobileRoot, writeManagedFile);
+  }
+}
 
-  writeManagedFile(buildPs1, buildBuildAllPs1());
-  writeManagedFile(testPs1, buildTestAllPs1());
-  writeManagedFile(startPs1, buildStartProfilePs1());
+function generateInfrastructure(projectRoot, config, generatedRoot, writeManagedFile, generationPlan) {
+  const dockerRoot = path.join(projectRoot, "deployment/docker");
 
-  writeManagedFile(buildSh, buildBuildAllSh());
-  writeManagedFile(testSh, buildTestAllSh());
-  writeManagedFile(startSh, buildStartProfileSh());
+  if (generationPlan.isEnabled("deployment-docker")) {
+    const metadata = {
+      owners: ["deployment-docker"],
+      category: "deployment",
+    };
 
-  ensureExecutable(buildSh);
-  ensureExecutable(testSh);
-  ensureExecutable(startSh);
+    writeManagedFile(path.join(dockerRoot, "backend.Dockerfile"), buildBackendDockerfile(config.project.slug), metadata);
+    writeManagedFile(path.join(dockerRoot, "frontend.Dockerfile"), buildFrontendDockerfile(), metadata);
+    writeManagedFile(path.join(dockerRoot, "nginx.conf"), buildNginxConf(), metadata);
 
-  writeManagedFile(path.join(projectRoot, "GENERATED_WORKSPACE.md"), buildWorkspaceReadme(config, generatedRoot));
+    for (const [profile, ports] of Object.entries(PROFILE_PORTS)) {
+      writeManagedFile(
+        path.join(dockerRoot, `docker-compose.${profile}.yml`),
+        buildComposeFile(config, profile, ports),
+        metadata,
+      );
+    }
+  }
+
+  if (generationPlan.isEnabled("workspace-scripts")) {
+    const metadata = {
+      owners: ["workspace-scripts"],
+      category: "scripts",
+    };
+
+    const buildPs1 = path.join(projectRoot, "build-all.ps1");
+    const testPs1 = path.join(projectRoot, "test-all.ps1");
+    const startPs1 = path.join(projectRoot, "start-profile.ps1");
+
+    const buildSh = path.join(projectRoot, "build-all.sh");
+    const testSh = path.join(projectRoot, "test-all.sh");
+    const startSh = path.join(projectRoot, "start-profile.sh");
+
+    writeManagedFile(buildPs1, buildBuildAllPs1(), metadata);
+    writeManagedFile(testPs1, buildTestAllPs1(), metadata);
+    writeManagedFile(startPs1, buildStartProfilePs1(), metadata);
+
+    writeManagedFile(buildSh, buildBuildAllSh(), metadata);
+    writeManagedFile(testSh, buildTestAllSh(), metadata);
+    writeManagedFile(startSh, buildStartProfileSh(), metadata);
+
+    ensureExecutable(buildSh);
+    ensureExecutable(testSh);
+    ensureExecutable(startSh);
+  }
+
+  if (generationPlan.isEnabled("workspace-readme")) {
+    writeManagedFile(
+      path.join(projectRoot, "GENERATED_WORKSPACE.md"),
+      buildWorkspaceReadme(config, generatedRoot),
+      {
+        owners: ["workspace-readme"],
+        category: "docs",
+      },
+    );
+  }
 }
 
 function generateWorkspace(rootDir, config, options = {}) {
   const mode = options.mode === "infra" ? "infra" : "full";
-  const generatedRoot = config.managedBy?.generatedRoot || "root";
+  const generationPlan = resolveFeaturePackSelection(config, { mode });
+  const effectiveConfig = {
+    ...config,
+    featurePacks: generationPlan.normalizedFeaturePacks,
+  };
+  const generatedRoot = effectiveConfig.managedBy?.generatedRoot || "root";
   const projectRoot = resolveProjectRoot(rootDir, generatedRoot);
   const managedFiles = [];
   const writeManagedFile = makeWriter(rootDir, managedFiles);
@@ -417,19 +495,28 @@ function generateWorkspace(rootDir, config, options = {}) {
   fs.mkdirSync(projectRoot, { recursive: true });
 
   if (mode === "full") {
-    generateApplicationScaffold(projectRoot, config, writeManagedFile);
+    generateApplicationScaffold(projectRoot, effectiveConfig, writeManagedFile, generationPlan);
   }
 
-  generateInfrastructure(projectRoot, config, generatedRoot, writeManagedFile);
+  generateInfrastructure(projectRoot, effectiveConfig, generatedRoot, writeManagedFile, generationPlan);
 
   writeManagedFile(
     path.join(projectRoot, ".prooweb-managed.json"),
-    buildManagedManifest(config, generatedRoot, managedFiles, mode),
+    buildManagedManifest(effectiveConfig, generatedRoot, managedFiles, mode),
+    {
+      owners: ["workspace-readme"],
+      category: "management",
+    },
   );
 
   return {
     generatedRoot,
     mode,
+    featurePacks: {
+      mode: generationPlan.mode,
+      requested: generationPlan.requestedPackIds,
+      active: generationPlan.activePackIds,
+    },
     writtenFiles: managedFiles,
   };
 }

@@ -26,6 +26,7 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
   - `deployment/docker` with `dev`, `demo`, `test`, `preprod`, `prod` profiles,
   - root shortcut scripts for build, tests, and profile startup.
 - Tracks generated sources through `.prooweb-managed.json`.
+- Applies feature-pack driven generation with dependency validation and ownership metadata.
 - Exposes smart migration (`POST /api/migrate`) with conflict strategy,
   automatic backup, and detailed report.
 

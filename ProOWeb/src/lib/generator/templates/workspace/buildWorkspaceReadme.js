@@ -1,5 +1,8 @@
 function buildWorkspaceReadme(config, generatedRoot) {
   const displayedRoot = generatedRoot === "root" ? "." : generatedRoot;
+  const activeFeaturePacks = Array.isArray(config?.featurePacks?.enabled)
+    ? config.featurePacks.enabled
+    : [];
 
   return `# Generated Workspace
 
@@ -29,6 +32,9 @@ This workspace was generated and managed by ProOWeb.
 ## Backend options
 - Swagger UI: ${config.backendOptions.swaggerUi.enabled ? "enabled" : "disabled"}
 - Swagger profiles: ${config.backendOptions.swaggerUi.profiles.join(", ") || "none"}
+
+## Active feature packs
+${activeFeaturePacks.length > 0 ? activeFeaturePacks.map((packId) => `- ${packId}`).join("\n") : "- none"}
 
 ## Workspace helper scripts (inside ${displayedRoot})
 - Windows: build-all.ps1, test-all.ps1, start-profile.ps1

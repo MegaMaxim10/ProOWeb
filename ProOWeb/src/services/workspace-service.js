@@ -4,6 +4,7 @@ const {
   readWorkspaceConfig,
   toPublicWorkspaceConfig,
   buildWorkspaceConfig,
+  buildWorkspaceMigrationTargetConfig,
   writeWorkspaceConfig,
   getManagementStatus,
   markWorkspaceMigrated,
@@ -24,6 +25,7 @@ function createWorkspaceService(dependencies = {}) {
     readWorkspaceConfig,
     toPublicWorkspaceConfig,
     buildWorkspaceConfig,
+    buildWorkspaceMigrationTargetConfig,
     writeWorkspaceConfig,
     getManagementStatus,
     markWorkspaceMigrated,
@@ -71,7 +73,8 @@ function createWorkspaceService(dependencies = {}) {
 
     const mode = resolveMigrationMode(payload);
     const currentConfig = deps.readWorkspaceConfig();
-    const migratedConfig = deps.markWorkspaceMigrated(currentConfig);
+    const targetConfig = deps.buildWorkspaceMigrationTargetConfig(currentConfig, payload);
+    const migratedConfig = deps.markWorkspaceMigrated(targetConfig);
 
     const migrationReport = deps.runSmartMigration({
       rootDir: deps.rootDir,
