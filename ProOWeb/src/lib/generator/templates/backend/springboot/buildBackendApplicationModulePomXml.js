@@ -1,12 +1,20 @@
 const { escapeXml } = require("../../_shared/escape");
 
-function buildBackendApplicationModulePomXml(projectSlug, swaggerEnabled) {
+function buildBackendApplicationModulePomXml(projectSlug, swaggerEnabled, options = {}) {
   const swaggerDependency = swaggerEnabled
     ? `
     <dependency>
       <groupId>org.springdoc</groupId>
       <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
       <version>\${springdoc.version}</version>
+    </dependency>`
+    : "";
+  const identityInfrastructureDependency = options.identityEnabled
+    ? `
+    <dependency>
+      <groupId>com.prooweb.generated</groupId>
+      <artifactId>identity-infrastructure</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
     </dependency>`
     : "";
 
@@ -45,7 +53,7 @@ function buildBackendApplicationModulePomXml(projectSlug, swaggerEnabled) {
       <groupId>com.prooweb.generated</groupId>
       <artifactId>system-infrastructure</artifactId>
       <version>0.0.1-SNAPSHOT</version>
-    </dependency>
+    </dependency>${identityInfrastructureDependency}
 
     <dependency>
       <groupId>org.springframework.boot</groupId>

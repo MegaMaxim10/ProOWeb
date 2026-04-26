@@ -16,6 +16,14 @@ const FEATURE_PACK_DEFINITIONS = Object.freeze([
     description: "Generate React web frontend baseline.",
   },
   {
+    id: "identity-rbac",
+    category: "application",
+    defaultEnabled: true,
+    supportedModes: ["full"],
+    dependencies: ["backend-platform", "frontend-web-react"],
+    description: "Generate identity and RBAC foundation (backend + frontend admin panel).",
+  },
+  {
     id: "mobile-placeholder",
     category: "application",
     defaultEnabled: true,

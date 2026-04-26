@@ -45,6 +45,10 @@ h1 {
   font-size: clamp(1.8rem, 4vw, 2.6rem);
 }
 
+.muted {
+  color: #4b647c;
+}
+
 .ok {
   color: #0a7c2a;
   font-weight: 700;
@@ -58,6 +62,89 @@ h1 {
 .error {
   color: #b42318;
   font-weight: 600;
+}
+
+.identity-grid {
+  margin-top: 1.25rem;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.identity-box {
+  border: 1px solid #d7e2ee;
+  border-radius: 12px;
+  background: #fbfdff;
+  padding: 0.85rem;
+}
+
+.identity-box h3 {
+  margin-top: 0;
+}
+
+.identity-box label {
+  display: block;
+  margin-bottom: 0.6rem;
+  font-size: 0.92rem;
+}
+
+.identity-box input,
+.identity-box select {
+  width: 100%;
+  border: 1px solid #c4d1de;
+  border-radius: 8px;
+  padding: 0.42rem 0.55rem;
+  font-size: 0.95rem;
+}
+
+.identity-box button {
+  margin-top: 0.5rem;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  background: #165d95;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.identity-box button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.identity-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.identity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.identity-list li {
+  border: 1px solid #dce7f2;
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.identity-list small {
+  color: #556f87;
+}
+
+.assign-row {
+  margin-top: 0.45rem;
+  display: flex;
+  gap: 0.45rem;
+}
+
+.assign-row select {
+  flex: 1;
 }
 `;
 }

@@ -61,6 +61,10 @@ const {
   buildBackendSystemDomainPomXml,
   buildBackendSystemApplicationPomXml,
   buildBackendSystemInfrastructurePomXml,
+  buildBackendIdentityPomXml,
+  buildBackendIdentityDomainPomXml,
+  buildBackendIdentityApplicationPomXml,
+  buildBackendIdentityInfrastructurePomXml,
   buildBackendApplicationModulePomXml,
   buildBackendTestsPomXml,
   buildBackendCoveragePomXml,
@@ -96,9 +100,47 @@ const {
   buildHexAppPropertiesSystemMetadataAdapterJava,
   buildHexStaticSystemHealthAdapterJava,
   buildGatewaySystemQueryControllerJava,
+  buildGatewayIdentityAdminControllerJava,
+  buildGatewaySecurityConfigJava,
+  buildGatewayPbkdf2WorkspacePasswordEncoderJava,
   buildTestSupportMarkerJava,
   buildSystemApplicationUtJava,
   buildSystemInfrastructureItJava,
+  buildIdentityDomainMarkerJava,
+  buildIdentityApplicationMarkerJava,
+  buildIdentityInfrastructureMarkerJava,
+  buildIdentityPermissionModelJava,
+  buildIdentityRoleModelJava,
+  buildIdentityUserAccountModelJava,
+  buildIdentityUserCredentialsModelJava,
+  buildIdentityCreateUserCommandJava,
+  buildIdentityCreateRoleCommandJava,
+  buildIdentityLoadUsersPortJava,
+  buildIdentityCreateUserPortJava,
+  buildIdentityAssignRoleToUserPortJava,
+  buildIdentityLoadRolesPortJava,
+  buildIdentityCreateRolePortJava,
+  buildIdentityLoadUserCredentialsPortJava,
+  buildIdentityReadUsersUseCaseJava,
+  buildIdentityCreateUserUseCaseJava,
+  buildIdentityAssignRoleToUserUseCaseJava,
+  buildIdentityReadRolesUseCaseJava,
+  buildIdentityCreateRoleUseCaseJava,
+  buildIdentityReadUserCredentialsUseCaseJava,
+  buildIdentityReadUsersServiceJava,
+  buildIdentityCreateUserServiceJava,
+  buildIdentityAssignRoleToUserServiceJava,
+  buildIdentityReadRolesServiceJava,
+  buildIdentityCreateRoleServiceJava,
+  buildIdentityReadUserCredentialsServiceJava,
+  buildIdentityModuleConfigJava,
+  buildIdentityBootstrapPropertiesJava,
+  buildIdentityBootstrapSeederJava,
+  buildIdentityRoleEntityJava,
+  buildIdentityUserAccountEntityJava,
+  buildIdentityRoleJpaRepositoryJava,
+  buildIdentityUserJpaRepositoryJava,
+  buildIdentityJpaIdentityRepositoryAdapterJava,
   buildFrontendPackageJson,
   buildFrontendIndexHtml,
   buildFrontendMainJsx,
@@ -108,6 +150,21 @@ const {
   buildFrontendHttpSystemSnapshotAdapterJs,
   buildFrontendUseSystemSnapshotHookJs,
   buildFrontendShellAppJsx,
+  buildFrontendIdentityUserModelJs,
+  buildFrontendIdentityRoleModelJs,
+  buildFrontendLoadIdentityUsersPortJs,
+  buildFrontendCreateIdentityUserPortJs,
+  buildFrontendLoadIdentityRolesPortJs,
+  buildFrontendCreateIdentityRolePortJs,
+  buildFrontendAssignIdentityRolePortJs,
+  buildFrontendReadIdentityUsersUseCaseJs,
+  buildFrontendCreateIdentityUserUseCaseJs,
+  buildFrontendReadIdentityRolesUseCaseJs,
+  buildFrontendCreateIdentityRoleUseCaseJs,
+  buildFrontendAssignIdentityRoleUseCaseJs,
+  buildFrontendHttpIdentityAdminAdapterJs,
+  buildFrontendUseIdentityAdminHookJs,
+  buildFrontendIdentityAdminPanelJsx,
   buildFrontendCss,
   buildFrontendViteConfig,
   buildComposeFile,
@@ -140,15 +197,19 @@ function writeFiles(baseDir, definitions, writeManagedFile, options = {}) {
   }
 }
 
-function generateBackendScaffold(backendRoot, config, writeManagedFile) {
+function generateBackendScaffold(backendRoot, config, writeManagedFile, generationPlan) {
   const projectSlug = config.project.slug;
   const projectTitle = config.project.title;
   const swaggerEnabled = config.backendOptions.swaggerUi.enabled;
+  const identityEnabled = generationPlan.isEnabled("identity-rbac");
 
   writeFiles(
     backendRoot,
     [
-      { relativePath: "pom.xml", content: buildBackendRootPomXml(projectTitle, projectSlug) },
+      {
+        relativePath: "pom.xml",
+        content: buildBackendRootPomXml(projectTitle, projectSlug, { identityEnabled }),
+      },
       { relativePath: "kernel/pom.xml", content: buildBackendKernelPomXml(projectSlug) },
       { relativePath: "kernel/kernel-domain/pom.xml", content: buildBackendKernelDomainPomXml() },
       { relativePath: "kernel/kernel-application/pom.xml", content: buildBackendKernelApplicationPomXml() },
@@ -157,14 +218,14 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile) {
       { relativePath: "common/common-domain/pom.xml", content: buildBackendCommonDomainPomXml() },
       { relativePath: "common/common-application/pom.xml", content: buildBackendCommonApplicationPomXml() },
       { relativePath: "common/common-infrastructure/pom.xml", content: buildBackendCommonInfrastructurePomXml() },
-      { relativePath: "gateway/pom.xml", content: buildBackendGatewayPomXml(projectSlug) },
+      { relativePath: "gateway/pom.xml", content: buildBackendGatewayPomXml(projectSlug, { identityEnabled }) },
       { relativePath: "system/pom.xml", content: buildBackendSystemPomXml(projectSlug) },
       { relativePath: "system/system-domain/pom.xml", content: buildBackendSystemDomainPomXml() },
       { relativePath: "system/system-application/pom.xml", content: buildBackendSystemApplicationPomXml() },
       { relativePath: "system/system-infrastructure/pom.xml", content: buildBackendSystemInfrastructurePomXml() },
       {
         relativePath: "prooweb-application/pom.xml",
-        content: buildBackendApplicationModulePomXml(projectSlug, swaggerEnabled),
+        content: buildBackendApplicationModulePomXml(projectSlug, swaggerEnabled, { identityEnabled }),
       },
       { relativePath: "tests/pom.xml", content: buildBackendTestsPomXml(projectSlug) },
       { relativePath: "tests/test-support/pom.xml", content: buildBackendTestSupportPomXml() },
@@ -175,7 +236,7 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile) {
       },
       {
         relativePath: "tests/system-infrastructure-it/pom.xml",
-        content: buildBackendSystemInfrastructureItPomXml(projectSlug),
+        content: buildBackendSystemInfrastructureItPomXml(projectSlug, { identityEnabled }),
       },
       { relativePath: "tests/coverage/pom.xml", content: buildBackendCoveragePomXml(projectSlug) },
     ],
@@ -309,6 +370,23 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile) {
         relativePath: "gateway/src/main/java/com/prooweb/generated/gateway/api/SystemQueryController.java",
         content: buildGatewaySystemQueryControllerJava(),
       },
+      ...(identityEnabled
+        ? [
+            {
+              relativePath: "gateway/src/main/java/com/prooweb/generated/gateway/api/IdentityAdminController.java",
+              content: buildGatewayIdentityAdminControllerJava(),
+            },
+            {
+              relativePath: "gateway/src/main/java/com/prooweb/generated/gateway/security/GatewaySecurityConfig.java",
+              content: buildGatewaySecurityConfigJava(),
+            },
+            {
+              relativePath:
+                "gateway/src/main/java/com/prooweb/generated/gateway/security/Pbkdf2WorkspacePasswordEncoder.java",
+              content: buildGatewayPbkdf2WorkspacePasswordEncoderJava(),
+            },
+          ]
+        : []),
       {
         relativePath: "prooweb-application/src/main/java/com/prooweb/generated/app/ProowebApplication.java",
         content: buildBackendApplicationJava(),
@@ -326,7 +404,7 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile) {
       {
         relativePath:
           "tests/system-infrastructure-it/src/test/java/com/prooweb/generated/tests/system/SystemInfrastructureIT.java",
-        content: buildSystemInfrastructureItJava(),
+        content: buildSystemInfrastructureItJava({ identityEnabled }),
       },
     ],
     writeManagedFile,
@@ -336,9 +414,203 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile) {
     },
   );
 
+  if (identityEnabled) {
+    writeFiles(
+      backendRoot,
+      [
+        { relativePath: "identity/pom.xml", content: buildBackendIdentityPomXml(projectSlug) },
+        { relativePath: "identity/identity-domain/pom.xml", content: buildBackendIdentityDomainPomXml() },
+        {
+          relativePath: "identity/identity-application/pom.xml",
+          content: buildBackendIdentityApplicationPomXml(),
+        },
+        {
+          relativePath: "identity/identity-infrastructure/pom.xml",
+          content: buildBackendIdentityInfrastructurePomXml(),
+        },
+        {
+          relativePath: "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/IdentityDomainMarker.java",
+          content: buildIdentityDomainMarkerJava(),
+        },
+        {
+          relativePath: "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/model/Permission.java",
+          content: buildIdentityPermissionModelJava(),
+        },
+        {
+          relativePath: "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/model/Role.java",
+          content: buildIdentityRoleModelJava(),
+        },
+        {
+          relativePath: "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/model/UserAccount.java",
+          content: buildIdentityUserAccountModelJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/model/UserCredentials.java",
+          content: buildIdentityUserCredentialsModelJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/model/CreateUserCommand.java",
+          content: buildIdentityCreateUserCommandJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/model/CreateRoleCommand.java",
+          content: buildIdentityCreateRoleCommandJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/port/out/LoadUsersPort.java",
+          content: buildIdentityLoadUsersPortJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/port/out/CreateUserPort.java",
+          content: buildIdentityCreateUserPortJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/port/out/AssignRoleToUserPort.java",
+          content: buildIdentityAssignRoleToUserPortJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/port/out/LoadRolesPort.java",
+          content: buildIdentityLoadRolesPortJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/port/out/CreateRolePort.java",
+          content: buildIdentityCreateRolePortJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/port/out/LoadUserCredentialsPort.java",
+          content: buildIdentityLoadUserCredentialsPortJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/IdentityApplicationMarker.java",
+          content: buildIdentityApplicationMarkerJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/port/in/ReadIdentityUsersUseCase.java",
+          content: buildIdentityReadUsersUseCaseJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/port/in/CreateIdentityUserUseCase.java",
+          content: buildIdentityCreateUserUseCaseJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/port/in/AssignRoleToIdentityUserUseCase.java",
+          content: buildIdentityAssignRoleToUserUseCaseJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/port/in/ReadIdentityRolesUseCase.java",
+          content: buildIdentityReadRolesUseCaseJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/port/in/CreateIdentityRoleUseCase.java",
+          content: buildIdentityCreateRoleUseCaseJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/port/in/ReadIdentityUserCredentialsUseCase.java",
+          content: buildIdentityReadUserCredentialsUseCaseJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/service/ReadIdentityUsersService.java",
+          content: buildIdentityReadUsersServiceJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/service/CreateIdentityUserService.java",
+          content: buildIdentityCreateUserServiceJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/service/AssignRoleToIdentityUserService.java",
+          content: buildIdentityAssignRoleToUserServiceJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/service/ReadIdentityRolesService.java",
+          content: buildIdentityReadRolesServiceJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/service/CreateIdentityRoleService.java",
+          content: buildIdentityCreateRoleServiceJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/service/ReadIdentityUserCredentialsService.java",
+          content: buildIdentityReadUserCredentialsServiceJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/IdentityInfrastructureMarker.java",
+          content: buildIdentityInfrastructureMarkerJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/config/IdentityModuleConfig.java",
+          content: buildIdentityModuleConfigJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/config/IdentityBootstrapProperties.java",
+          content: buildIdentityBootstrapPropertiesJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/bootstrap/IdentityBootstrapSeeder.java",
+          content: buildIdentityBootstrapSeederJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/persistence/entity/RoleEntity.java",
+          content: buildIdentityRoleEntityJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/persistence/entity/UserAccountEntity.java",
+          content: buildIdentityUserAccountEntityJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/persistence/IdentityRoleJpaRepository.java",
+          content: buildIdentityRoleJpaRepositoryJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/persistence/IdentityUserJpaRepository.java",
+          content: buildIdentityUserJpaRepositoryJava(),
+        },
+        {
+          relativePath:
+            "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/adapter/out/persistence/JpaIdentityRepositoryAdapter.java",
+          content: buildIdentityJpaIdentityRepositoryAdapterJava(),
+        },
+      ],
+      writeManagedFile,
+      {
+        owners: ["identity-rbac"],
+        category: "backend",
+      },
+    );
+  }
+
   writeManagedFile(
     path.join(backendRoot, "prooweb-application/src/main/resources/application.yml"),
-    buildBackendApplicationYaml(config),
+    buildBackendApplicationYaml(config, { identityEnabled }),
     {
       owners: ["backend-platform"],
       category: "backend",
@@ -357,7 +629,8 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile) {
   }
 }
 
-function generateFrontendScaffold(frontendRoot, config, writeManagedFile) {
+function generateFrontendScaffold(frontendRoot, config, writeManagedFile, generationPlan) {
+  const identityEnabled = generationPlan.isEnabled("identity-rbac");
   const metadata = {
     owners: ["frontend-web-react"],
     category: "frontend",
@@ -387,7 +660,95 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile) {
     metadata,
   );
   writeManagedFile(path.join(frontendRoot, "src/modules/system/ui/useSystemSnapshot.js"), buildFrontendUseSystemSnapshotHookJs(), metadata);
-  writeManagedFile(path.join(frontendRoot, "src/modules/system/ui/ShellApp.jsx"), buildFrontendShellAppJsx(), metadata);
+  writeManagedFile(
+    path.join(frontendRoot, "src/modules/system/ui/ShellApp.jsx"),
+    buildFrontendShellAppJsx({ identityEnabled }),
+    metadata,
+  );
+
+  if (identityEnabled) {
+    const identityMetadata = {
+      owners: ["identity-rbac"],
+      category: "frontend",
+    };
+
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/domain/model/IdentityUser.js"),
+      buildFrontendIdentityUserModelJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/domain/model/IdentityRole.js"),
+      buildFrontendIdentityRoleModelJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/domain/port/out/LoadIdentityUsersPort.js"),
+      buildFrontendLoadIdentityUsersPortJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/domain/port/out/CreateIdentityUserPort.js"),
+      buildFrontendCreateIdentityUserPortJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/domain/port/out/LoadIdentityRolesPort.js"),
+      buildFrontendLoadIdentityRolesPortJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/domain/port/out/CreateIdentityRolePort.js"),
+      buildFrontendCreateIdentityRolePortJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/domain/port/out/AssignIdentityRolePort.js"),
+      buildFrontendAssignIdentityRolePortJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/application/usecase/ReadIdentityUsers.js"),
+      buildFrontendReadIdentityUsersUseCaseJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/application/usecase/CreateIdentityUser.js"),
+      buildFrontendCreateIdentityUserUseCaseJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/application/usecase/ReadIdentityRoles.js"),
+      buildFrontendReadIdentityRolesUseCaseJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/application/usecase/CreateIdentityRole.js"),
+      buildFrontendCreateIdentityRoleUseCaseJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/application/usecase/AssignIdentityRole.js"),
+      buildFrontendAssignIdentityRoleUseCaseJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/infrastructure/adapter/out/http/HttpIdentityAdminAdapter.js"),
+      buildFrontendHttpIdentityAdminAdapterJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/ui/useIdentityAdmin.js"),
+      buildFrontendUseIdentityAdminHookJs(),
+      identityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/identity/ui/IdentityAdminPanel.jsx"),
+      buildFrontendIdentityAdminPanelJsx(),
+      identityMetadata,
+    );
+  }
+
   writeManagedFile(path.join(frontendRoot, "src/shared/ui/app-shell.css"), buildFrontendCss(), metadata);
   writeManagedFile(path.join(frontendRoot, "vite.config.js"), buildFrontendViteConfig(), metadata);
 }
@@ -409,11 +770,11 @@ function generateApplicationScaffold(projectRoot, config, writeManagedFile, gene
   const mobileRoot = path.join(projectRoot, "src/frontend/mobile");
 
   if (generationPlan.isEnabled("backend-platform")) {
-    generateBackendScaffold(backendRoot, config, writeManagedFile);
+    generateBackendScaffold(backendRoot, config, writeManagedFile, generationPlan);
   }
 
   if (generationPlan.isEnabled("frontend-web-react")) {
-    generateFrontendScaffold(frontendRoot, config, writeManagedFile);
+    generateFrontendScaffold(frontendRoot, config, writeManagedFile, generationPlan);
   }
 
   if (generationPlan.isEnabled("mobile-placeholder")) {

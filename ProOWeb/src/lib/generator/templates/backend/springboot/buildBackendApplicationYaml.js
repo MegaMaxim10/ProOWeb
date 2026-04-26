@@ -1,8 +1,29 @@
 const { escapeYamlDoubleQuotes } = require("../../_shared/escape");
 
-function buildBackendApplicationYaml(config) {
+function buildBackendApplicationYaml(config, options = {}) {
   const swaggerEnabled = config.backendOptions.swaggerUi.enabled;
   const swaggerProfiles = config.backendOptions.swaggerUi.profiles.join(",");
+  const identitySection = options.identityEnabled
+    ? `
+  identity:
+    bootstrap:
+      enabled: true
+      super-admin:
+        name: "${escapeYamlDoubleQuotes(config.superAdmin?.name || "ProOWeb Super Admin")}"
+        email: "${escapeYamlDoubleQuotes(config.superAdmin?.email || "admin@prooweb.local")}"
+        username: "${escapeYamlDoubleQuotes(config.superAdmin?.username || "superadmin")}"
+        password-hash: "${escapeYamlDoubleQuotes(config.superAdmin?.passwordHash || "")}"
+        password-salt: "${escapeYamlDoubleQuotes(config.superAdmin?.passwordSalt || "")}"
+        role-code: "PLATFORM_SUPER_ADMIN"
+        role-description: "Platform super administrator"
+        permissions:
+          - "IDENTITY_SUPER_ADMIN"
+          - "IDENTITY_USER_READ"
+          - "IDENTITY_USER_CREATE"
+          - "IDENTITY_ROLE_READ"
+          - "IDENTITY_ROLE_CREATE"
+          - "IDENTITY_ROLE_ASSIGN"`
+    : "";
 
   return `server:
   port: 8080
@@ -47,6 +68,7 @@ app:
     swagger-ui:
       enabled: ${swaggerEnabled}
       profiles: "${escapeYamlDoubleQuotes(swaggerProfiles)}"
+${identitySection}
   notifications:
     email:
       from: "no-reply@prooweb.local"

@@ -1,6 +1,15 @@
 const { escapeXml } = require("../../_shared/escape");
 
-function buildBackendSystemInfrastructureItPomXml(projectSlug) {
+function buildBackendSystemInfrastructureItPomXml(projectSlug, options = {}) {
+  const h2Dependency = options.identityEnabled
+    ? `
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>test</scope>
+    </dependency>`
+    : "";
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -32,7 +41,7 @@ function buildBackendSystemInfrastructureItPomXml(projectSlug) {
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
-    </dependency>
+    </dependency>${h2Dependency}
   </dependencies>
 
   <build>

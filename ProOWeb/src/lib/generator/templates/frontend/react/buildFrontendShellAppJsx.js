@@ -1,6 +1,11 @@
-function buildFrontendShellAppJsx() {
-  return `import { useSystemSnapshot } from "./useSystemSnapshot";
+function buildFrontendShellAppJsx(options = {}) {
+  const identityImport = options.identityEnabled
+    ? `import { IdentityAdminPanel } from "../../identity/ui/IdentityAdminPanel";\n`
+    : "";
+  const identitySection = options.identityEnabled ? "\n      <IdentityAdminPanel />" : "";
 
+  return `import { useSystemSnapshot } from "./useSystemSnapshot";
+${identityImport}
 export function ShellApp() {
   const { snapshot, loading, error, healthLabel } = useSystemSnapshot();
   const meta = snapshot?.meta;
@@ -16,10 +21,10 @@ export function ShellApp() {
 
         {meta?.swaggerEnabled ? (
           <p>
-            Swagger UI active sur profils: <strong>{(meta.swaggerProfiles || []).join(", ") || "-"}</strong>
+            Swagger UI active on profiles: <strong>{(meta.swaggerProfiles || []).join(", ") || "-"}</strong>
           </p>
         ) : (
-          <p>Swagger UI desactive.</p>
+          <p>Swagger UI disabled.</p>
         )}
 
         {loading ? <p>Loading backend status...</p> : null}
@@ -30,7 +35,7 @@ export function ShellApp() {
             Healthcheck: <span className={healthLabel === "UP" ? "ok" : "warn"}>{healthLabel}</span>
           </p>
         ) : null}
-      </section>
+      </section>${identitySection}
     </main>
   );
 }

@@ -1,4 +1,24 @@
-function buildSystemInfrastructureItJava() {
+function buildSystemInfrastructureItJava(options = {}) {
+  const identityProperties = options.identityEnabled
+    ? `,
+  properties = {
+    "spring.datasource.url=jdbc:h2:mem:prooweb-it;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
+    "spring.datasource.driver-class-name=org.h2.Driver",
+    "spring.datasource.username=sa",
+    "spring.datasource.password=",
+    "spring.jpa.hibernate.ddl-auto=create-drop"
+  }`
+    : `,
+  properties = {
+    "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
+      + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration"
+  }`;
+  const identityAssertions = options.identityEnabled
+    ? `
+    mockMvc.perform(get("/api/admin/identity/users"))
+      .andExpect(status().isUnauthorized());`
+    : "";
+
   return `package com.prooweb.generated.tests.system;
 
 import com.prooweb.generated.app.ProowebApplication;
@@ -14,11 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(
   classes = ProowebApplication.class,
-  webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-  properties = {
-    "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
-      + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration"
-  }
+  webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT${identityProperties}
 )
 @AutoConfigureMockMvc
 class SystemInfrastructureIT {
@@ -33,7 +49,7 @@ class SystemInfrastructureIT {
 
     mockMvc.perform(get("/api/meta"))
       .andExpect(status().isOk())
-      .andExpect(jsonPath("$.siteTitle").isNotEmpty());
+      .andExpect(jsonPath("$.siteTitle").isNotEmpty());${identityAssertions}
   }
 }
 `;
