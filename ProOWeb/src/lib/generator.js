@@ -150,6 +150,7 @@ const {
   buildGatewayIdentityAdminControllerJava,
   buildGatewayAuthenticationFlowControllerJava,
   buildGatewayExternalAuthenticationControllerJava,
+  buildGatewaySessionSecurityControllerJava,
   buildGatewaySecurityConfigJava,
   buildGatewayPbkdf2WorkspacePasswordEncoderJava,
   buildTestSupportMarkerJava,
@@ -157,6 +158,7 @@ const {
   buildSystemInfrastructureItJava,
   buildAuthenticationFlowsItJava,
   buildExternalIamAuthenticationItJava,
+  buildSessionDeviceSecurityItJava,
   buildIdentityDomainMarkerJava,
   buildIdentityApplicationMarkerJava,
   buildIdentityInfrastructureMarkerJava,
@@ -164,6 +166,7 @@ const {
   buildIdentityRoleModelJava,
   buildIdentityUserAccountModelJava,
   buildIdentityUserCredentialsModelJava,
+  buildIdentityUserSessionObservationJava,
   buildIdentityAuthenticationFlowResultJava,
   buildIdentityExternalAuthenticationResultJava,
   buildIdentityCreateUserCommandJava,
@@ -176,6 +179,7 @@ const {
   buildIdentityLoadUserCredentialsPortJava,
   buildIdentityRunAuthenticationFlowPortJava,
   buildIdentityAuthenticateExternalIdentityPortJava,
+  buildIdentityObserveUserSessionPortJava,
   buildIdentityReadUsersUseCaseJava,
   buildIdentityCreateUserUseCaseJava,
   buildIdentityAssignRoleToUserUseCaseJava,
@@ -184,6 +188,7 @@ const {
   buildIdentityReadUserCredentialsUseCaseJava,
   buildIdentityRunAuthenticationFlowUseCaseJava,
   buildIdentityAuthenticateExternalIdentityUseCaseJava,
+  buildIdentityObserveUserSessionUseCaseJava,
   buildIdentityReadUsersServiceJava,
   buildIdentityCreateUserServiceJava,
   buildIdentityAssignRoleToUserServiceJava,
@@ -192,9 +197,11 @@ const {
   buildIdentityReadUserCredentialsServiceJava,
   buildIdentityAuthenticationFlowServiceJava,
   buildIdentityExternalAuthenticationServiceJava,
+  buildIdentityObserveUserSessionServiceJava,
   buildIdentityModuleConfigJava,
   buildIdentityBootstrapPropertiesJava,
   buildIdentityExternalIamPropertiesJava,
+  buildIdentitySessionSecurityPropertiesJava,
   buildIdentityBootstrapSeederJava,
   buildIdentityRoleEntityJava,
   buildIdentityUserAccountEntityJava,
@@ -203,6 +210,7 @@ const {
   buildIdentityJpaIdentityRepositoryAdapterJava,
   buildIdentityJpaAuthenticationFlowAdapterJava,
   buildIdentityHs256ExternalIamAuthenticationAdapterJava,
+  buildIdentityInMemorySessionObservationAdapterJava,
   buildFrontendPackageJson,
   buildFrontendIndexHtml,
   buildFrontendMainJsx,
@@ -230,6 +238,9 @@ const {
   buildFrontendHttpAuthFlowsAdapterJs,
   buildFrontendUseAuthFlowsHookJs,
   buildFrontendAuthenticationWorkbenchJsx,
+  buildFrontendHttpSessionSecurityAdapterJs,
+  buildFrontendUseSessionSecurityHookJs,
+  buildFrontendSessionSecurityPanelJsx,
   buildFrontendCss,
   buildFrontendViteConfig,
   buildComposeFile,
@@ -269,6 +280,7 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
   const identityEnabled = generationPlan.isEnabled("identity-rbac");
   const authEnabled = generationPlan.isEnabled("auth-flows");
   const externalIamEnabled = generationPlan.isEnabled("external-iam-auth");
+  const sessionSecurityEnabled = generationPlan.isEnabled("session-device-security");
 
   writeFiles(
     backendRoot,
@@ -444,17 +456,26 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
               content: buildGatewayIdentityAdminControllerJava(),
             },
             ...(authEnabled
-              ? [
+                ? [
                   {
                     relativePath: "gateway/src/main/java/com/prooweb/generated/gateway/api/AuthenticationFlowController.java",
-                    content: buildGatewayAuthenticationFlowControllerJava(),
+                    content: buildGatewayAuthenticationFlowControllerJava({ sessionSecurityEnabled }),
                   },
                   ...(externalIamEnabled
                     ? [
                         {
                           relativePath:
                             "gateway/src/main/java/com/prooweb/generated/gateway/api/ExternalAuthenticationController.java",
-                          content: buildGatewayExternalAuthenticationControllerJava(),
+                          content: buildGatewayExternalAuthenticationControllerJava({ sessionSecurityEnabled }),
+                        },
+                      ]
+                    : []),
+                  ...(sessionSecurityEnabled
+                    ? [
+                        {
+                          relativePath:
+                            "gateway/src/main/java/com/prooweb/generated/gateway/api/SessionSecurityController.java",
+                          content: buildGatewaySessionSecurityControllerJava(),
                         },
                       ]
                     : []),
@@ -521,6 +542,20 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       buildExternalIamAuthenticationItJava(),
       {
         owners: ["external-iam-auth"],
+        category: "backend-tests",
+      },
+    );
+  }
+
+  if (sessionSecurityEnabled) {
+    writeManagedFile(
+      path.join(
+        backendRoot,
+        "tests/system-infrastructure-it/src/test/java/com/prooweb/generated/tests/system/SessionDeviceSecurityIT.java",
+      ),
+      buildSessionDeviceSecurityItJava(),
+      {
+        owners: ["session-device-security"],
         category: "backend-tests",
       },
     );
@@ -674,7 +709,7 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
         {
           relativePath:
             "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/config/IdentityModuleConfig.java",
-          content: buildIdentityModuleConfigJava({ authEnabled, externalIamEnabled }),
+          content: buildIdentityModuleConfigJava({ authEnabled, externalIamEnabled, sessionSecurityEnabled }),
         },
         {
           relativePath:
@@ -799,11 +834,59 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
         },
       );
     }
+
+    if (sessionSecurityEnabled) {
+      writeFiles(
+        backendRoot,
+        [
+          {
+            relativePath:
+              "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/model/UserSessionObservation.java",
+            content: buildIdentityUserSessionObservationJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/port/out/ObserveUserSessionPort.java",
+            content: buildIdentityObserveUserSessionPortJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/port/in/ObserveUserSessionUseCase.java",
+            content: buildIdentityObserveUserSessionUseCaseJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/service/ObserveUserSessionService.java",
+            content: buildIdentityObserveUserSessionServiceJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/config/SessionSecurityProperties.java",
+            content: buildIdentitySessionSecurityPropertiesJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/adapter/out/session/InMemorySessionObservationAdapter.java",
+            content: buildIdentityInMemorySessionObservationAdapterJava(),
+          },
+        ],
+        writeManagedFile,
+        {
+          owners: ["session-device-security"],
+          category: "backend",
+        },
+      );
+    }
   }
 
   writeManagedFile(
     path.join(backendRoot, "prooweb-application/src/main/resources/application.yml"),
-    buildBackendApplicationYaml(config, { identityEnabled, authEnabled, externalIamEnabled }),
+    buildBackendApplicationYaml(config, {
+      identityEnabled,
+      authEnabled,
+      externalIamEnabled,
+      sessionSecurityEnabled,
+    }),
     {
       owners: ["backend-platform"],
       category: "backend",
@@ -826,6 +909,7 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
   const identityEnabled = generationPlan.isEnabled("identity-rbac");
   const authEnabled = generationPlan.isEnabled("auth-flows");
   const externalIamEnabled = generationPlan.isEnabled("external-iam-auth");
+  const sessionSecurityEnabled = generationPlan.isEnabled("session-device-security");
   const defaultExternalIamProviderId = Array.isArray(config?.backendOptions?.externalIam?.providers)
     && config.backendOptions.externalIam.providers.length > 0
     ? config.backendOptions.externalIam.providers[0].id
@@ -861,7 +945,7 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
   writeManagedFile(path.join(frontendRoot, "src/modules/system/ui/useSystemSnapshot.js"), buildFrontendUseSystemSnapshotHookJs(), metadata);
   writeManagedFile(
     path.join(frontendRoot, "src/modules/system/ui/ShellApp.jsx"),
-    buildFrontendShellAppJsx({ identityEnabled, authEnabled }),
+    buildFrontendShellAppJsx({ identityEnabled, authEnabled, sessionSecurityEnabled }),
     metadata,
   );
 
@@ -971,6 +1055,29 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
         externalIamProviderId: defaultExternalIamProviderId,
       }),
       authMetadata,
+    );
+  }
+
+  if (sessionSecurityEnabled) {
+    const sessionSecurityMetadata = {
+      owners: ["session-device-security"],
+      category: "frontend",
+    };
+
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/session-security/infrastructure/adapter/out/http/HttpSessionSecurityAdapter.js"),
+      buildFrontendHttpSessionSecurityAdapterJs(),
+      sessionSecurityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/session-security/ui/useSessionSecurity.js"),
+      buildFrontendUseSessionSecurityHookJs(),
+      sessionSecurityMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/session-security/ui/SessionSecurityPanel.jsx"),
+      buildFrontendSessionSecurityPanelJsx(),
+      sessionSecurityMetadata,
     );
   }
 

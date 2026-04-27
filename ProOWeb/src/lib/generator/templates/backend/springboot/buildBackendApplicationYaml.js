@@ -24,6 +24,14 @@ function buildBackendApplicationYaml(config, options = {}) {
       providers:
 ${externalIamProvidersYaml}`
     : "";
+  const sessionSecurityConfig = config.backendOptions?.sessionSecurity || {};
+  const sessionSecuritySection = options.sessionSecurityEnabled
+    ? `
+    session-security:
+      enabled: ${Boolean(sessionSecurityConfig.enabled)}
+      suspicious-window-minutes: ${Number(sessionSecurityConfig.suspiciousWindowMinutes || 60)}
+      max-distinct-devices: ${Number(sessionSecurityConfig.maxDistinctDevices || 3)}`
+    : "";
   const authSection = options.authEnabled
     ? `
   auth:
@@ -50,7 +58,7 @@ ${externalIamProvidersYaml}`
           - "IDENTITY_USER_CREATE"
           - "IDENTITY_ROLE_READ"
           - "IDENTITY_ROLE_CREATE"
-          - "IDENTITY_ROLE_ASSIGN"${externalIamSection}`
+          - "IDENTITY_ROLE_ASSIGN"${externalIamSection}${sessionSecuritySection}`
     : "";
 
   return `server:

@@ -12,7 +12,8 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
 - Runs the Node.js editor on `http://localhost:1755` via `npm run prooweb`.
 - Shows a wizard when the workspace is not initialized.
 - Captures base project settings, super-admin account details, Git repository policy,
-  backend Swagger UI options, backend base package, and external IAM auth configuration.
+  backend Swagger UI options, backend base package, external IAM auth configuration,
+  and session/device security preferences.
 - Generates the target project at repository root:
   - `src/backend/springboot` with strict Njangui-inspired modular structure:
     - `gateway`,
@@ -30,6 +31,7 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
 - Exposes smart migration (`POST /api/migrate`) with conflict strategy,
   automatic backup, and detailed report.
 - Supports Step 6 external IAM authentication (OIDC-first, auth-only) while RBAC stays internal.
+- Supports Step 7 session/device security baseline (session observation, risk detection, revocation APIs).
 
 ## Wizard Git Policy
 
@@ -60,6 +62,17 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
 - The generated endpoint is `POST /api/auth/external/oidc/login`.
 - Authentication can use configured provider settings from the wizard (`issuer`, `client`, claim mapping, secrets).
 - Authorization remains internal: external users must match an active local account to be authenticated.
+
+## Session & Device Security Policy (Step 7)
+
+- Session/device security is generated through `session-device-security` feature pack.
+- Successful internal/external authentication events are observed with device metadata.
+- Suspicious activity is flagged based on configured thresholds:
+  - `sessionSecurityWindowMinutes`
+  - `sessionSecurityMaxDistinctDevices`
+- Generated APIs:
+  - `GET /api/account/sessions`
+  - `POST /api/account/sessions/revoke`
 
 ## Smart Migration
 

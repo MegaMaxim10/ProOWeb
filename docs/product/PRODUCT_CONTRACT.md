@@ -28,7 +28,7 @@ The product position is intentionally between:
 - Foundation capability packs to be built in upcoming steps:
   - identity and RBAC,
   - authentication (internal + external IAM auth-only mode),
-  - session/device security,
+  - session/device security (observation, risk detection, revocation),
   - email notifications,
   - organization hierarchy,
   - Liquibase baseline and migration discipline.

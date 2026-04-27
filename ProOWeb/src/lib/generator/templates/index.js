@@ -45,6 +45,7 @@ const { buildGatewaySystemQueryControllerJava } = require("./backend/springboot/
 const { buildGatewayIdentityAdminControllerJava } = require("./backend/springboot/buildGatewayIdentityAdminControllerJava");
 const { buildGatewayAuthenticationFlowControllerJava } = require("./backend/springboot/buildGatewayAuthenticationFlowControllerJava");
 const { buildGatewayExternalAuthenticationControllerJava } = require("./backend/springboot/buildGatewayExternalAuthenticationControllerJava");
+const { buildGatewaySessionSecurityControllerJava } = require("./backend/springboot/buildGatewaySessionSecurityControllerJava");
 const { buildGatewaySecurityConfigJava } = require("./backend/springboot/buildGatewaySecurityConfigJava");
 const { buildGatewayPbkdf2WorkspacePasswordEncoderJava } = require("./backend/springboot/buildGatewayPbkdf2WorkspacePasswordEncoderJava");
 const { buildKernelDomainMarkerJava } = require("./backend/springboot/buildKernelDomainMarkerJava");
@@ -76,6 +77,7 @@ const { buildIdentityCreateRolePortJava } = require("./backend/springboot/buildI
 const { buildIdentityLoadUserCredentialsPortJava } = require("./backend/springboot/buildIdentityLoadUserCredentialsPortJava");
 const { buildIdentityRunAuthenticationFlowPortJava } = require("./backend/springboot/buildIdentityRunAuthenticationFlowPortJava");
 const { buildIdentityAuthenticateExternalIdentityPortJava } = require("./backend/springboot/buildIdentityAuthenticateExternalIdentityPortJava");
+const { buildIdentityObserveUserSessionPortJava } = require("./backend/springboot/buildIdentityObserveUserSessionPortJava");
 const { buildIdentityReadUsersUseCaseJava } = require("./backend/springboot/buildIdentityReadUsersUseCaseJava");
 const { buildIdentityCreateUserUseCaseJava } = require("./backend/springboot/buildIdentityCreateUserUseCaseJava");
 const { buildIdentityAssignRoleToUserUseCaseJava } = require("./backend/springboot/buildIdentityAssignRoleToUserUseCaseJava");
@@ -84,6 +86,7 @@ const { buildIdentityCreateRoleUseCaseJava } = require("./backend/springboot/bui
 const { buildIdentityReadUserCredentialsUseCaseJava } = require("./backend/springboot/buildIdentityReadUserCredentialsUseCaseJava");
 const { buildIdentityRunAuthenticationFlowUseCaseJava } = require("./backend/springboot/buildIdentityRunAuthenticationFlowUseCaseJava");
 const { buildIdentityAuthenticateExternalIdentityUseCaseJava } = require("./backend/springboot/buildIdentityAuthenticateExternalIdentityUseCaseJava");
+const { buildIdentityObserveUserSessionUseCaseJava } = require("./backend/springboot/buildIdentityObserveUserSessionUseCaseJava");
 const { buildIdentityReadUsersServiceJava } = require("./backend/springboot/buildIdentityReadUsersServiceJava");
 const { buildIdentityCreateUserServiceJava } = require("./backend/springboot/buildIdentityCreateUserServiceJava");
 const { buildIdentityAssignRoleToUserServiceJava } = require("./backend/springboot/buildIdentityAssignRoleToUserServiceJava");
@@ -92,9 +95,11 @@ const { buildIdentityCreateRoleServiceJava } = require("./backend/springboot/bui
 const { buildIdentityReadUserCredentialsServiceJava } = require("./backend/springboot/buildIdentityReadUserCredentialsServiceJava");
 const { buildIdentityAuthenticationFlowServiceJava } = require("./backend/springboot/buildIdentityAuthenticationFlowServiceJava");
 const { buildIdentityExternalAuthenticationServiceJava } = require("./backend/springboot/buildIdentityExternalAuthenticationServiceJava");
+const { buildIdentityObserveUserSessionServiceJava } = require("./backend/springboot/buildIdentityObserveUserSessionServiceJava");
 const { buildIdentityModuleConfigJava } = require("./backend/springboot/buildIdentityModuleConfigJava");
 const { buildIdentityBootstrapPropertiesJava } = require("./backend/springboot/buildIdentityBootstrapPropertiesJava");
 const { buildIdentityExternalIamPropertiesJava } = require("./backend/springboot/buildIdentityExternalIamPropertiesJava");
+const { buildIdentitySessionSecurityPropertiesJava } = require("./backend/springboot/buildIdentitySessionSecurityPropertiesJava");
 const { buildIdentityBootstrapSeederJava } = require("./backend/springboot/buildIdentityBootstrapSeederJava");
 const { buildIdentityRoleEntityJava } = require("./backend/springboot/buildIdentityRoleEntityJava");
 const { buildIdentityUserAccountEntityJava } = require("./backend/springboot/buildIdentityUserAccountEntityJava");
@@ -103,11 +108,14 @@ const { buildIdentityUserJpaRepositoryJava } = require("./backend/springboot/bui
 const { buildIdentityJpaIdentityRepositoryAdapterJava } = require("./backend/springboot/buildIdentityJpaIdentityRepositoryAdapterJava");
 const { buildIdentityJpaAuthenticationFlowAdapterJava } = require("./backend/springboot/buildIdentityJpaAuthenticationFlowAdapterJava");
 const { buildIdentityHs256ExternalIamAuthenticationAdapterJava } = require("./backend/springboot/buildIdentityHs256ExternalIamAuthenticationAdapterJava");
+const { buildIdentityInMemorySessionObservationAdapterJava } = require("./backend/springboot/buildIdentityInMemorySessionObservationAdapterJava");
 const { buildTestSupportMarkerJava } = require("./backend/springboot/buildTestSupportMarkerJava");
 const { buildSystemApplicationUtJava } = require("./backend/springboot/buildSystemApplicationUtJava");
 const { buildSystemInfrastructureItJava } = require("./backend/springboot/buildSystemInfrastructureItJava");
 const { buildAuthenticationFlowsItJava } = require("./backend/springboot/buildAuthenticationFlowsItJava");
 const { buildExternalIamAuthenticationItJava } = require("./backend/springboot/buildExternalIamAuthenticationItJava");
+const { buildSessionDeviceSecurityItJava } = require("./backend/springboot/buildSessionDeviceSecurityItJava");
+const { buildIdentityUserSessionObservationJava } = require("./backend/springboot/buildIdentityUserSessionObservationJava");
 const { buildFrontendPackageJson } = require("./frontend/react/buildFrontendPackageJson");
 const { buildFrontendIndexHtml } = require("./frontend/react/buildFrontendIndexHtml");
 const { buildFrontendMainJsx } = require("./frontend/react/buildFrontendMainJsx");
@@ -135,6 +143,9 @@ const { buildFrontendIdentityAdminPanelJsx } = require("./frontend/react/buildFr
 const { buildFrontendHttpAuthFlowsAdapterJs } = require("./frontend/react/buildFrontendHttpAuthFlowsAdapterJs");
 const { buildFrontendUseAuthFlowsHookJs } = require("./frontend/react/buildFrontendUseAuthFlowsHookJs");
 const { buildFrontendAuthenticationWorkbenchJsx } = require("./frontend/react/buildFrontendAuthenticationWorkbenchJsx");
+const { buildFrontendHttpSessionSecurityAdapterJs } = require("./frontend/react/buildFrontendHttpSessionSecurityAdapterJs");
+const { buildFrontendUseSessionSecurityHookJs } = require("./frontend/react/buildFrontendUseSessionSecurityHookJs");
+const { buildFrontendSessionSecurityPanelJsx } = require("./frontend/react/buildFrontendSessionSecurityPanelJsx");
 const { buildFrontendCss } = require("./frontend/react/buildFrontendCss");
 const { buildFrontendViteConfig } = require("./frontend/react/buildFrontendViteConfig");
 const { buildComposeFile } = require("./deployment/docker/buildComposeFile");
@@ -200,6 +211,7 @@ module.exports = {
   buildGatewayIdentityAdminControllerJava,
   buildGatewayAuthenticationFlowControllerJava,
   buildGatewayExternalAuthenticationControllerJava,
+  buildGatewaySessionSecurityControllerJava,
   buildGatewaySecurityConfigJava,
   buildGatewayPbkdf2WorkspacePasswordEncoderJava,
   buildKernelDomainMarkerJava,
@@ -219,6 +231,7 @@ module.exports = {
   buildIdentityRoleModelJava,
   buildIdentityUserAccountModelJava,
   buildIdentityUserCredentialsModelJava,
+  buildIdentityUserSessionObservationJava,
   buildIdentityAuthenticationFlowResultJava,
   buildIdentityExternalAuthenticationResultJava,
   buildIdentityCreateUserCommandJava,
@@ -231,6 +244,7 @@ module.exports = {
   buildIdentityLoadUserCredentialsPortJava,
   buildIdentityRunAuthenticationFlowPortJava,
   buildIdentityAuthenticateExternalIdentityPortJava,
+  buildIdentityObserveUserSessionPortJava,
   buildIdentityReadUsersUseCaseJava,
   buildIdentityCreateUserUseCaseJava,
   buildIdentityAssignRoleToUserUseCaseJava,
@@ -239,6 +253,7 @@ module.exports = {
   buildIdentityReadUserCredentialsUseCaseJava,
   buildIdentityRunAuthenticationFlowUseCaseJava,
   buildIdentityAuthenticateExternalIdentityUseCaseJava,
+  buildIdentityObserveUserSessionUseCaseJava,
   buildIdentityReadUsersServiceJava,
   buildIdentityCreateUserServiceJava,
   buildIdentityAssignRoleToUserServiceJava,
@@ -247,9 +262,11 @@ module.exports = {
   buildIdentityReadUserCredentialsServiceJava,
   buildIdentityAuthenticationFlowServiceJava,
   buildIdentityExternalAuthenticationServiceJava,
+  buildIdentityObserveUserSessionServiceJava,
   buildIdentityModuleConfigJava,
   buildIdentityBootstrapPropertiesJava,
   buildIdentityExternalIamPropertiesJava,
+  buildIdentitySessionSecurityPropertiesJava,
   buildIdentityBootstrapSeederJava,
   buildIdentityRoleEntityJava,
   buildIdentityUserAccountEntityJava,
@@ -258,11 +275,13 @@ module.exports = {
   buildIdentityJpaIdentityRepositoryAdapterJava,
   buildIdentityJpaAuthenticationFlowAdapterJava,
   buildIdentityHs256ExternalIamAuthenticationAdapterJava,
+  buildIdentityInMemorySessionObservationAdapterJava,
   buildTestSupportMarkerJava,
   buildSystemApplicationUtJava,
   buildSystemInfrastructureItJava,
   buildAuthenticationFlowsItJava,
   buildExternalIamAuthenticationItJava,
+  buildSessionDeviceSecurityItJava,
   buildFrontendPackageJson,
   buildFrontendIndexHtml,
   buildFrontendMainJsx,
@@ -290,6 +309,9 @@ module.exports = {
   buildFrontendHttpAuthFlowsAdapterJs,
   buildFrontendUseAuthFlowsHookJs,
   buildFrontendAuthenticationWorkbenchJsx,
+  buildFrontendHttpSessionSecurityAdapterJs,
+  buildFrontendUseSessionSecurityHookJs,
+  buildFrontendSessionSecurityPanelJsx,
   buildFrontendCss,
   buildFrontendViteConfig,
   buildComposeFile,

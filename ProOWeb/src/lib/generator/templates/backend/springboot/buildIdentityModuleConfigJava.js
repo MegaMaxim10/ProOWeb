@@ -12,6 +12,13 @@ import com.prooweb.generated.identity.application.service.ExternalAuthentication
 import com.prooweb.generated.identity.domain.port.out.AuthenticateExternalIdentityPort;
 import com.prooweb.generated.identity.infrastructure.config.ExternalIamProperties;`
     : "";
+  const sessionSecurityImports = options.sessionSecurityEnabled
+    ? `
+import com.prooweb.generated.identity.application.port.in.ObserveUserSessionUseCase;
+import com.prooweb.generated.identity.application.service.ObserveUserSessionService;
+import com.prooweb.generated.identity.domain.port.out.ObserveUserSessionPort;
+import com.prooweb.generated.identity.infrastructure.config.SessionSecurityProperties;`
+    : "";
   const authBean = options.authEnabled
     ? `
   @Bean
@@ -28,9 +35,23 @@ import com.prooweb.generated.identity.infrastructure.config.ExternalIamPropertie
     return new ExternalAuthenticationService(authenticateExternalIdentityPort);
   }`
     : "";
-  const configurationPropertiesClasses = options.externalIamEnabled
-    ? "{IdentityBootstrapProperties.class, ExternalIamProperties.class}"
-    : "IdentityBootstrapProperties.class";
+  const sessionSecurityBean = options.sessionSecurityEnabled
+    ? `
+  @Bean
+  ObserveUserSessionUseCase observeUserSessionUseCase(ObserveUserSessionPort observeUserSessionPort) {
+    return new ObserveUserSessionService(observeUserSessionPort);
+  }`
+    : "";
+  const configurationPropertiesClassNames = ["IdentityBootstrapProperties.class"];
+  if (options.externalIamEnabled) {
+    configurationPropertiesClassNames.push("ExternalIamProperties.class");
+  }
+  if (options.sessionSecurityEnabled) {
+    configurationPropertiesClassNames.push("SessionSecurityProperties.class");
+  }
+  const configurationPropertiesClasses = configurationPropertiesClassNames.length > 1
+    ? `{${configurationPropertiesClassNames.join(", ")}}`
+    : configurationPropertiesClassNames[0];
 
   return `package com.prooweb.generated.identity.infrastructure.config;
 
@@ -61,6 +82,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 ${authImports}
 ${externalIamImports}
+${sessionSecurityImports}
 
 @Configuration
 @EnableConfigurationProperties(${configurationPropertiesClasses})
@@ -95,7 +117,7 @@ public class IdentityModuleConfig {
     LoadUserCredentialsPort loadUserCredentialsPort
   ) {
     return new ReadIdentityUserCredentialsService(loadUserCredentialsPort);
-  }${authBean}${externalIamBean}
+  }${authBean}${externalIamBean}${sessionSecurityBean}
 
   @Bean
   IdentityBootstrapSeeder identityBootstrapSeeder(

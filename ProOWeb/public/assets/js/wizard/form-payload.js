@@ -23,5 +23,8 @@ export function extractWizardFormPayload(form) {
     externalIamSharedSecret: formData.get("externalIamSharedSecret") || "",
     externalIamUsernameClaim: formData.get("externalIamUsernameClaim") || "",
     externalIamEmailClaim: formData.get("externalIamEmailClaim") || "",
+    sessionSecurityEnabled: formData.get("sessionSecurityEnabled") === "on",
+    sessionSecurityWindowMinutes: formData.get("sessionSecurityWindowMinutes") || "",
+    sessionSecurityMaxDistinctDevices: formData.get("sessionSecurityMaxDistinctDevices") || "",
   };
 }

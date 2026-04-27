@@ -120,6 +120,27 @@
             </div>
           </fieldset>
 
+          <fieldset>
+            <legend>Session & Device Security</legend>
+            <label class="inline-row">
+              <input id="session-security-toggle" type="checkbox" name="sessionSecurityEnabled" />
+              Activer l'observation des sessions et devices
+            </label>
+            <p class="fieldset-hint">
+              Detection de comportements suspects selon le nombre de devices observes.
+            </p>
+            <div id="session-security-config">
+              <label>
+                Suspicious window (minutes)
+                <input type="number" min="1" max="1440" name="sessionSecurityWindowMinutes" value="60" />
+              </label>
+              <label>
+                Max distinct devices in window
+                <input type="number" min="1" max="64" name="sessionSecurityMaxDistinctDevices" value="3" />
+              </label>
+            </div>
+          </fieldset>
+
           <label>
             Frontend web
             <select name="frontendWebTech" required>

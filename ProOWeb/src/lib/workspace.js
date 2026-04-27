@@ -9,6 +9,7 @@ const WORKSPACE_FILE = path.join(PROOWEB_DIR, "workspace.json");
 const GENERATED_ROOT_DIRNAME = "root";
 const DEFAULT_BASE_PACKAGE = "com.prooweb.generated";
 const EXTERNAL_IAM_FEATURE_PACK_ID = "external-iam-auth";
+const SESSION_DEVICE_SECURITY_FEATURE_PACK_ID = "session-device-security";
 
 const SUPPORTED_STACK = {
   backendTech: ["springboot"],
@@ -145,14 +146,66 @@ function mergeExternalIamProviderPayload(payload) {
   ];
 }
 
-function withExternalIamFeaturePack(featurePacks, externalIamEnabled) {
+function normalizePositiveInteger(value, fallback, fieldName) {
+  const raw = normalizeString(value);
+  if (!raw) {
+    return fallback;
+  }
+
+  const numeric = Number.parseInt(raw, 10);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    throw new Error(`${fieldName} must be a positive integer.`);
+  }
+
+  return numeric;
+}
+
+function normalizeSessionSecurityConfig(rawConfig = {}, options = {}) {
+  const enabled = options.forceEnabled !== undefined
+    ? Boolean(options.forceEnabled)
+    : normalizeBool(rawConfig.enabled);
+  const suspiciousWindowMinutes = normalizePositiveInteger(
+    rawConfig.suspiciousWindowMinutes,
+    60,
+    "sessionSecurity.suspiciousWindowMinutes",
+  );
+  const maxDistinctDevices = normalizePositiveInteger(
+    rawConfig.maxDistinctDevices,
+    3,
+    "sessionSecurity.maxDistinctDevices",
+  );
+
+  if (options.strict && enabled) {
+    if (suspiciousWindowMinutes < 1 || suspiciousWindowMinutes > 1440) {
+      throw new Error("sessionSecurity.suspiciousWindowMinutes must be between 1 and 1440.");
+    }
+
+    if (maxDistinctDevices < 1 || maxDistinctDevices > 64) {
+      throw new Error("sessionSecurity.maxDistinctDevices must be between 1 and 64.");
+    }
+  }
+
+  return {
+    enabled,
+    suspiciousWindowMinutes,
+    maxDistinctDevices,
+  };
+}
+
+function withConfigDrivenFeaturePacks(featurePacks, options = {}) {
   const enabled = Array.isArray(featurePacks?.enabled) ? featurePacks.enabled : [];
   const enabledSet = new Set(enabled);
 
-  if (externalIamEnabled) {
+  if (options.externalIamEnabled) {
     enabledSet.add(EXTERNAL_IAM_FEATURE_PACK_ID);
   } else {
     enabledSet.delete(EXTERNAL_IAM_FEATURE_PACK_ID);
+  }
+
+  if (options.sessionSecurityEnabled) {
+    enabledSet.add(SESSION_DEVICE_SECURITY_FEATURE_PACK_ID);
+  } else {
+    enabledSet.delete(SESSION_DEVICE_SECURITY_FEATURE_PACK_ID);
   }
 
   return normalizeFeaturePacks({
@@ -257,6 +310,7 @@ function readWorkspaceConfig() {
 
   const swaggerUi = parsed.backendOptions.swaggerUi || {};
   const externalIam = parsed.backendOptions.externalIam || {};
+  const sessionSecurity = parsed.backendOptions.sessionSecurity || {};
   parsed.backendOptions.swaggerUi = {
     enabled: Boolean(swaggerUi.enabled),
     profiles: normalizeStringList(swaggerUi.profiles).map((value) => value.toLowerCase()),
@@ -265,10 +319,21 @@ function readWorkspaceConfig() {
     enabled: Boolean(externalIam.enabled),
     providers: normalizeExternalIamProviders(externalIam.providers),
   };
+  parsed.backendOptions.sessionSecurity = normalizeSessionSecurityConfig(
+    {
+      enabled: sessionSecurity.enabled,
+      suspiciousWindowMinutes: sessionSecurity.suspiciousWindowMinutes,
+      maxDistinctDevices: sessionSecurity.maxDistinctDevices,
+    },
+    { strict: false },
+  );
 
-  parsed.featurePacks = withExternalIamFeaturePack(
+  parsed.featurePacks = withConfigDrivenFeaturePacks(
     normalizeFeaturePacks(parsed.featurePacks),
-    parsed.backendOptions.externalIam.enabled,
+    {
+      externalIamEnabled: parsed.backendOptions.externalIam.enabled,
+      sessionSecurityEnabled: parsed.backendOptions.sessionSecurity.enabled,
+    },
   );
   parsed.managedBy = normalizeManagedBy(parsed);
   return parsed;
@@ -338,6 +403,7 @@ function toPublicWorkspaceConfig(config) {
     ...(rest.backendOptions || {}),
   };
   const externalIam = backendOptions.externalIam || {};
+  const sessionSecurity = backendOptions.sessionSecurity || {};
   backendOptions.externalIam = {
     enabled: Boolean(externalIam.enabled),
     providers: normalizeExternalIamProviders(externalIam.providers).map((provider) => ({
@@ -350,6 +416,14 @@ function toPublicWorkspaceConfig(config) {
       sharedSecretConfigured: Boolean(provider.sharedSecret),
     })),
   };
+  backendOptions.sessionSecurity = normalizeSessionSecurityConfig(
+    {
+      enabled: sessionSecurity.enabled,
+      suspiciousWindowMinutes: sessionSecurity.suspiciousWindowMinutes,
+      maxDistinctDevices: sessionSecurity.maxDistinctDevices,
+    },
+    { strict: false },
+  );
 
   return {
     ...rest,
@@ -387,6 +461,15 @@ function buildWorkspaceConfig(payload) {
       { strict: true },
     )
     : [];
+  const sessionSecurityEnabled = normalizeBool(payload.sessionSecurityEnabled);
+  const sessionSecurityConfig = normalizeSessionSecurityConfig(
+    {
+      enabled: sessionSecurityEnabled,
+      suspiciousWindowMinutes: payload.sessionSecurityWindowMinutes,
+      maxDistinctDevices: payload.sessionSecurityMaxDistinctDevices,
+    },
+    { strict: true, forceEnabled: sessionSecurityEnabled },
+  );
   const featurePacksEnabled = normalizeStringList(payload.featurePacksEnabled).map((entry) => entry.toLowerCase());
   const featurePackConfigs = payload?.featurePackConfigs;
 
@@ -426,7 +509,7 @@ function buildWorkspaceConfig(payload) {
   }
 
   const uniqueSwaggerProfiles = Array.from(new Set(swaggerUiEnabled ? swaggerProfiles : []));
-  const featurePacks = withExternalIamFeaturePack(
+  const featurePacks = withConfigDrivenFeaturePacks(
     normalizeFeaturePacks(
       payload?.featurePacks ||
         (featurePacksEnabled.length > 0
@@ -436,7 +519,10 @@ function buildWorkspaceConfig(payload) {
             }
           : null),
     ),
-    externalIamEnabled,
+    {
+      externalIamEnabled,
+      sessionSecurityEnabled: sessionSecurityConfig.enabled,
+    },
   );
 
   const { hash, salt } = hashPassword(superAdminPassword);
@@ -465,6 +551,7 @@ function buildWorkspaceConfig(payload) {
         enabled: externalIamEnabled,
         providers: externalIamProviders,
       },
+      sessionSecurity: sessionSecurityConfig,
     },
     featurePacks,
     managedBy: {
@@ -518,6 +605,35 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
     throw new Error("External IAM active: configurer au moins un provider.");
   }
 
+  const hasSessionSecurityEnabledOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "sessionSecurityEnabled",
+  );
+  const currentSessionSecurity = currentConfig?.backendOptions?.sessionSecurity || {};
+  const sessionSecurityEnabled = hasSessionSecurityEnabledOverride
+    ? normalizeBool(safePayload.sessionSecurityEnabled)
+    : Boolean(currentSessionSecurity.enabled);
+  const hasSessionSecurityWindowOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "sessionSecurityWindowMinutes",
+  );
+  const hasSessionSecurityMaxDevicesOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "sessionSecurityMaxDistinctDevices",
+  );
+  const sessionSecurityConfig = normalizeSessionSecurityConfig(
+    {
+      enabled: sessionSecurityEnabled,
+      suspiciousWindowMinutes: hasSessionSecurityWindowOverride
+        ? safePayload.sessionSecurityWindowMinutes
+        : currentSessionSecurity.suspiciousWindowMinutes,
+      maxDistinctDevices: hasSessionSecurityMaxDevicesOverride
+        ? safePayload.sessionSecurityMaxDistinctDevices
+        : currentSessionSecurity.maxDistinctDevices,
+    },
+    { strict: true, forceEnabled: sessionSecurityEnabled },
+  );
+
   const featurePacksEnabled = normalizeStringList(safePayload.featurePacksEnabled).map((entry) => entry.toLowerCase());
   const rawFeaturePacks =
     safePayload.featurePacks ||
@@ -528,9 +644,12 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
         }
       : currentConfig.featurePacks);
 
-  const featurePacks = withExternalIamFeaturePack(
+  const featurePacks = withConfigDrivenFeaturePacks(
     normalizeFeaturePacks(rawFeaturePacks),
-    externalIamEnabled,
+    {
+      externalIamEnabled,
+      sessionSecurityEnabled: sessionSecurityConfig.enabled,
+    },
   );
 
   return {
@@ -545,6 +664,7 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
         enabled: externalIamEnabled,
         providers: externalIamProviders,
       },
+      sessionSecurity: sessionSecurityConfig,
     },
     featurePacks,
   };
@@ -556,9 +676,12 @@ function markWorkspaceMigrated(config) {
 
   return {
     ...config,
-    featurePacks: withExternalIamFeaturePack(
+    featurePacks: withConfigDrivenFeaturePacks(
       normalizeFeaturePacks(config.featurePacks),
-      Boolean(config?.backendOptions?.externalIam?.enabled),
+      {
+        externalIamEnabled: Boolean(config?.backendOptions?.externalIam?.enabled),
+        sessionSecurityEnabled: Boolean(config?.backendOptions?.sessionSecurity?.enabled),
+      },
     ),
     managedBy: {
       ...managedBy,

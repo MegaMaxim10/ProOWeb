@@ -24,6 +24,7 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
 
   const swaggerConfig = workspace.backendOptions?.swaggerUi;
   const externalIamConfig = workspace.backendOptions?.externalIam;
+  const sessionSecurityConfig = workspace.backendOptions?.sessionSecurity;
   const externalProviderIds = Array.isArray(externalIamConfig?.providers)
     ? externalIamConfig.providers.map((provider) => provider.id).filter(Boolean)
     : [];
@@ -35,7 +36,10 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
     "Swagger UI: " + (swaggerConfig?.enabled ? "active" : "desactive") + "<br />" +
     "Profils Swagger: " + (swaggerConfig?.profiles?.join(", ") || "aucun") + "<br />" +
     "External IAM: " + (externalIamConfig?.enabled ? "active" : "desactive") + "<br />" +
-    "Providers IAM: " + (externalProviderIds.join(", ") || "aucun");
+    "Providers IAM: " + (externalProviderIds.join(", ") || "aucun") + "<br />" +
+    "Session security: " + (sessionSecurityConfig?.enabled ? "active" : "desactive") + "<br />" +
+    "Risk window (min): " + (sessionSecurityConfig?.suspiciousWindowMinutes || "-") + "<br />" +
+    "Max devices/window: " + (sessionSecurityConfig?.maxDistinctDevices || "-");
 
   const managementLine = documentRef.getElementById("management-line");
   managementLine.textContent =

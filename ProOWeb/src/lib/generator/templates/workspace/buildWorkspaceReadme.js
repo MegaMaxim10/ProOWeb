@@ -37,6 +37,9 @@ This workspace was generated and managed by ProOWeb.
 - External IAM providers: ${Array.isArray(config.backendOptions.externalIam?.providers) && config.backendOptions.externalIam.providers.length > 0
     ? config.backendOptions.externalIam.providers.map((provider) => provider.id).join(", ")
     : "none"}
+- Session/device security: ${config.backendOptions.sessionSecurity?.enabled ? "enabled" : "disabled"}
+- Suspicious window (minutes): ${config.backendOptions.sessionSecurity?.suspiciousWindowMinutes || "60"}
+- Max distinct devices in window: ${config.backendOptions.sessionSecurity?.maxDistinctDevices || "3"}
 
 ## Active feature packs
 ${activeFeaturePacks.length > 0 ? activeFeaturePacks.map((packId) => `- ${packId}`).join("\n") : "- none"}

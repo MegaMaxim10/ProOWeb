@@ -40,6 +40,14 @@ const FEATURE_PACK_DEFINITIONS = Object.freeze([
     description: "Generate external IAM authentication (OIDC-first) while keeping RBAC internal.",
   },
   {
+    id: "session-device-security",
+    category: "application",
+    defaultEnabled: false,
+    supportedModes: ["full"],
+    dependencies: ["auth-flows", "identity-rbac", "frontend-web-react"],
+    description: "Generate session observation, device-risk detection, and session revocation workflows.",
+  },
+  {
     id: "mobile-placeholder",
     category: "application",
     defaultEnabled: true,

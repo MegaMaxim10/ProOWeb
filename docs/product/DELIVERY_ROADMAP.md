@@ -36,6 +36,7 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 
 ## Phase 7 - Session and Device Security
 - Add session observation, device awareness, suspicious behavior detection, and session revocation.
+- Expose configuration in wizard/runtime (`window`, `max distinct devices`) and generate enforcement baseline.
 - Exit criteria: high-risk scenarios trigger expected controls and audit events.
 
 ## Phase 8 - Organization Hierarchy Management
