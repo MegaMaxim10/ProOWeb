@@ -4,6 +4,7 @@ import {
   createProcessModel,
   createProcessModelVersion,
   fetchProcessModelVersion,
+  fetchProcessModelRuntimeContract,
   fetchProcessModelSpecification,
   validateProcessModelSpecification,
   saveProcessModelSpecification,
@@ -142,6 +143,35 @@ function renderDeploymentReport(deployment) {
   return JSON.stringify(report, null, 2);
 }
 
+function renderRuntimeContractReport(payload) {
+  const contract = payload?.contract;
+  if (!contract || typeof contract !== "object") {
+    return "No runtime contract available.";
+  }
+
+  const summary = contract.summary || {};
+  const lines = [
+    `Runtime contract for ${contract.modelKey} v${contract.versionNumber}`,
+    `Status: ${contract.status}`,
+    `Deployed at: ${contract.deployedAt || "-"}`,
+    `Activities: ${summary.activityCount ?? 0}`,
+    `Manual activities: ${summary.manualActivityCount ?? 0}`,
+    `Automatic activities: ${summary.automaticActivityCount ?? 0}`,
+    `Startable roles: ${(contract.start?.startableByRoles || []).join(", ") || "-"}`,
+    `Monitor roles: ${(contract.monitors?.monitorRoles || []).join(", ") || "-"}`,
+    "",
+    "[Activity Runtime Policies]",
+  ];
+
+  for (const activity of contract.activities || []) {
+    lines.push(
+      `- ${activity.activityId} | ${activity.activityType} | strategy=${activity.assignment?.strategy || "-"}`,
+    );
+  }
+
+  return lines.join("\n");
+}
+
 function renderSpecificationReport(action, payload) {
   const summary = payload?.summary || {};
   const validation = payload?.validation || {};
@@ -230,6 +260,11 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
   const deployModelSelector = documentRef.getElementById("process-deploy-model");
   const deployVersionSelector = documentRef.getElementById("process-deploy-version");
 
+  const runtimeContractForm = documentRef.getElementById("process-model-runtime-contract-form");
+  const runtimeContractFeedback = documentRef.getElementById("process-model-runtime-contract-feedback");
+  const runtimeContractModelSelector = documentRef.getElementById("process-runtime-contract-model");
+  const runtimeContractVersionSelector = documentRef.getElementById("process-runtime-contract-version");
+
   if (
     !catalogView
     || !reportView
@@ -238,6 +273,7 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
     || !diffForm
     || !transitionForm
     || !deployForm
+    || !runtimeContractForm
   ) {
     return;
   }
@@ -281,6 +317,7 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
     diffModelSelector,
     transitionModelSelector,
     deployModelSelector,
+    runtimeContractModelSelector,
   ].filter(Boolean);
 
   function getModels() {
@@ -305,6 +342,11 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
   bindVersionSync({
     modelSelector: deployModelSelector,
     versionSelector: deployVersionSelector,
+    getModels,
+  });
+  bindVersionSync({
+    modelSelector: runtimeContractModelSelector,
+    versionSelector: runtimeContractVersionSelector,
     getModels,
   });
 
@@ -417,6 +459,23 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
       await refreshModels();
     } catch (error) {
       setFeedback(deployFeedback, error.message || "Failed to deploy version.", "error");
+    }
+  });
+
+  runtimeContractForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setFeedback(runtimeContractFeedback, "Loading runtime contract...");
+
+    const form = new FormData(runtimeContractForm);
+    const modelKey = String(form.get("modelKey") || "");
+    const versionNumber = form.get("versionNumber");
+
+    try {
+      const payload = await fetchProcessModelRuntimeContract(modelKey, versionNumber);
+      setFeedback(runtimeContractFeedback, "Runtime contract loaded.", "success");
+      reportView.textContent = renderRuntimeContractReport(payload);
+    } catch (error) {
+      setFeedback(runtimeContractFeedback, error.message || "Failed to load runtime contract.", "error");
     }
   });
 }

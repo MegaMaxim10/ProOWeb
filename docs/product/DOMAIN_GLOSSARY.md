@@ -52,6 +52,7 @@
 ## R
 - RBAC: role-based access control model used for authorization.
 - Reconfiguration: post-initialization workflow that updates generation preferences and applies managed regeneration with a migration report.
+- Runtime Contract: generated source-owned projection of deployed process behavior (assignment, start policy, visibility, automatic handling).
 
 ## S
 - Shared Data Model: data persisted and shared across multiple process definitions and instances.

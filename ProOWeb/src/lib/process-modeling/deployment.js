@@ -12,6 +12,10 @@ const {
   toPublicVersion,
   listDeployedModels,
 } = require("./catalog");
+const {
+  buildRuntimeContract,
+  buildRuntimeCatalogEntry,
+} = require("./runtime-contract");
 
 const DEFAULT_BASE_PACKAGE = "com.prooweb.generated";
 
@@ -154,12 +158,17 @@ public record ${className}(String modelKey, int versionNumber, String bpmnResour
 `;
 }
 
-function buildBackendRegistryClass({ basePackage, deployedRecords }) {
-  const rows = deployedRecords.map(({ model, version }) => {
-    const bpmnPath = `classpath:processes/${model.modelKey}/v${version.versionNumber}.bpmn`;
-    return `      new ProcessDeploymentDescriptor("${escapeJavaString(model.modelKey)}", ${version.versionNumber}, "${escapeJavaString(
+function buildBackendRegistryClass({ basePackage, runtimeEntries }) {
+  const rows = runtimeEntries.map(({ entry }) => {
+    const bpmnPath = `classpath:${entry.bpmnResourcePath}`;
+    const runtimePath = `classpath:${entry.runtimeContractResourcePath}`;
+    const startableRolesCsv = Array.isArray(entry.startableByRoles) ? entry.startableByRoles.join(",") : "";
+    const monitorRolesCsv = Array.isArray(entry.monitorRoles) ? entry.monitorRoles.join(",") : "";
+    return `      new ProcessDeploymentDescriptor("${escapeJavaString(entry.modelKey)}", ${entry.versionNumber}, "${escapeJavaString(
       bpmnPath,
-    )}")`;
+    )}", "${escapeJavaString(runtimePath)}", ${entry.summary?.manualActivityCount || 0}, ${entry.summary?.automaticActivityCount || 0}, "${escapeJavaString(
+      startableRolesCsv,
+    )}", "${escapeJavaString(monitorRolesCsv)}")`;
   });
 
   const entries = rows.length > 0 ? rows.join(",\n") : "";
@@ -172,7 +181,15 @@ public final class GeneratedProcessRegistry {
   private GeneratedProcessRegistry() {
   }
 
-  public record ProcessDeploymentDescriptor(String modelKey, int versionNumber, String bpmnResourcePath) {
+  public record ProcessDeploymentDescriptor(
+      String modelKey,
+      int versionNumber,
+      String bpmnResourcePath,
+      String runtimeContractResourcePath,
+      int manualActivityCount,
+      int automaticActivityCount,
+      String startableByRolesCsv,
+      String monitorRolesCsv) {
   }
 
   public static List<ProcessDeploymentDescriptor> deployedProcesses() {
@@ -184,7 +201,7 @@ ${entries}
 `;
 }
 
-function buildFrontendDescriptorModule({ model, version, processName }) {
+function buildFrontendDescriptorModule({ model, version, processName, runtimeContract, runtimeCatalogEntry }) {
   const exportName = `${processName}ProcessV${version.versionNumber}Descriptor`;
 
   return `export const ${exportName} = Object.freeze({
@@ -194,21 +211,30 @@ function buildFrontendDescriptorModule({ model, version, processName }) {
   versionNumber: ${version.versionNumber},
   status: ${JSON.stringify(version.status)},
   deployedAt: ${JSON.stringify(version.deployedAt || null)},
+  startableByRoles: ${JSON.stringify(runtimeContract.start.startableByRoles)},
+  monitorRoles: ${JSON.stringify(runtimeContract.monitors.monitorRoles)},
+  runtimeSummary: ${JSON.stringify(runtimeContract.summary)},
+  runtimeContractPath: ${JSON.stringify(runtimeCatalogEntry.runtimeContractResourcePath)},
 });
 
 export default ${exportName};
 `;
 }
 
-function buildFrontendRegistryModule(deployedRecords) {
-  const entries = deployedRecords.map(({ model, version }) => ({
-    modelKey: model.modelKey,
-    title: model.title,
-    description: model.description || "",
-    versionNumber: version.versionNumber,
-    status: version.status,
-    deployedAt: version.deployedAt || null,
-    bpmnResourcePath: `processes/${model.modelKey}/v${version.versionNumber}.bpmn`,
+function buildFrontendRegistryModule(runtimeEntries) {
+  const entries = runtimeEntries.map(({ entry }) => ({
+    modelKey: entry.modelKey,
+    title: entry.title,
+    description: entry.description,
+    versionNumber: entry.versionNumber,
+    status: entry.status,
+    deployedAt: entry.deployedAt,
+    bpmnResourcePath: entry.bpmnResourcePath,
+    metadataResourcePath: entry.metadataResourcePath,
+    runtimeContractResourcePath: entry.runtimeContractResourcePath,
+    startableByRoles: entry.startableByRoles,
+    monitorRoles: entry.monitorRoles,
+    summary: entry.summary,
   }));
 
   return `export const generatedProcessRegistry = Object.freeze(${JSON.stringify(entries, null, 2)});
@@ -216,10 +242,64 @@ function buildFrontendRegistryModule(deployedRecords) {
 export function findGeneratedProcessDescriptor(modelKey) {
   return generatedProcessRegistry.find((entry) => entry.modelKey === String(modelKey || "")) || null;
 }
+
+export function findStartableProcessesByRole(roleCode) {
+  const normalizedRole = String(roleCode || "").trim();
+  return generatedProcessRegistry.filter((entry) => entry.startableByRoles.includes(normalizedRole));
+}
 `;
 }
 
-function buildVersionMetadata(model, version) {
+function buildFrontendRuntimeContractModule({ runtimeContract, processName, versionNumber }) {
+  const exportName = `${processName}ProcessV${versionNumber}RuntimeContract`;
+  return `export const ${exportName} = Object.freeze(${JSON.stringify(runtimeContract, null, 2)});
+
+export default ${exportName};
+`;
+}
+
+function buildFrontendTaskInboxCatalogModule(runtimeEntries) {
+  const manualTaskRows = [];
+  for (const { entry, contract } of runtimeEntries) {
+    for (const activity of contract.activities || []) {
+      if (activity.activityType !== "MANUAL") {
+        continue;
+      }
+
+      manualTaskRows.push({
+        modelKey: entry.modelKey,
+        versionNumber: entry.versionNumber,
+        activityId: activity.activityId,
+        candidateRoles: activity.candidateRoles || [],
+        assignmentMode: activity.assignment?.mode || "AUTOMATIC",
+        assignmentStrategy: activity.assignment?.strategy || "ROLE_QUEUE",
+        activityViewerRoles: activity.visibility?.activityViewerRoles || [],
+      });
+    }
+  }
+
+  return `export const generatedManualTaskCatalog = Object.freeze(${JSON.stringify(manualTaskRows, null, 2)});
+
+export function listManualTasksByRole(roleCode) {
+  const normalizedRole = String(roleCode || "").trim();
+  return generatedManualTaskCatalog.filter((entry) => entry.candidateRoles.includes(normalizedRole));
+}
+`;
+}
+
+function buildBackendRuntimeCatalogJson(runtimeEntries) {
+  return JSON.stringify(
+    {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      entries: runtimeEntries.map(({ entry }) => entry),
+    },
+    null,
+    2,
+  ) + "\n";
+}
+
+function buildVersionMetadata(model, version, runtimeContract) {
   return JSON.stringify(
     {
       schemaVersion: 1,
@@ -234,6 +314,7 @@ function buildVersionMetadata(model, version) {
       deployedAt: version.deployedAt || null,
       specificationSchemaVersion: version?.specification?.schemaVersion || null,
       specification: version?.specification || null,
+      runtimeSummary: runtimeContract?.summary || null,
     },
     null,
     2,
@@ -244,6 +325,29 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
   const basePackage = normalizeBasePackage(workspaceConfig?.project?.basePackage || DEFAULT_BASE_PACKAGE);
   const basePackagePath = basePackage.replace(/\./g, "/");
   const processName = toPascalCase(model.modelKey);
+  const runtimeContract = buildRuntimeContract({ model, version });
+  const runtimeEntries = deployedRecords.map((entry) => {
+    const contract = buildRuntimeContract({
+      model: entry.model,
+      version: entry.version,
+    });
+
+    return {
+      model: entry.model,
+      version: entry.version,
+      contract,
+      entry: buildRuntimeCatalogEntry({
+        model: entry.model,
+        version: entry.version,
+        contract,
+      }),
+    };
+  });
+  const currentRuntimeEntry = runtimeEntries.find(
+    (entry) =>
+      entry.model.modelKey === model.modelKey
+      && entry.version.versionNumber === version.versionNumber,
+  );
 
   const backendProcessRoot = path.join(
     "src/backend/springboot/system/system-domain/src/main/java",
@@ -275,15 +379,46 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
     },
     {
       relativePath: toPosixPath(path.join(backendResourcesRoot, `v${version.versionNumber}.json`)),
-      content: buildVersionMetadata(model, version),
+      content: buildVersionMetadata(model, version, runtimeContract),
       kind: "backend-metadata",
       modelKey: model.modelKey,
       versionNumber: version.versionNumber,
     },
     {
+      relativePath: toPosixPath(path.join(backendResourcesRoot, `v${version.versionNumber}.runtime.json`)),
+      content: `${JSON.stringify(runtimeContract, null, 2)}\n`,
+      kind: "backend-runtime-contract",
+      modelKey: model.modelKey,
+      versionNumber: version.versionNumber,
+    },
+    {
+      relativePath: "src/backend/springboot/prooweb-application/src/main/resources/processes/runtime-catalog.json",
+      content: buildBackendRuntimeCatalogJson(runtimeEntries),
+      kind: "backend-runtime-catalog",
+      modelKey: "_runtime_catalog_",
+      versionNumber: 1,
+    },
+    {
       relativePath: toPosixPath(path.join(frontendProcessRoot, `Process${processName}V${version.versionNumber}Descriptor.js`)),
-      content: buildFrontendDescriptorModule({ model, version, processName }),
+      content: buildFrontendDescriptorModule({
+        model,
+        version,
+        processName,
+        runtimeContract,
+        runtimeCatalogEntry: currentRuntimeEntry?.entry || buildRuntimeCatalogEntry({ model, version, contract: runtimeContract }),
+      }),
       kind: "frontend-descriptor",
+      modelKey: model.modelKey,
+      versionNumber: version.versionNumber,
+    },
+    {
+      relativePath: toPosixPath(path.join(frontendProcessRoot, `Process${processName}V${version.versionNumber}RuntimeContract.js`)),
+      content: buildFrontendRuntimeContractModule({
+        runtimeContract,
+        processName,
+        versionNumber: version.versionNumber,
+      }),
+      kind: "frontend-runtime-contract",
       modelKey: model.modelKey,
       versionNumber: version.versionNumber,
     },
@@ -293,21 +428,32 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
         basePackagePath,
         "system/domain/process/GeneratedProcessRegistry.java",
       )),
-      content: buildBackendRegistryClass({ basePackage, deployedRecords }),
+      content: buildBackendRegistryClass({ basePackage, runtimeEntries }),
       kind: "backend-registry",
       modelKey: "_registry_",
       versionNumber: 1,
     },
     {
       relativePath: "src/frontend/web/react/src/modules/processes/generatedProcessRegistry.js",
-      content: buildFrontendRegistryModule(deployedRecords),
+      content: buildFrontendRegistryModule(runtimeEntries),
       kind: "frontend-registry",
       modelKey: "_registry_",
       versionNumber: 1,
     },
+    {
+      relativePath: "src/frontend/web/react/src/modules/processes/generatedTaskInboxCatalog.js",
+      content: buildFrontendTaskInboxCatalogModule(runtimeEntries),
+      kind: "frontend-task-catalog",
+      modelKey: "_runtime_catalog_",
+      versionNumber: 1,
+    },
   ];
 
-  return files;
+  return {
+    files,
+    runtimeContract,
+    runtimeEntries,
+  };
 }
 
 function applyManagedDeploymentWrite(rootDir, files, deploymentId) {
@@ -507,12 +653,13 @@ function deployProcessModelVersion({ rootDir, workspaceConfig, modelKey, version
   const deployedRecords = listDeployedModels(rootDir)
     .map((entry) => ({ model: entry.model, version: entry.version }))
     .sort((left, right) => left.model.modelKey.localeCompare(right.model.modelKey));
-  const generatedFiles = buildDeploymentFiles({
+  const deploymentBuild = buildDeploymentFiles({
     workspaceConfig,
     model: savedModel,
     version: savedVersion,
     deployedRecords,
   });
+  const generatedFiles = deploymentBuild.files;
 
   const deploymentId = toDeploymentId();
   const report = applyManagedDeploymentWrite(rootDir, generatedFiles, deploymentId);
@@ -528,6 +675,9 @@ function deployProcessModelVersion({ rootDir, workspaceConfig, modelKey, version
       generatedAt: now,
       generatedFiles: generatedFiles.map((entry) => entry.relativePath),
       reportSummary: report.summary,
+      runtimeSummary: deploymentBuild.runtimeContract.summary,
+      startableByRoles: deploymentBuild.runtimeContract.start.startableByRoles,
+      monitorRoles: deploymentBuild.runtimeContract.monitors.monitorRoles,
     },
   };
   refreshedModel.updatedAt = new Date().toISOString();
@@ -541,6 +691,9 @@ function deployProcessModelVersion({ rootDir, workspaceConfig, modelKey, version
     deployment: {
       deploymentId,
       generatedFiles: generatedFiles.map((entry) => entry.relativePath),
+      runtimeSummary: deploymentBuild.runtimeContract.summary,
+      startableByRoles: deploymentBuild.runtimeContract.start.startableByRoles,
+      monitorRoles: deploymentBuild.runtimeContract.monitors.monitorRoles,
       report,
     },
   };

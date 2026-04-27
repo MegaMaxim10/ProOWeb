@@ -220,7 +220,7 @@
         </section>
 
         <section id="process-model" class="panel">
-          <h3>Step 11 - Process Modeling and Version Management</h3>
+          <h3>Step 11/12 - Process Modeling, Deployment, and Runtime Baseline</h3>
           <p class="muted">
             Process models are managed in ProOWeb and stored under <code>.prooweb/process-models</code>.
             Source code is generated in the app only when a version is deployed.
@@ -378,6 +378,20 @@
               </label>
               <button type="submit">Deploy and generate code</button>
               <p id="process-model-deploy-feedback" class="feedback" aria-live="polite"></p>
+            </form>
+
+            <form id="process-model-runtime-contract-form" class="wizard-form process-card" novalidate>
+              <h4>Preview runtime contract</h4>
+              <label>
+                Model
+                <select id="process-runtime-contract-model" name="modelKey"></select>
+              </label>
+              <label>
+                Version
+                <select id="process-runtime-contract-version" name="versionNumber"></select>
+              </label>
+              <button type="submit">Load runtime contract</button>
+              <p id="process-model-runtime-contract-feedback" class="feedback" aria-live="polite"></p>
             </form>
           </div>
 

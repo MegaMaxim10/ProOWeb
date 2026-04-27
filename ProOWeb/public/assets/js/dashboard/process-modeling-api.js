@@ -22,6 +22,12 @@ export function fetchProcessModelVersion(modelKey, versionNumber) {
   return requestJson(`/api/process-models/${encodeURIComponent(modelKey)}/versions/${encodeURIComponent(versionNumber)}`);
 }
 
+export function fetchProcessModelRuntimeContract(modelKey, versionNumber) {
+  return requestJson(
+    `/api/process-models/${encodeURIComponent(modelKey)}/versions/${encodeURIComponent(versionNumber)}/runtime-contract`,
+  );
+}
+
 export function fetchProcessModelSpecification(modelKey, versionNumber) {
   return requestJson(
     `/api/process-models/${encodeURIComponent(modelKey)}/versions/${encodeURIComponent(versionNumber)}/specification`,

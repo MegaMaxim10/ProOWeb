@@ -67,6 +67,16 @@ function createProcessModelController({ processModelService, readJsonBody, sendJ
     }
   }
 
+  function handleReadProcessModelVersionRuntimeContract(_request, response, modelKey, versionNumber) {
+    try {
+      const result = processModelService.readModelVersionRuntimeContract(modelKey, versionNumber);
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, { error: error.message || "Failed to read runtime contract." });
+    }
+  }
+
   async function handleValidateProcessModelVersionSpecification(request, response, modelKey, versionNumber) {
     let payload = {};
     try {
@@ -206,6 +216,7 @@ function createProcessModelController({ processModelService, readJsonBody, sendJ
     handleCreateProcessModelVersion,
     handleReadProcessModelVersion,
     handleReadProcessModelVersionSpecification,
+    handleReadProcessModelVersionRuntimeContract,
     handleValidateProcessModelVersionSpecification,
     handleSaveProcessModelVersionSpecification,
     handleCompareProcessModelVersions,

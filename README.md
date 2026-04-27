@@ -40,6 +40,9 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
   - version lifecycle (`DRAFT`, `VALIDATED`, `DEPLOYED`, `RETIRED`) and version diff,
   - deployment action that generates backend/frontend source files only when a version is deployed,
   - managed conflict strategy with automatic backup and detailed deployment report.
+- Supports Step 12 runtime baseline:
+  - runtime contract projection generated from deployed process versions (`spec-v1` + BPMN),
+  - backend/frontend runtime catalogs generated for process execution bootstrap.
 
 ## Wizard Git Policy
 
@@ -152,6 +155,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `POST /api/process-models`
   - `POST /api/process-models/{modelKey}/versions`
   - `GET /api/process-models/{modelKey}/versions/{version}`
+  - `GET /api/process-models/{modelKey}/versions/{version}/runtime-contract`
   - `GET /api/process-models/{modelKey}/versions/{version}/specification`
   - `POST /api/process-models/{modelKey}/versions/{version}/specification/validate`
   - `PUT /api/process-models/{modelKey}/versions/{version}/specification`
@@ -176,8 +180,28 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - normalized persisted contract per process version for code generation.
 - Deployment generates process-specific source artifacts into backend/frontend trees and tracks them in:
   - `.prooweb/process-models/managed-files.json`
+- Runtime deployment assets include:
+  - backend runtime contract per deployed version:
+    - `src/backend/springboot/prooweb-application/src/main/resources/processes/<modelKey>/v<version>.runtime.json`
+  - backend runtime catalog:
+    - `src/backend/springboot/prooweb-application/src/main/resources/processes/runtime-catalog.json`
+  - frontend runtime modules:
+    - `src/frontend/web/react/src/modules/processes/<modelKey>/Process<ProcessName>V<version>RuntimeContract.js`
+    - `src/frontend/web/react/src/modules/processes/generatedProcessRegistry.js`
+    - `src/frontend/web/react/src/modules/processes/generatedTaskInboxCatalog.js`
 - If a managed generated file was manually modified, deployment creates backup before overwrite:
   - `.prooweb/backups/process-deploy-<id>/...`
+
+## Process Runtime Contract Baseline (Step 12)
+
+- Runtime behavior is generated as source-owned contracts from deployed model versions.
+- Runtime contract preview API:
+  - `GET /api/process-models/{modelKey}/versions/{version}/runtime-contract`
+- Dashboard includes a runtime contract preview action in the process modeling section.
+- Deployment metadata now includes runtime summary details:
+  - manual/automatic activity counts,
+  - startable roles,
+  - monitor roles.
 
 ## Usage
 
@@ -229,6 +253,7 @@ ProOWeb code is split into explicit layers:
 - `ProOWeb/src/lib/generator/templates/**`: one template per file, grouped by domain/technology.
 - `ProOWeb/src/lib/migration.js`: smart migration engine.
 - `ProOWeb/src/lib/process-modeling/*`: process catalog, lifecycle, and deployment generation internals.
+- `ProOWeb/src/lib/process-modeling/runtime-contract.js`: runtime contract projection from deployed process specifications.
 - `ProOWeb/src/lib/git.js`: wizard-driven Git policy.
 - `ProOWeb/public/assets/js/*`: modular frontend scripts.
 - `ProOWeb/public/assets/css/*`: modular frontend styles.

@@ -74,6 +74,10 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 ## Phase 12 - Process Runtime Engine
 - Execute modeled processes with manual and automatic activities.
 - Enforce assignment strategies and runtime transitions.
+- Implementation baseline:
+  - runtime contract projection generated from deployed process model versions,
+  - editor preview API for runtime contract (`GET /api/process-models/{modelKey}/versions/{version}/runtime-contract`),
+  - generated backend/frontend runtime catalogs as source-owned artifacts.
 - Exit criteria: representative process runs end-to-end in generated app.
 
 ## Phase 13 - Process Data and Mapping Engine
