@@ -10,6 +10,7 @@ const {
   readProcessModelVersion,
   readProcessModelVersionSpecification,
   readProcessModelVersionRuntimeContract,
+  readProcessModelVersionDataContract,
   validateProcessModelVersionSpecification,
   saveProcessModelVersionSpecification,
 } = require("../lib/process-modeling/catalog");
@@ -38,6 +39,7 @@ function createProcessModelService(dependencies = {}) {
     readProcessModelVersion,
     readProcessModelVersionSpecification,
     readProcessModelVersionRuntimeContract,
+    readProcessModelVersionDataContract,
     validateProcessModelVersionSpecification,
     saveProcessModelVersionSpecification,
     loadStudioHistory,
@@ -185,6 +187,18 @@ function createProcessModelService(dependencies = {}) {
     );
   }
 
+  function readModelVersionDataContract(modelKey, versionNumber) {
+    const config = requireWorkspaceConfig();
+    requireProcessModelingEnabled(config);
+
+    const normalizedVersion = normalizeVersionNumber(versionNumber, "versionNumber");
+    return deps.readProcessModelVersionDataContract(
+      deps.rootDir,
+      modelKey,
+      normalizedVersion,
+    );
+  }
+
   function validateModelVersionSpecification(modelKey, versionNumber, payload = {}) {
     const config = requireWorkspaceConfig();
     requireProcessModelingEnabled(config);
@@ -292,6 +306,7 @@ function createProcessModelService(dependencies = {}) {
     transitionModelVersion,
     readModelVersionSpecification,
     readModelVersionRuntimeContract,
+    readModelVersionDataContract,
     validateModelVersionSpecification,
     saveModelVersionSpecification,
     deployModelVersion,

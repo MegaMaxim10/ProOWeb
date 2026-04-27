@@ -43,6 +43,9 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
 - Supports Step 12 runtime baseline:
   - runtime contract projection generated from deployed process versions (`spec-v1` + BPMN),
   - backend/frontend runtime catalogs generated for process execution bootstrap.
+- Supports Step 13 data and mapping baseline:
+  - data contract projection generated from deployed versions (input/output mappings, lineage edges, shared data entities),
+  - backend/frontend data catalogs generated for process data lineage tooling.
 
 ## Wizard Git Policy
 
@@ -156,6 +159,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `POST /api/process-models/{modelKey}/versions`
   - `GET /api/process-models/{modelKey}/versions/{version}`
   - `GET /api/process-models/{modelKey}/versions/{version}/runtime-contract`
+  - `GET /api/process-models/{modelKey}/versions/{version}/data-contract`
   - `GET /api/process-models/{modelKey}/versions/{version}/specification`
   - `POST /api/process-models/{modelKey}/versions/{version}/specification/validate`
   - `PUT /api/process-models/{modelKey}/versions/{version}/specification`
@@ -189,6 +193,13 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
     - `src/frontend/web/react/src/modules/processes/<modelKey>/Process<ProcessName>V<version>RuntimeContract.js`
     - `src/frontend/web/react/src/modules/processes/generatedProcessRegistry.js`
     - `src/frontend/web/react/src/modules/processes/generatedTaskInboxCatalog.js`
+- Data/mapping deployment assets include:
+  - backend:
+    - `src/backend/springboot/prooweb-application/src/main/resources/processes/<modelKey>/v<version>.data.json`
+    - `src/backend/springboot/prooweb-application/src/main/resources/processes/data-catalog.json`
+  - frontend:
+    - `src/frontend/web/react/src/modules/processes/<modelKey>/Process<ProcessName>V<version>DataContract.js`
+    - `src/frontend/web/react/src/modules/processes/generatedProcessDataLineageCatalog.js`
 - If a managed generated file was manually modified, deployment creates backup before overwrite:
   - `.prooweb/backups/process-deploy-<id>/...`
 
@@ -202,6 +213,17 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - manual/automatic activity counts,
   - startable roles,
   - monitor roles.
+
+## Process Data and Mapping Baseline (Step 13)
+
+- Data contract preview API:
+  - `GET /api/process-models/{modelKey}/versions/{version}/data-contract`
+- Data contract includes:
+  - activity input sources and output mapping strategies,
+  - lineage edges between source and target paths,
+  - shared data entity catalog (produced/consumed activities),
+  - summary counters (input/output mappings, lineage edges, shared entities, warnings).
+- Deployment metadata now includes data summary details and shared data entities.
 
 ## Usage
 
@@ -254,6 +276,7 @@ ProOWeb code is split into explicit layers:
 - `ProOWeb/src/lib/migration.js`: smart migration engine.
 - `ProOWeb/src/lib/process-modeling/*`: process catalog, lifecycle, and deployment generation internals.
 - `ProOWeb/src/lib/process-modeling/runtime-contract.js`: runtime contract projection from deployed process specifications.
+- `ProOWeb/src/lib/process-modeling/data-contract.js`: data and mapping contract projection with lineage and shared-data catalogs.
 - `ProOWeb/src/lib/git.js`: wizard-driven Git policy.
 - `ProOWeb/public/assets/js/*`: modular frontend scripts.
 - `ProOWeb/public/assets/css/*`: modular frontend styles.

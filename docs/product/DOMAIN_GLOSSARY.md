@@ -15,6 +15,7 @@
 
 ## D
 - Deployment Profile: runtime environment configuration (`dev`, `demo`, `test`, `preprod`, `prod`).
+- Data Lineage: explicit mapping graph showing how activity inputs/outputs move through process instance and shared data stores.
 - Device Security: controls and telemetry related to client devices and session risk.
 
 ## E

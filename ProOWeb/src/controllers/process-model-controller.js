@@ -77,6 +77,16 @@ function createProcessModelController({ processModelService, readJsonBody, sendJ
     }
   }
 
+  function handleReadProcessModelVersionDataContract(_request, response, modelKey, versionNumber) {
+    try {
+      const result = processModelService.readModelVersionDataContract(modelKey, versionNumber);
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, { error: error.message || "Failed to read data contract." });
+    }
+  }
+
   async function handleValidateProcessModelVersionSpecification(request, response, modelKey, versionNumber) {
     let payload = {};
     try {
@@ -217,6 +227,7 @@ function createProcessModelController({ processModelService, readJsonBody, sendJ
     handleReadProcessModelVersion,
     handleReadProcessModelVersionSpecification,
     handleReadProcessModelVersionRuntimeContract,
+    handleReadProcessModelVersionDataContract,
     handleValidateProcessModelVersionSpecification,
     handleSaveProcessModelVersionSpecification,
     handleCompareProcessModelVersions,

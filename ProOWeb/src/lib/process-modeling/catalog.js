@@ -6,6 +6,7 @@ const {
   summarizeProcessSpecificationV1,
 } = require("./spec-v1");
 const { buildRuntimeContract } = require("./runtime-contract");
+const { buildDataContract } = require("./data-contract");
 
 const PROCESS_STATUSES = Object.freeze(["DRAFT", "VALIDATED", "DEPLOYED", "RETIRED"]);
 
@@ -539,6 +540,29 @@ function readProcessModelVersionRuntimeContract(rootDir, modelKey, versionNumber
   };
 }
 
+function readProcessModelVersionDataContract(rootDir, modelKey, versionNumber) {
+  const normalizedKey = normalizeModelKey(modelKey);
+  const model = loadProcessModel(rootDir, normalizedKey);
+  if (!model) {
+    throw createCatalogError(404, `Model '${normalizedKey}' was not found.`);
+  }
+
+  const normalizedVersion = normalizeVersionNumber(versionNumber, "versionNumber");
+  const { version } = requireVersion(model, normalizedVersion);
+  const runtimeContract = buildRuntimeContract({ model, version });
+  const contract = buildDataContract({
+    model,
+    version,
+    runtimeContract,
+  });
+
+  return {
+    model: toPublicModel(model),
+    version: toPublicVersion(version),
+    contract,
+  };
+}
+
 function validateProcessModelVersionSpecification(rootDir, modelKey, versionNumber, payload = {}) {
   const normalizedKey = normalizeModelKey(modelKey);
   const model = loadProcessModel(rootDir, normalizedKey);
@@ -644,6 +668,7 @@ module.exports = {
   readProcessModelVersion,
   readProcessModelVersionSpecification,
   readProcessModelVersionRuntimeContract,
+  readProcessModelVersionDataContract,
   validateProcessModelVersionSpecification,
   saveProcessModelVersionSpecification,
 };

@@ -16,6 +16,10 @@ const {
   buildRuntimeContract,
   buildRuntimeCatalogEntry,
 } = require("./runtime-contract");
+const {
+  buildDataContract,
+  buildDataCatalogEntry,
+} = require("./data-contract");
 
 const DEFAULT_BASE_PACKAGE = "com.prooweb.generated";
 
@@ -159,14 +163,15 @@ public record ${className}(String modelKey, int versionNumber, String bpmnResour
 }
 
 function buildBackendRegistryClass({ basePackage, runtimeEntries }) {
-  const rows = runtimeEntries.map(({ entry }) => {
+  const rows = runtimeEntries.map(({ entry, dataEntry }) => {
     const bpmnPath = `classpath:${entry.bpmnResourcePath}`;
     const runtimePath = `classpath:${entry.runtimeContractResourcePath}`;
+    const dataPath = `classpath:${dataEntry?.dataContractResourcePath || ""}`;
     const startableRolesCsv = Array.isArray(entry.startableByRoles) ? entry.startableByRoles.join(",") : "";
     const monitorRolesCsv = Array.isArray(entry.monitorRoles) ? entry.monitorRoles.join(",") : "";
     return `      new ProcessDeploymentDescriptor("${escapeJavaString(entry.modelKey)}", ${entry.versionNumber}, "${escapeJavaString(
       bpmnPath,
-    )}", "${escapeJavaString(runtimePath)}", ${entry.summary?.manualActivityCount || 0}, ${entry.summary?.automaticActivityCount || 0}, "${escapeJavaString(
+    )}", "${escapeJavaString(runtimePath)}", "${escapeJavaString(dataPath)}", ${entry.summary?.manualActivityCount || 0}, ${entry.summary?.automaticActivityCount || 0}, ${dataEntry?.summary?.sharedDataEntityCount || 0}, ${dataEntry?.summary?.outputMappingCount || 0}, "${escapeJavaString(
       startableRolesCsv,
     )}", "${escapeJavaString(monitorRolesCsv)}")`;
   });
@@ -186,8 +191,11 @@ public final class GeneratedProcessRegistry {
       int versionNumber,
       String bpmnResourcePath,
       String runtimeContractResourcePath,
+      String dataContractResourcePath,
       int manualActivityCount,
       int automaticActivityCount,
+      int sharedDataEntityCount,
+      int dataMappingCount,
       String startableByRolesCsv,
       String monitorRolesCsv) {
   }
@@ -201,7 +209,15 @@ ${entries}
 `;
 }
 
-function buildFrontendDescriptorModule({ model, version, processName, runtimeContract, runtimeCatalogEntry }) {
+function buildFrontendDescriptorModule({
+  model,
+  version,
+  processName,
+  runtimeContract,
+  runtimeCatalogEntry,
+  dataContract,
+  dataCatalogEntry,
+}) {
   const exportName = `${processName}ProcessV${version.versionNumber}Descriptor`;
 
   return `export const ${exportName} = Object.freeze({
@@ -215,6 +231,9 @@ function buildFrontendDescriptorModule({ model, version, processName, runtimeCon
   monitorRoles: ${JSON.stringify(runtimeContract.monitors.monitorRoles)},
   runtimeSummary: ${JSON.stringify(runtimeContract.summary)},
   runtimeContractPath: ${JSON.stringify(runtimeCatalogEntry.runtimeContractResourcePath)},
+  dataSummary: ${JSON.stringify(dataContract.summary)},
+  dataContractPath: ${JSON.stringify(dataCatalogEntry.dataContractResourcePath)},
+  sharedDataEntities: ${JSON.stringify(dataCatalogEntry.sharedDataEntities)},
 });
 
 export default ${exportName};
@@ -222,7 +241,7 @@ export default ${exportName};
 }
 
 function buildFrontendRegistryModule(runtimeEntries) {
-  const entries = runtimeEntries.map(({ entry }) => ({
+  const entries = runtimeEntries.map(({ entry, dataEntry }) => ({
     modelKey: entry.modelKey,
     title: entry.title,
     description: entry.description,
@@ -234,7 +253,10 @@ function buildFrontendRegistryModule(runtimeEntries) {
     runtimeContractResourcePath: entry.runtimeContractResourcePath,
     startableByRoles: entry.startableByRoles,
     monitorRoles: entry.monitorRoles,
-    summary: entry.summary,
+    runtimeSummary: entry.summary,
+    dataContractResourcePath: dataEntry?.dataContractResourcePath || null,
+    dataSummary: dataEntry?.summary || null,
+    sharedDataEntities: dataEntry?.sharedDataEntities || [],
   }));
 
   return `export const generatedProcessRegistry = Object.freeze(${JSON.stringify(entries, null, 2)});
@@ -258,10 +280,49 @@ export default ${exportName};
 `;
 }
 
+function buildFrontendDataContractModule({ dataContract, processName, versionNumber }) {
+  const exportName = `${processName}ProcessV${versionNumber}DataContract`;
+  return `export const ${exportName} = Object.freeze(${JSON.stringify(dataContract, null, 2)});
+
+export default ${exportName};
+`;
+}
+
+function buildFrontendDataLineageCatalogModule(runtimeEntries) {
+  const rows = [];
+
+  for (const { entry, dataContract } of runtimeEntries) {
+    for (const edge of dataContract?.lineage?.edges || []) {
+      rows.push({
+        modelKey: entry.modelKey,
+        versionNumber: entry.versionNumber,
+        edgeType: edge.edgeType,
+        activityId: edge.activityId,
+        sourceType: edge.sourceType || null,
+        sourceRef: edge.sourceRef || null,
+        storageTarget: edge.storageTarget || null,
+        sourcePath: edge.sourcePath || null,
+        targetPath: edge.targetPath || null,
+      });
+    }
+  }
+
+  return `export const generatedProcessDataLineageCatalog = Object.freeze(${JSON.stringify(rows, null, 2)});
+
+export function listDataLineageForProcess(modelKey, versionNumber) {
+  const key = String(modelKey || "").trim();
+  const version = Number.parseInt(String(versionNumber || ""), 10);
+  return generatedProcessDataLineageCatalog.filter(
+    (entry) => entry.modelKey === key && entry.versionNumber === version,
+  );
+}
+`;
+}
+
 function buildFrontendTaskInboxCatalogModule(runtimeEntries) {
   const manualTaskRows = [];
-  for (const { entry, contract } of runtimeEntries) {
-    for (const activity of contract.activities || []) {
+  for (const { entry, runtimeContract } of runtimeEntries) {
+    for (const activity of runtimeContract.activities || []) {
       if (activity.activityType !== "MANUAL") {
         continue;
       }
@@ -299,7 +360,19 @@ function buildBackendRuntimeCatalogJson(runtimeEntries) {
   ) + "\n";
 }
 
-function buildVersionMetadata(model, version, runtimeContract) {
+function buildBackendDataCatalogJson(runtimeEntries) {
+  return JSON.stringify(
+    {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      entries: runtimeEntries.map(({ dataEntry }) => dataEntry),
+    },
+    null,
+    2,
+  ) + "\n";
+}
+
+function buildVersionMetadata(model, version, runtimeContract, dataContract) {
   return JSON.stringify(
     {
       schemaVersion: 1,
@@ -315,6 +388,7 @@ function buildVersionMetadata(model, version, runtimeContract) {
       specificationSchemaVersion: version?.specification?.schemaVersion || null,
       specification: version?.specification || null,
       runtimeSummary: runtimeContract?.summary || null,
+      dataSummary: dataContract?.summary || null,
     },
     null,
     2,
@@ -326,20 +400,36 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
   const basePackagePath = basePackage.replace(/\./g, "/");
   const processName = toPascalCase(model.modelKey);
   const runtimeContract = buildRuntimeContract({ model, version });
+  const dataContract = buildDataContract({
+    model,
+    version,
+    runtimeContract,
+  });
   const runtimeEntries = deployedRecords.map((entry) => {
-    const contract = buildRuntimeContract({
+    const deployedRuntimeContract = buildRuntimeContract({
       model: entry.model,
       version: entry.version,
+    });
+    const deployedDataContract = buildDataContract({
+      model: entry.model,
+      version: entry.version,
+      runtimeContract: deployedRuntimeContract,
     });
 
     return {
       model: entry.model,
       version: entry.version,
-      contract,
+      runtimeContract: deployedRuntimeContract,
+      dataContract: deployedDataContract,
       entry: buildRuntimeCatalogEntry({
         model: entry.model,
         version: entry.version,
-        contract,
+        contract: deployedRuntimeContract,
+      }),
+      dataEntry: buildDataCatalogEntry({
+        model: entry.model,
+        version: entry.version,
+        dataContract: deployedDataContract,
       }),
     };
   });
@@ -379,7 +469,7 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
     },
     {
       relativePath: toPosixPath(path.join(backendResourcesRoot, `v${version.versionNumber}.json`)),
-      content: buildVersionMetadata(model, version, runtimeContract),
+      content: buildVersionMetadata(model, version, runtimeContract, dataContract),
       kind: "backend-metadata",
       modelKey: model.modelKey,
       versionNumber: version.versionNumber,
@@ -392,10 +482,24 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
       versionNumber: version.versionNumber,
     },
     {
+      relativePath: toPosixPath(path.join(backendResourcesRoot, `v${version.versionNumber}.data.json`)),
+      content: `${JSON.stringify(dataContract, null, 2)}\n`,
+      kind: "backend-data-contract",
+      modelKey: model.modelKey,
+      versionNumber: version.versionNumber,
+    },
+    {
       relativePath: "src/backend/springboot/prooweb-application/src/main/resources/processes/runtime-catalog.json",
       content: buildBackendRuntimeCatalogJson(runtimeEntries),
       kind: "backend-runtime-catalog",
       modelKey: "_runtime_catalog_",
+      versionNumber: 1,
+    },
+    {
+      relativePath: "src/backend/springboot/prooweb-application/src/main/resources/processes/data-catalog.json",
+      content: buildBackendDataCatalogJson(runtimeEntries),
+      kind: "backend-data-catalog",
+      modelKey: "_data_catalog_",
       versionNumber: 1,
     },
     {
@@ -406,6 +510,8 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
         processName,
         runtimeContract,
         runtimeCatalogEntry: currentRuntimeEntry?.entry || buildRuntimeCatalogEntry({ model, version, contract: runtimeContract }),
+        dataContract,
+        dataCatalogEntry: currentRuntimeEntry?.dataEntry || buildDataCatalogEntry({ model, version, dataContract }),
       }),
       kind: "frontend-descriptor",
       modelKey: model.modelKey,
@@ -419,6 +525,17 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
         versionNumber: version.versionNumber,
       }),
       kind: "frontend-runtime-contract",
+      modelKey: model.modelKey,
+      versionNumber: version.versionNumber,
+    },
+    {
+      relativePath: toPosixPath(path.join(frontendProcessRoot, `Process${processName}V${version.versionNumber}DataContract.js`)),
+      content: buildFrontendDataContractModule({
+        dataContract,
+        processName,
+        versionNumber: version.versionNumber,
+      }),
+      kind: "frontend-data-contract",
       modelKey: model.modelKey,
       versionNumber: version.versionNumber,
     },
@@ -447,11 +564,19 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
       modelKey: "_runtime_catalog_",
       versionNumber: 1,
     },
+    {
+      relativePath: "src/frontend/web/react/src/modules/processes/generatedProcessDataLineageCatalog.js",
+      content: buildFrontendDataLineageCatalogModule(runtimeEntries),
+      kind: "frontend-data-lineage-catalog",
+      modelKey: "_data_catalog_",
+      versionNumber: 1,
+    },
   ];
 
   return {
     files,
     runtimeContract,
+    dataContract,
     runtimeEntries,
   };
 }
@@ -676,8 +801,10 @@ function deployProcessModelVersion({ rootDir, workspaceConfig, modelKey, version
       generatedFiles: generatedFiles.map((entry) => entry.relativePath),
       reportSummary: report.summary,
       runtimeSummary: deploymentBuild.runtimeContract.summary,
+      dataSummary: deploymentBuild.dataContract.summary,
       startableByRoles: deploymentBuild.runtimeContract.start.startableByRoles,
       monitorRoles: deploymentBuild.runtimeContract.monitors.monitorRoles,
+      sharedDataEntities: (deploymentBuild.dataContract.sharedData?.entities || []).map((entry) => entry.entityKey),
     },
   };
   refreshedModel.updatedAt = new Date().toISOString();
@@ -692,8 +819,10 @@ function deployProcessModelVersion({ rootDir, workspaceConfig, modelKey, version
       deploymentId,
       generatedFiles: generatedFiles.map((entry) => entry.relativePath),
       runtimeSummary: deploymentBuild.runtimeContract.summary,
+      dataSummary: deploymentBuild.dataContract.summary,
       startableByRoles: deploymentBuild.runtimeContract.start.startableByRoles,
       monitorRoles: deploymentBuild.runtimeContract.monitors.monitorRoles,
+      sharedDataEntities: (deploymentBuild.dataContract.sharedData?.entities || []).map((entry) => entry.entityKey),
       report,
     },
   };

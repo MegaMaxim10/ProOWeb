@@ -100,6 +100,25 @@ function createAppRouter({
         && pathSegments[0] === "api"
         && pathSegments[1] === "process-models"
         && pathSegments[3] === "versions"
+        && pathSegments[5] === "data-contract"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        const versionNumber = decodeURIComponent(pathSegments[4]);
+        processModelController.handleReadProcessModelVersionDataContract(
+          request,
+          response,
+          modelKey,
+          versionNumber,
+        );
+        return;
+      }
+
+      if (
+        method === "GET"
+        && pathSegments.length === 6
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "versions"
         && pathSegments[5] === "specification"
       ) {
         const modelKey = decodeURIComponent(pathSegments[2]);

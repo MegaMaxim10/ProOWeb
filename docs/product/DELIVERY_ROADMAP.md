@@ -82,6 +82,10 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 
 ## Phase 13 - Process Data and Mapping Engine
 - Implement input/output mapping, shared data integration, and persistence strategies.
+- Implementation baseline:
+  - data contract projection generated from deployed `spec-v1` activity mappings,
+  - editor data contract preview API (`GET /api/process-models/{modelKey}/versions/{version}/data-contract`),
+  - generated backend/frontend lineage and shared-data catalogs.
 - Exit criteria: data lineage across activities and shared data is testable.
 
 ## Phase 14 - Simulation, Testing, and Deployment of Process Versions

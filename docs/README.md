@@ -24,3 +24,4 @@ This folder contains the Step 1 documentation baseline in English.
 - `ADR-0010`: Dashboard-driven reconfiguration lifecycle with smart migration reporting.
 - `ADR-0011`: Editor-side process modeling catalog with deployment-triggered source generation.
 - `ADR-0012`: Runtime contract generation from deployed process specifications.
+- `ADR-0013`: Process data and mapping contract with generated lineage catalogs.

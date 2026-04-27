@@ -5,6 +5,7 @@ import {
   createProcessModelVersion,
   fetchProcessModelVersion,
   fetchProcessModelRuntimeContract,
+  fetchProcessModelDataContract,
   fetchProcessModelSpecification,
   validateProcessModelSpecification,
   saveProcessModelSpecification,
@@ -172,6 +173,46 @@ function renderRuntimeContractReport(payload) {
   return lines.join("\n");
 }
 
+function renderDataContractReport(payload) {
+  const contract = payload?.contract;
+  if (!contract || typeof contract !== "object") {
+    return "No data contract available.";
+  }
+
+  const summary = contract.summary || {};
+  const lines = [
+    `Data contract for ${contract.modelKey} v${contract.versionNumber}`,
+    `Status: ${contract.status || "-"}`,
+    `Activities: ${summary.activityCount ?? 0}`,
+    `Input sources: ${summary.inputSourceCount ?? 0}`,
+    `Input mappings: ${summary.inputMappingCount ?? 0}`,
+    `Output mappings: ${summary.outputMappingCount ?? 0}`,
+    `Lineage edges: ${summary.lineageEdgeCount ?? 0}`,
+    `Shared data entities: ${summary.sharedDataEntityCount ?? 0}`,
+    `Warnings: ${summary.warningCount ?? 0}`,
+    "",
+    "[Shared Data Entities]",
+  ];
+
+  for (const entity of contract.sharedData?.entities || []) {
+    lines.push(
+      `- ${entity.entityKey} | producedBy=${(entity.producedByActivities || []).join(",") || "-"} | consumedBy=${(entity.consumedByActivities || []).join(",") || "-"}`,
+    );
+  }
+
+  lines.push("", "[Sample Lineage Edges]");
+  const sampleEdges = (contract.lineage?.edges || []).slice(0, 15);
+  for (const edge of sampleEdges) {
+    if (edge.edgeType === "INPUT") {
+      lines.push(`- INPUT | ${edge.sourceType}:${edge.sourceRef || "-"}:${edge.sourcePath} -> ${edge.activityId}.input.${edge.targetPath}`);
+    } else {
+      lines.push(`- OUTPUT | ${edge.activityId}.output.${edge.sourcePath} -> ${edge.storageTarget}:${edge.targetPath}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
 function renderSpecificationReport(action, payload) {
   const summary = payload?.summary || {};
   const validation = payload?.validation || {};
@@ -264,6 +305,10 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
   const runtimeContractFeedback = documentRef.getElementById("process-model-runtime-contract-feedback");
   const runtimeContractModelSelector = documentRef.getElementById("process-runtime-contract-model");
   const runtimeContractVersionSelector = documentRef.getElementById("process-runtime-contract-version");
+  const dataContractForm = documentRef.getElementById("process-model-data-contract-form");
+  const dataContractFeedback = documentRef.getElementById("process-model-data-contract-feedback");
+  const dataContractModelSelector = documentRef.getElementById("process-data-contract-model");
+  const dataContractVersionSelector = documentRef.getElementById("process-data-contract-version");
 
   if (
     !catalogView
@@ -274,6 +319,7 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
     || !transitionForm
     || !deployForm
     || !runtimeContractForm
+    || !dataContractForm
   ) {
     return;
   }
@@ -318,6 +364,7 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
     transitionModelSelector,
     deployModelSelector,
     runtimeContractModelSelector,
+    dataContractModelSelector,
   ].filter(Boolean);
 
   function getModels() {
@@ -347,6 +394,11 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
   bindVersionSync({
     modelSelector: runtimeContractModelSelector,
     versionSelector: runtimeContractVersionSelector,
+    getModels,
+  });
+  bindVersionSync({
+    modelSelector: dataContractModelSelector,
+    versionSelector: dataContractVersionSelector,
     getModels,
   });
 
@@ -476,6 +528,23 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
       reportView.textContent = renderRuntimeContractReport(payload);
     } catch (error) {
       setFeedback(runtimeContractFeedback, error.message || "Failed to load runtime contract.", "error");
+    }
+  });
+
+  dataContractForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setFeedback(dataContractFeedback, "Loading data contract...");
+
+    const form = new FormData(dataContractForm);
+    const modelKey = String(form.get("modelKey") || "");
+    const versionNumber = form.get("versionNumber");
+
+    try {
+      const payload = await fetchProcessModelDataContract(modelKey, versionNumber);
+      setFeedback(dataContractFeedback, "Data contract loaded.", "success");
+      reportView.textContent = renderDataContractReport(payload);
+    } catch (error) {
+      setFeedback(dataContractFeedback, error.message || "Failed to load data contract.", "error");
     }
   });
 }
