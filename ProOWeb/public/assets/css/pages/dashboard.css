@@ -60,3 +60,77 @@
   background: #f6fbff;
   overflow-x: auto;
 }
+
+.process-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+@media (min-width: 980px) {
+  .process-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.process-card {
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbfdff;
+}
+
+.process-card h4 {
+  margin: 0 0 0.5rem;
+}
+
+.process-studio {
+  margin: 0 0 0.85rem;
+}
+
+.process-studio h4 {
+  margin: 0;
+}
+
+.process-studio-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0.75rem 0;
+}
+
+.process-studio-toolbar button {
+  margin-top: 0;
+}
+
+.studio-select {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.studio-select select {
+  min-width: 150px;
+}
+
+.process-studio-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 1080px) {
+  .process-studio-grid {
+    grid-template-columns: 1.15fr 1fr;
+  }
+}
+
+.process-bpmn-canvas,
+.process-bpmn-editor {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
+  min-height: 360px;
+}
+
+.process-bpmn-editor {
+  height: 360px;
+}

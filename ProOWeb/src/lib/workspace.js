@@ -13,6 +13,7 @@ const SESSION_DEVICE_SECURITY_FEATURE_PACK_ID = "session-device-security";
 const ORGANIZATION_HIERARCHY_FEATURE_PACK_ID = "organization-hierarchy";
 const NOTIFICATIONS_EMAIL_FEATURE_PACK_ID = "notifications-email";
 const DATABASE_LIQUIBASE_FEATURE_PACK_ID = "database-liquibase";
+const PROCESS_MODELING_FEATURE_PACK_ID = "process-modeling-core";
 const ORGANIZATION_ASSIGNMENT_STRATEGIES = [
   "SUPERVISOR_ONLY",
   "SUPERVISOR_THEN_ANCESTORS",
@@ -275,6 +276,40 @@ function normalizeDatabaseMigrationConfig(rawConfig = {}, options = {}) {
   };
 }
 
+function normalizeProcessModelingConfig(rawConfig = {}, options = {}) {
+  const enabled = options.forceEnabled !== undefined
+    ? Boolean(options.forceEnabled)
+    : (rawConfig.enabled === undefined ? true : normalizeBool(rawConfig.enabled));
+  const versioningStrategy = normalizeString(rawConfig.versioningStrategy)
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]+/g, "_") || "LINEAR";
+  const maxVersionsPerModel = normalizePositiveInteger(
+    rawConfig.maxVersionsPerModel,
+    50,
+    "processModeling.maxVersionsPerModel",
+  );
+  const allowDirectDeployment = rawConfig.allowDirectDeployment === undefined
+    ? false
+    : normalizeBool(rawConfig.allowDirectDeployment);
+
+  if (options.strict) {
+    if (versioningStrategy !== "LINEAR") {
+      throw new Error("processModeling.versioningStrategy must be LINEAR.");
+    }
+
+    if (maxVersionsPerModel < 2 || maxVersionsPerModel > 200) {
+      throw new Error("processModeling.maxVersionsPerModel must be between 2 and 200.");
+    }
+  }
+
+  return {
+    enabled,
+    versioningStrategy: "LINEAR",
+    maxVersionsPerModel,
+    allowDirectDeployment,
+  };
+}
+
 function withConfigDrivenFeaturePacks(featurePacks, options = {}) {
   const enabled = Array.isArray(featurePacks?.enabled) ? featurePacks.enabled : [];
   const enabledSet = new Set(enabled);
@@ -307,6 +342,12 @@ function withConfigDrivenFeaturePacks(featurePacks, options = {}) {
     enabledSet.add(DATABASE_LIQUIBASE_FEATURE_PACK_ID);
   } else {
     enabledSet.delete(DATABASE_LIQUIBASE_FEATURE_PACK_ID);
+  }
+
+  if (options.processModelingEnabled) {
+    enabledSet.add(PROCESS_MODELING_FEATURE_PACK_ID);
+  } else {
+    enabledSet.delete(PROCESS_MODELING_FEATURE_PACK_ID);
   }
 
   return normalizeFeaturePacks({
@@ -415,6 +456,7 @@ function readWorkspaceConfig() {
   const organizationHierarchy = parsed.backendOptions.organizationHierarchy || {};
   const notifications = parsed.backendOptions.notifications || {};
   const databaseMigration = parsed.backendOptions.databaseMigration || {};
+  const processModeling = parsed.backendOptions.processModeling || {};
   parsed.backendOptions.swaggerUi = {
     enabled: Boolean(swaggerUi.enabled),
     profiles: normalizeStringList(swaggerUi.profiles).map((value) => value.toLowerCase()),
@@ -455,6 +497,15 @@ function readWorkspaceConfig() {
     },
     { strict: false },
   );
+  parsed.backendOptions.processModeling = normalizeProcessModelingConfig(
+    {
+      enabled: processModeling.enabled,
+      versioningStrategy: processModeling.versioningStrategy,
+      maxVersionsPerModel: processModeling.maxVersionsPerModel,
+      allowDirectDeployment: processModeling.allowDirectDeployment,
+    },
+    { strict: false },
+  );
 
   parsed.featurePacks = withConfigDrivenFeaturePacks(
     normalizeFeaturePacks(parsed.featurePacks),
@@ -464,6 +515,7 @@ function readWorkspaceConfig() {
       organizationHierarchyEnabled: parsed.backendOptions.organizationHierarchy.enabled,
       notificationsEnabled: parsed.backendOptions.notifications.enabled,
       liquibaseEnabled: parsed.backendOptions.databaseMigration.liquibaseEnabled,
+      processModelingEnabled: parsed.backendOptions.processModeling.enabled,
     },
   );
   parsed.managedBy = normalizeManagedBy(parsed);
@@ -538,6 +590,7 @@ function toPublicWorkspaceConfig(config) {
   const organizationHierarchy = backendOptions.organizationHierarchy || {};
   const notifications = backendOptions.notifications || {};
   const databaseMigration = backendOptions.databaseMigration || {};
+  const processModeling = backendOptions.processModeling || {};
   backendOptions.externalIam = {
     enabled: Boolean(externalIam.enabled),
     providers: normalizeExternalIamProviders(externalIam.providers).map((provider) => ({
@@ -579,6 +632,15 @@ function toPublicWorkspaceConfig(config) {
       liquibaseEnabled: databaseMigration.liquibaseEnabled,
       changelogPath: databaseMigration.changelogPath,
       contexts: databaseMigration.contexts,
+    },
+    { strict: false },
+  );
+  backendOptions.processModeling = normalizeProcessModelingConfig(
+    {
+      enabled: processModeling.enabled,
+      versioningStrategy: processModeling.versioningStrategy,
+      maxVersionsPerModel: processModeling.maxVersionsPerModel,
+      allowDirectDeployment: processModeling.allowDirectDeployment,
     },
     { strict: false },
   );
@@ -661,6 +723,18 @@ function buildWorkspaceConfig(payload) {
     },
     { strict: true, forceEnabled: liquibaseEnabled },
   );
+  const processModelingEnabled = Object.prototype.hasOwnProperty.call(payload, "processModelingEnabled")
+    ? normalizeBool(payload.processModelingEnabled)
+    : true;
+  const processModelingConfig = normalizeProcessModelingConfig(
+    {
+      enabled: processModelingEnabled,
+      versioningStrategy: payload.processVersioningStrategy,
+      maxVersionsPerModel: payload.processMaxVersionsPerModel,
+      allowDirectDeployment: payload.processAllowDirectDeployment,
+    },
+    { strict: true, forceEnabled: processModelingEnabled },
+  );
   const featurePacksEnabled = normalizeStringList(payload.featurePacksEnabled).map((entry) => entry.toLowerCase());
   const featurePackConfigs = payload?.featurePackConfigs;
 
@@ -716,13 +790,14 @@ function buildWorkspaceConfig(payload) {
       organizationHierarchyEnabled: organizationHierarchyConfig.enabled,
       notificationsEnabled: notificationsConfig.enabled,
       liquibaseEnabled: databaseMigrationConfig.liquibaseEnabled,
+      processModelingEnabled: processModelingConfig.enabled,
     },
   );
 
   const { hash, salt } = hashPassword(superAdminPassword);
 
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     initializedAt: new Date().toISOString(),
     project: {
       title: projectTitle,
@@ -749,6 +824,7 @@ function buildWorkspaceConfig(payload) {
       organizationHierarchy: organizationHierarchyConfig,
       notifications: notificationsConfig,
       databaseMigration: databaseMigrationConfig,
+      processModeling: processModelingConfig,
     },
     featurePacks,
     managedBy: {
@@ -942,6 +1018,41 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
     },
     { strict: true, forceEnabled: liquibaseEnabled },
   );
+  const hasProcessModelingEnabledOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "processModelingEnabled",
+  );
+  const currentProcessModeling = currentConfig?.backendOptions?.processModeling || {};
+  const processModelingEnabled = hasProcessModelingEnabledOverride
+    ? normalizeBool(safePayload.processModelingEnabled)
+    : (currentProcessModeling.enabled === undefined ? true : Boolean(currentProcessModeling.enabled));
+  const hasProcessVersioningStrategyOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "processVersioningStrategy",
+  );
+  const hasProcessMaxVersionsOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "processMaxVersionsPerModel",
+  );
+  const hasProcessAllowDirectDeploymentOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "processAllowDirectDeployment",
+  );
+  const processModelingConfig = normalizeProcessModelingConfig(
+    {
+      enabled: processModelingEnabled,
+      versioningStrategy: hasProcessVersioningStrategyOverride
+        ? safePayload.processVersioningStrategy
+        : currentProcessModeling.versioningStrategy,
+      maxVersionsPerModel: hasProcessMaxVersionsOverride
+        ? safePayload.processMaxVersionsPerModel
+        : currentProcessModeling.maxVersionsPerModel,
+      allowDirectDeployment: hasProcessAllowDirectDeploymentOverride
+        ? safePayload.processAllowDirectDeployment
+        : currentProcessModeling.allowDirectDeployment,
+    },
+    { strict: true, forceEnabled: processModelingEnabled },
+  );
 
   const featurePacksEnabled = normalizeStringList(safePayload.featurePacksEnabled).map((entry) => entry.toLowerCase());
   const rawFeaturePacks =
@@ -961,12 +1072,13 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
       organizationHierarchyEnabled: organizationHierarchyConfig.enabled,
       notificationsEnabled: notificationsConfig.enabled,
       liquibaseEnabled: databaseMigrationConfig.liquibaseEnabled,
+      processModelingEnabled: processModelingConfig.enabled,
     },
   );
 
   return {
     ...currentConfig,
-    schemaVersion: 4,
+    schemaVersion: 5,
     project: {
       ...currentConfig.project,
       basePackage,
@@ -985,6 +1097,7 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
       organizationHierarchy: organizationHierarchyConfig,
       notifications: notificationsConfig,
       databaseMigration: databaseMigrationConfig,
+      processModeling: processModelingConfig,
     },
     featurePacks,
   };
@@ -1010,6 +1123,9 @@ function markWorkspaceMigrated(config) {
         liquibaseEnabled: config?.backendOptions?.databaseMigration?.liquibaseEnabled === undefined
           ? true
           : Boolean(config?.backendOptions?.databaseMigration?.liquibaseEnabled),
+        processModelingEnabled: config?.backendOptions?.processModeling?.enabled === undefined
+          ? true
+          : Boolean(config?.backendOptions?.processModeling?.enabled),
       },
     ),
     managedBy: {

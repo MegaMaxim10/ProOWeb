@@ -35,6 +35,11 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
 - Supports Step 8 organization hierarchy baseline (units, supervisors, members, hierarchy-aware assignment resolution).
 - Supports Step 9 notification workflows + Liquibase baseline (template-driven notification dispatch/audit, managed changelog generation).
 - Supports Step 10 dashboard-driven reconfiguration lifecycle with full smart-migration reporting (`POST /api/reconfigure`).
+- Supports Step 11 editor-side process modeling baseline:
+  - BPMN models and versions stored in `.prooweb/process-models`,
+  - version lifecycle (`DRAFT`, `VALIDATED`, `DEPLOYED`, `RETIRED`) and version diff,
+  - deployment action that generates backend/frontend source files only when a version is deployed,
+  - managed conflict strategy with automatic backup and detailed deployment report.
 
 ## Wizard Git Policy
 
@@ -138,6 +143,35 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - per-file actions (`created`, `updated`, `conflictsResolved`, `collisionsResolved`, `staleManagedFiles`),
   - backup traceability.
 
+## Process Modeling and Deployment (Step 11)
+
+- Process definitions are authored and versioned in ProOWeb, not inside generated app runtime modules.
+- Storage location: `.prooweb/process-models/models/*.json`.
+- Main editor APIs:
+  - `GET /api/process-models`
+  - `POST /api/process-models`
+  - `POST /api/process-models/{modelKey}/versions`
+  - `GET /api/process-models/{modelKey}/versions/{version}`
+  - `GET /api/process-models/{modelKey}/diff?sourceVersion=...&targetVersion=...`
+  - `POST /api/process-models/{modelKey}/versions/{version}/transition`
+  - `POST /api/process-models/{modelKey}/versions/{version}/deploy`
+  - `GET /api/process-models/{modelKey}/history`
+  - `POST /api/process-models/{modelKey}/history/snapshots`
+  - `POST /api/process-models/{modelKey}/history/undo`
+  - `POST /api/process-models/{modelKey}/history/redo`
+- Dashboard BPMN studio:
+  - graphical modeling with `bpmn-js` (BPMN.io),
+  - import/export BPMN files,
+  - XML IDE editor powered by Monaco (syntax highlighting + marker-based syntax checks),
+  - BPMN linting rules beyond XML syntax (graph/connectivity/sequence-flow consistency),
+  - version-aware load action to fetch a selected model version directly into studio,
+  - persisted undo/redo snapshots per model in `.prooweb/process-models/history/*.json`,
+  - bidirectional sync between graphical canvas and XML editor.
+- Deployment generates process-specific source artifacts into backend/frontend trees and tracks them in:
+  - `.prooweb/process-models/managed-files.json`
+- If a managed generated file was manually modified, deployment creates backup before overwrite:
+  - `.prooweb/backups/process-deploy-<id>/...`
+
 ## Usage
 
 1. Start the editor:
@@ -179,12 +213,15 @@ ProOWeb code is split into explicit layers:
 - `ProOWeb/src/routes/app-router.js`: centralized HTTP routing.
 - `ProOWeb/src/controllers/workspace-controller.js`: workspace endpoints controller.
 - `ProOWeb/src/services/workspace-service.js`: workspace application service.
+- `ProOWeb/src/services/process-model-service.js`: process modeling/version/deployment application service.
+- `ProOWeb/src/controllers/process-model-controller.js`: process modeling API controller.
 - `ProOWeb/src/http/*`: shared HTTP utilities.
 - `ProOWeb/src/lib/workspace.js`: validation, persistence, and management metadata.
 - `ProOWeb/src/lib/generator.js`: generation orchestration and managed manifest workflow.
 - `ProOWeb/src/lib/generator/templates/index.js`: template assembly index.
 - `ProOWeb/src/lib/generator/templates/**`: one template per file, grouped by domain/technology.
 - `ProOWeb/src/lib/migration.js`: smart migration engine.
+- `ProOWeb/src/lib/process-modeling/*`: process catalog, lifecycle, and deployment generation internals.
 - `ProOWeb/src/lib/git.js`: wizard-driven Git policy.
 - `ProOWeb/public/assets/js/*`: modular frontend scripts.
 - `ProOWeb/public/assets/css/*`: modular frontend styles.

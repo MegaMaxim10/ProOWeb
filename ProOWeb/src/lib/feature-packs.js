@@ -56,6 +56,14 @@ const FEATURE_PACK_DEFINITIONS = Object.freeze([
     description: "Generate organization hierarchy management and hierarchy-aware assignment strategies.",
   },
   {
+    id: "process-modeling-core",
+    category: "application",
+    defaultEnabled: true,
+    supportedModes: ["full"],
+    dependencies: ["backend-platform", "frontend-web-react", "identity-rbac"],
+    description: "Enable editor-side BPMN process catalog (version lifecycle, diff, deploy-triggered code generation).",
+  },
+  {
     id: "notifications-email",
     category: "application",
     defaultEnabled: true,

@@ -28,6 +28,7 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
   const organizationHierarchyConfig = workspace.backendOptions?.organizationHierarchy;
   const notificationsConfig = workspace.backendOptions?.notifications;
   const databaseMigrationConfig = workspace.backendOptions?.databaseMigration;
+  const processModelingConfig = workspace.backendOptions?.processModeling;
   const externalProviderIds = Array.isArray(externalIamConfig?.providers)
     ? externalIamConfig.providers.map((provider) => provider.id).filter(Boolean)
     : [];
@@ -51,7 +52,11 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
     "Notification audit: " + (notificationsConfig?.auditEnabled ? "active" : "desactive") + "<br />" +
     "Liquibase: " + (databaseMigrationConfig?.liquibaseEnabled ? "active" : "desactive") + "<br />" +
     "Liquibase changelog: " + (databaseMigrationConfig?.changelogPath || "-") + "<br />" +
-    "Liquibase contexts: " + (databaseMigrationConfig?.contexts || "-");
+    "Liquibase contexts: " + (databaseMigrationConfig?.contexts || "-") + "<br />" +
+    "ProOWeb process catalog: " + (processModelingConfig?.enabled ? "active" : "desactive") + "<br />" +
+    "Process versioning strategy: " + (processModelingConfig?.versioningStrategy || "-") + "<br />" +
+    "Process max versions/model: " + (processModelingConfig?.maxVersionsPerModel || "-") + "<br />" +
+    "Direct deployment from draft: " + (processModelingConfig?.allowDirectDeployment ? "active" : "desactive");
 
   const managementLine = documentRef.getElementById("management-line");
   managementLine.textContent =

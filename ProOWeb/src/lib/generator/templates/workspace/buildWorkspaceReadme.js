@@ -49,6 +49,10 @@ This workspace was generated and managed by ProOWeb.
 - Liquibase: ${config.backendOptions.databaseMigration?.liquibaseEnabled ? "enabled" : "disabled"}
 - Liquibase changelog path: ${config.backendOptions.databaseMigration?.changelogPath || "classpath:db/changelog/db.changelog-master.yaml"}
 - Liquibase contexts: ${config.backendOptions.databaseMigration?.contexts || "baseline,reference-data"}
+- ProOWeb process modeling workspace: ${config.backendOptions.processModeling?.enabled ? "enabled" : "disabled"}
+- Process versioning strategy: ${config.backendOptions.processModeling?.versioningStrategy || "LINEAR"}
+- Max versions per model (editor catalog): ${config.backendOptions.processModeling?.maxVersionsPerModel || "50"}
+- Allow direct deployment from draft (editor action): ${config.backendOptions.processModeling?.allowDirectDeployment ? "enabled" : "disabled"}
 
 ## Active feature packs
 ${activeFeaturePacks.length > 0 ? activeFeaturePacks.map((packId) => `- ${packId}`).join("\n") : "- none"}

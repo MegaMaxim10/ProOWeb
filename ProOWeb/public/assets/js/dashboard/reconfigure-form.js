@@ -4,6 +4,7 @@ import { wireExternalIamControls } from "../wizard/external-iam-controls.js";
 import { wireLiquibaseControls } from "../wizard/liquibase-controls.js";
 import { wireNotificationsControls } from "../wizard/notifications-controls.js";
 import { wireOrganizationHierarchyControls } from "../wizard/organization-hierarchy-controls.js";
+import { wireProcessModelingControls } from "../wizard/process-modeling-controls.js";
 import { wireSessionSecurityControls } from "../wizard/session-security-controls.js";
 import { wireSwaggerControls } from "../wizard/swagger-controls.js";
 import { buildDetailedMigrationReport, buildMigrationSummary } from "./formatters.js";
@@ -57,6 +58,7 @@ function initializeFormValues(form, workspace) {
   const organizationHierarchy = backendOptions.organizationHierarchy || {};
   const notifications = backendOptions.notifications || {};
   const databaseMigration = backendOptions.databaseMigration || {};
+  const processModeling = backendOptions.processModeling || {};
 
   setInputValue(form, "basePackage", workspace?.project?.basePackage || "com.prooweb.generated");
   setInputValue(form, "mode", "full");
@@ -96,6 +98,11 @@ function initializeFormValues(form, workspace) {
     databaseMigration.changelogPath || "classpath:db/changelog/db.changelog-master.yaml",
   );
   setInputValue(form, "liquibaseContexts", databaseMigration.contexts || "baseline,reference-data");
+
+  setCheckboxValue(form, "processModelingEnabled", processModeling.enabled !== false);
+  setInputValue(form, "processVersioningStrategy", processModeling.versioningStrategy || "LINEAR");
+  setInputValue(form, "processMaxVersionsPerModel", processModeling.maxVersionsPerModel || 50);
+  setCheckboxValue(form, "processAllowDirectDeployment", Boolean(processModeling.allowDirectDeployment));
 }
 
 function wireControls(form) {
@@ -105,6 +112,7 @@ function wireControls(form) {
   wireOrganizationHierarchyControls(form);
   wireNotificationsControls(form);
   wireLiquibaseControls(form);
+  wireProcessModelingControls(form);
 }
 
 function renderReport(container, migration) {
@@ -153,4 +161,3 @@ export function wireReconfigureForm({ status, onReconfigure, documentRef = docum
     }
   });
 }
-

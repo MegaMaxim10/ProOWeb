@@ -3,6 +3,7 @@ const { URL } = require("node:url");
 
 function createAppRouter({
   workspaceController,
+  processModelController,
   publicFileHandler,
   isWorkspaceInitialized,
   sendText,
@@ -29,6 +30,151 @@ function createAppRouter({
     if (method === "POST" && url.pathname === "/api/reconfigure") {
       workspaceController.handleReconfigureWorkspace(request, response);
       return;
+    }
+
+    const pathSegments = url.pathname.split("/").filter(Boolean);
+
+    if (processModelController) {
+      if (method === "GET" && url.pathname === "/api/process-models") {
+        processModelController.handleListProcessModels(request, response);
+        return;
+      }
+
+      if (method === "POST" && url.pathname === "/api/process-models") {
+        processModelController.handleCreateProcessModel(request, response);
+        return;
+      }
+
+      if (
+        method === "POST"
+        && pathSegments.length === 4
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "versions"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        processModelController.handleCreateProcessModelVersion(request, response, modelKey);
+        return;
+      }
+
+      if (
+        method === "GET"
+        && pathSegments.length === 5
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "versions"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        const versionNumber = decodeURIComponent(pathSegments[4]);
+        processModelController.handleReadProcessModelVersion(
+          request,
+          response,
+          modelKey,
+          versionNumber,
+        );
+        return;
+      }
+
+      if (
+        method === "GET"
+        && pathSegments.length === 4
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "diff"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        processModelController.handleCompareProcessModelVersions(request, response, modelKey, url.searchParams);
+        return;
+      }
+
+      if (
+        method === "POST"
+        && pathSegments.length === 6
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "versions"
+        && pathSegments[5] === "transition"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        const versionNumber = decodeURIComponent(pathSegments[4]);
+        processModelController.handleTransitionProcessModelVersion(
+          request,
+          response,
+          modelKey,
+          versionNumber,
+        );
+        return;
+      }
+
+      if (
+        method === "POST"
+        && pathSegments.length === 6
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "versions"
+        && pathSegments[5] === "deploy"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        const versionNumber = decodeURIComponent(pathSegments[4]);
+        processModelController.handleDeployProcessModelVersion(
+          request,
+          response,
+          modelKey,
+          versionNumber,
+        );
+        return;
+      }
+
+      if (
+        method === "GET"
+        && pathSegments.length === 4
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "history"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        processModelController.handleReadProcessModelHistory(request, response, modelKey);
+        return;
+      }
+
+      if (
+        method === "POST"
+        && pathSegments.length === 5
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "history"
+        && pathSegments[4] === "snapshots"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        processModelController.handleCreateProcessModelSnapshot(request, response, modelKey);
+        return;
+      }
+
+      if (
+        method === "POST"
+        && pathSegments.length === 5
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "history"
+        && pathSegments[4] === "undo"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        processModelController.handleUndoProcessModelSnapshot(request, response, modelKey);
+        return;
+      }
+
+      if (
+        method === "POST"
+        && pathSegments.length === 5
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "history"
+        && pathSegments[4] === "redo"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        processModelController.handleRedoProcessModelSnapshot(request, response, modelKey);
+        return;
+      }
     }
 
     if (method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {

@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ProOWeb - Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.9.2/dist/assets/diagram-js.css" />
+    <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.9.2/dist/assets/bpmn-font/css/bpmn.css" />
     <link rel="stylesheet" href="/assets/css/main.css" />
   </head>
   <body class="page dashboard-page">
@@ -186,6 +188,30 @@
               </div>
             </fieldset>
 
+            <fieldset>
+              <legend>Process Modeling (Editor Side)</legend>
+              <label class="inline-row">
+                <input id="process-modeling-toggle" type="checkbox" name="processModelingEnabled" />
+                Enable process catalog in ProOWeb
+              </label>
+              <div id="process-modeling-config">
+                <label>
+                  Versioning strategy
+                  <select name="processVersioningStrategy">
+                    <option value="LINEAR">LINEAR</option>
+                  </select>
+                </label>
+                <label>
+                  Max versions per model
+                  <input type="number" min="2" max="200" name="processMaxVersionsPerModel" />
+                </label>
+                <label class="inline-row">
+                  <input type="checkbox" name="processAllowDirectDeployment" />
+                  Allow direct deployment from DRAFT
+                </label>
+              </div>
+            </fieldset>
+
             <button id="reconfigure-button" type="submit">Apply reconfiguration</button>
             <p id="reconfigure-feedback" class="feedback" aria-live="polite"></p>
           </form>
@@ -194,11 +220,149 @@
         </section>
 
         <section id="process-model" class="panel">
-          <h3>Developpement centre processus</h3>
-          <p>
-            Le socle est pret. Vous pouvez maintenant modeliser l'organisation, les flux BPMN et les donnees,
-            puis faire evoluer les generateurs selon vos publications/recherches.
+          <h3>Step 11 - Process Modeling and Version Management</h3>
+          <p class="muted">
+            Process models are managed in ProOWeb and stored under <code>.prooweb/process-models</code>.
+            Source code is generated in the app only when a version is deployed.
           </p>
+
+          <div class="process-studio panel">
+            <h4>BPMN Studio (graphical + XML)</h4>
+            <p class="muted">
+              Graphically model BPMN, import/export files, and edit XML with IDE-like features (highlight + syntax checks).
+            </p>
+            <div class="process-studio-toolbar">
+              <button id="process-bpmn-new" type="button">New diagram</button>
+              <button id="process-bpmn-import-trigger" type="button">Import BPMN</button>
+              <button id="process-bpmn-export" type="button">Export BPMN</button>
+              <button id="process-bpmn-validate" type="button">Validate XML</button>
+              <label class="studio-select">
+                Model
+                <select id="process-bpmn-load-model"></select>
+              </label>
+              <label class="studio-select">
+                Version
+                <select id="process-bpmn-load-version"></select>
+              </label>
+              <button id="process-bpmn-load-version-button" type="button">Load version</button>
+              <button id="process-bpmn-save-snapshot" type="button">Save snapshot</button>
+              <button id="process-bpmn-undo" type="button">Undo</button>
+              <button id="process-bpmn-redo" type="button">Redo</button>
+              <button id="process-bpmn-fill-create" type="button">Use in Create Model</button>
+              <button id="process-bpmn-fill-version" type="button">Use in Create Version</button>
+              <input id="process-bpmn-import-file" type="file" accept=".bpmn,.xml,text/xml,application/xml" class="hidden" />
+            </div>
+            <div class="process-studio-grid">
+              <div id="process-bpmn-canvas" class="process-bpmn-canvas"></div>
+              <div id="process-bpmn-editor" class="process-bpmn-editor"></div>
+            </div>
+            <p id="process-bpmn-feedback" class="feedback" aria-live="polite"></p>
+          </div>
+
+          <div class="process-grid">
+            <form id="process-model-create-form" class="wizard-form process-card" novalidate>
+              <h4>Create process model</h4>
+              <label>
+                Model key
+                <input type="text" name="modelKey" placeholder="purchase-request" required />
+              </label>
+              <label>
+                Title
+                <input type="text" name="title" placeholder="Purchase Request" required />
+              </label>
+              <label>
+                Description
+                <input type="text" name="description" placeholder="Approval workflow for purchase requests" />
+              </label>
+              <label>
+                Initial version summary
+                <input type="text" name="summary" placeholder="Initial draft" />
+              </label>
+              <label>
+                BPMN XML
+                <textarea name="bpmnXml" rows="7" placeholder="Leave empty to use the BPMN Studio XML"></textarea>
+              </label>
+              <button type="submit">Create model</button>
+              <p id="process-model-create-feedback" class="feedback" aria-live="polite"></p>
+            </form>
+
+            <form id="process-model-version-form" class="wizard-form process-card" novalidate>
+              <h4>Create model version</h4>
+              <label>
+                Model
+                <select id="process-version-model" name="modelKey"></select>
+              </label>
+              <label>
+                Version summary
+                <input type="text" name="summary" placeholder="Add escalation gateway" />
+              </label>
+              <label>
+                BPMN XML
+                <textarea name="bpmnXml" rows="7" placeholder="Leave empty to use the BPMN Studio XML"></textarea>
+              </label>
+              <button type="submit">Create version</button>
+              <p id="process-model-version-feedback" class="feedback" aria-live="polite"></p>
+            </form>
+
+            <form id="process-model-diff-form" class="wizard-form process-card" novalidate>
+              <h4>Compare versions</h4>
+              <label>
+                Model
+                <select id="process-diff-model" name="modelKey"></select>
+              </label>
+              <label>
+                Source version
+                <select id="process-diff-source-version" name="sourceVersion"></select>
+              </label>
+              <label>
+                Target version
+                <select id="process-diff-target-version" name="targetVersion"></select>
+              </label>
+              <button type="submit">Compute diff</button>
+              <p id="process-model-diff-feedback" class="feedback" aria-live="polite"></p>
+            </form>
+
+            <form id="process-model-transition-form" class="wizard-form process-card" novalidate>
+              <h4>Transition version</h4>
+              <label>
+                Model
+                <select id="process-transition-model" name="modelKey"></select>
+              </label>
+              <label>
+                Version
+                <select id="process-transition-version" name="versionNumber"></select>
+              </label>
+              <label>
+                Target status
+                <select name="targetStatus">
+                  <option value="VALIDATED">VALIDATED</option>
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="RETIRED">RETIRED</option>
+                </select>
+              </label>
+              <button type="submit">Apply transition</button>
+              <p id="process-model-transition-feedback" class="feedback" aria-live="polite"></p>
+            </form>
+
+            <form id="process-model-deploy-form" class="wizard-form process-card" novalidate>
+              <h4>Deploy version</h4>
+              <label>
+                Model
+                <select id="process-deploy-model" name="modelKey"></select>
+              </label>
+              <label>
+                Version
+                <select id="process-deploy-version" name="versionNumber"></select>
+              </label>
+              <button type="submit">Deploy and generate code</button>
+              <p id="process-model-deploy-feedback" class="feedback" aria-live="polite"></p>
+            </form>
+          </div>
+
+          <p class="muted">Catalog snapshot</p>
+          <pre id="process-model-catalog" class="tree-view"></pre>
+          <p class="muted">Latest action report</p>
+          <pre id="process-model-report" class="tree-view"></pre>
         </section>
 
         <section id="codegen" class="panel">

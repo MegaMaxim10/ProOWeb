@@ -22,3 +22,4 @@ This folder contains the Step 1 documentation baseline in English.
 - `ADR-0008`: Organization hierarchy delivered through a dedicated feature pack with hierarchy-aware assignment strategies.
 - `ADR-0009`: Notifications workflows and Liquibase migration baseline delivered through dedicated feature packs.
 - `ADR-0010`: Dashboard-driven reconfiguration lifecycle with smart migration reporting.
+- `ADR-0011`: Editor-side process modeling catalog with deployment-triggered source generation.

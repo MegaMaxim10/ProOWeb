@@ -5,6 +5,7 @@ import { wireExternalIamControls } from "./external-iam-controls.js";
 import { wireLiquibaseControls } from "./liquibase-controls.js";
 import { wireNotificationsControls } from "./notifications-controls.js";
 import { wireOrganizationHierarchyControls } from "./organization-hierarchy-controls.js";
+import { wireProcessModelingControls } from "./process-modeling-controls.js";
 import { wireSessionSecurityControls } from "./session-security-controls.js";
 import { wireSwaggerControls } from "./swagger-controls.js";
 
@@ -26,6 +27,7 @@ export async function bootstrapWizardPage({ documentRef = document, windowRef = 
   wireOrganizationHierarchyControls(form);
   wireNotificationsControls(form);
   wireLiquibaseControls(form);
+  wireProcessModelingControls(form);
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();

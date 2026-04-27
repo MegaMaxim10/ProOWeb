@@ -64,6 +64,11 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 
 ## Phase 11 - Process Modeling and Version Management
 - Add BPMN modeling, model repository, and version lifecycle.
+- Implementation baseline:
+  - process models persisted in `.prooweb/process-models`,
+  - editor APIs for create/version/diff/transition/deploy,
+  - deployment generates backend/frontend source only on explicit deployment action,
+  - managed conflict strategy with automatic backups and detailed report.
 - Exit criteria: process definitions are versioned, diffable, and deployable.
 
 ## Phase 12 - Process Runtime Engine
