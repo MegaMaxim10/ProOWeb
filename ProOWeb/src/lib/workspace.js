@@ -11,6 +11,8 @@ const DEFAULT_BASE_PACKAGE = "com.prooweb.generated";
 const EXTERNAL_IAM_FEATURE_PACK_ID = "external-iam-auth";
 const SESSION_DEVICE_SECURITY_FEATURE_PACK_ID = "session-device-security";
 const ORGANIZATION_HIERARCHY_FEATURE_PACK_ID = "organization-hierarchy";
+const NOTIFICATIONS_EMAIL_FEATURE_PACK_ID = "notifications-email";
+const DATABASE_LIQUIBASE_FEATURE_PACK_ID = "database-liquibase";
 const ORGANIZATION_ASSIGNMENT_STRATEGIES = [
   "SUPERVISOR_ONLY",
   "SUPERVISOR_THEN_ANCESTORS",
@@ -235,6 +237,44 @@ function normalizeOrganizationHierarchyConfig(rawConfig = {}, options = {}) {
   };
 }
 
+function normalizeNotificationsConfig(rawConfig = {}, options = {}) {
+  const enabled = options.forceEnabled !== undefined
+    ? Boolean(options.forceEnabled)
+    : (rawConfig.enabled === undefined ? true : normalizeBool(rawConfig.enabled));
+  const senderAddress = normalizeString(rawConfig.senderAddress) || "no-reply@prooweb.local";
+  const auditEnabled = rawConfig.auditEnabled === undefined ? true : normalizeBool(rawConfig.auditEnabled);
+
+  if (options.strict && enabled && !/^\S+@\S+\.\S+$/.test(senderAddress)) {
+    throw new Error("notifications.senderAddress must be a valid email address.");
+  }
+
+  return {
+    enabled,
+    senderAddress,
+    auditEnabled,
+  };
+}
+
+function normalizeDatabaseMigrationConfig(rawConfig = {}, options = {}) {
+  const liquibaseEnabled = options.forceEnabled !== undefined
+    ? Boolean(options.forceEnabled)
+    : (rawConfig.liquibaseEnabled === undefined ? true : normalizeBool(rawConfig.liquibaseEnabled));
+  const changelogPath = normalizeString(rawConfig.changelogPath) || "classpath:db/changelog/db.changelog-master.yaml";
+  const contexts = normalizeString(rawConfig.contexts) || "baseline,reference-data";
+
+  if (options.strict && liquibaseEnabled) {
+    if (!/^classpath:.+/i.test(changelogPath)) {
+      throw new Error("databaseMigration.changelogPath must start with classpath:");
+    }
+  }
+
+  return {
+    liquibaseEnabled,
+    changelogPath,
+    contexts,
+  };
+}
+
 function withConfigDrivenFeaturePacks(featurePacks, options = {}) {
   const enabled = Array.isArray(featurePacks?.enabled) ? featurePacks.enabled : [];
   const enabledSet = new Set(enabled);
@@ -255,6 +295,18 @@ function withConfigDrivenFeaturePacks(featurePacks, options = {}) {
     enabledSet.add(ORGANIZATION_HIERARCHY_FEATURE_PACK_ID);
   } else {
     enabledSet.delete(ORGANIZATION_HIERARCHY_FEATURE_PACK_ID);
+  }
+
+  if (options.notificationsEnabled) {
+    enabledSet.add(NOTIFICATIONS_EMAIL_FEATURE_PACK_ID);
+  } else {
+    enabledSet.delete(NOTIFICATIONS_EMAIL_FEATURE_PACK_ID);
+  }
+
+  if (options.liquibaseEnabled) {
+    enabledSet.add(DATABASE_LIQUIBASE_FEATURE_PACK_ID);
+  } else {
+    enabledSet.delete(DATABASE_LIQUIBASE_FEATURE_PACK_ID);
   }
 
   return normalizeFeaturePacks({
@@ -361,6 +413,8 @@ function readWorkspaceConfig() {
   const externalIam = parsed.backendOptions.externalIam || {};
   const sessionSecurity = parsed.backendOptions.sessionSecurity || {};
   const organizationHierarchy = parsed.backendOptions.organizationHierarchy || {};
+  const notifications = parsed.backendOptions.notifications || {};
+  const databaseMigration = parsed.backendOptions.databaseMigration || {};
   parsed.backendOptions.swaggerUi = {
     enabled: Boolean(swaggerUi.enabled),
     profiles: normalizeStringList(swaggerUi.profiles).map((value) => value.toLowerCase()),
@@ -385,6 +439,22 @@ function readWorkspaceConfig() {
     },
     { strict: false },
   );
+  parsed.backendOptions.notifications = normalizeNotificationsConfig(
+    {
+      enabled: notifications.enabled,
+      senderAddress: notifications.senderAddress,
+      auditEnabled: notifications.auditEnabled,
+    },
+    { strict: false },
+  );
+  parsed.backendOptions.databaseMigration = normalizeDatabaseMigrationConfig(
+    {
+      liquibaseEnabled: databaseMigration.liquibaseEnabled,
+      changelogPath: databaseMigration.changelogPath,
+      contexts: databaseMigration.contexts,
+    },
+    { strict: false },
+  );
 
   parsed.featurePacks = withConfigDrivenFeaturePacks(
     normalizeFeaturePacks(parsed.featurePacks),
@@ -392,6 +462,8 @@ function readWorkspaceConfig() {
       externalIamEnabled: parsed.backendOptions.externalIam.enabled,
       sessionSecurityEnabled: parsed.backendOptions.sessionSecurity.enabled,
       organizationHierarchyEnabled: parsed.backendOptions.organizationHierarchy.enabled,
+      notificationsEnabled: parsed.backendOptions.notifications.enabled,
+      liquibaseEnabled: parsed.backendOptions.databaseMigration.liquibaseEnabled,
     },
   );
   parsed.managedBy = normalizeManagedBy(parsed);
@@ -464,6 +536,8 @@ function toPublicWorkspaceConfig(config) {
   const externalIam = backendOptions.externalIam || {};
   const sessionSecurity = backendOptions.sessionSecurity || {};
   const organizationHierarchy = backendOptions.organizationHierarchy || {};
+  const notifications = backendOptions.notifications || {};
+  const databaseMigration = backendOptions.databaseMigration || {};
   backendOptions.externalIam = {
     enabled: Boolean(externalIam.enabled),
     providers: normalizeExternalIamProviders(externalIam.providers).map((provider) => ({
@@ -489,6 +563,22 @@ function toPublicWorkspaceConfig(config) {
       enabled: organizationHierarchy.enabled,
       defaultAssignmentStrategy: organizationHierarchy.defaultAssignmentStrategy,
       maxTraversalDepth: organizationHierarchy.maxTraversalDepth,
+    },
+    { strict: false },
+  );
+  backendOptions.notifications = normalizeNotificationsConfig(
+    {
+      enabled: notifications.enabled,
+      senderAddress: notifications.senderAddress,
+      auditEnabled: notifications.auditEnabled,
+    },
+    { strict: false },
+  );
+  backendOptions.databaseMigration = normalizeDatabaseMigrationConfig(
+    {
+      liquibaseEnabled: databaseMigration.liquibaseEnabled,
+      changelogPath: databaseMigration.changelogPath,
+      contexts: databaseMigration.contexts,
     },
     { strict: false },
   );
@@ -549,6 +639,28 @@ function buildWorkspaceConfig(payload) {
     },
     { strict: true, forceEnabled: organizationHierarchyEnabled },
   );
+  const notificationsEnabled = Object.prototype.hasOwnProperty.call(payload, "notificationsEnabled")
+    ? normalizeBool(payload.notificationsEnabled)
+    : true;
+  const notificationsConfig = normalizeNotificationsConfig(
+    {
+      enabled: notificationsEnabled,
+      senderAddress: payload.notificationsSenderAddress,
+      auditEnabled: payload.notificationsAuditEnabled,
+    },
+    { strict: true, forceEnabled: notificationsEnabled },
+  );
+  const liquibaseEnabled = Object.prototype.hasOwnProperty.call(payload, "liquibaseEnabled")
+    ? normalizeBool(payload.liquibaseEnabled)
+    : true;
+  const databaseMigrationConfig = normalizeDatabaseMigrationConfig(
+    {
+      liquibaseEnabled,
+      changelogPath: payload.liquibaseChangelogPath,
+      contexts: payload.liquibaseContexts,
+    },
+    { strict: true, forceEnabled: liquibaseEnabled },
+  );
   const featurePacksEnabled = normalizeStringList(payload.featurePacksEnabled).map((entry) => entry.toLowerCase());
   const featurePackConfigs = payload?.featurePackConfigs;
 
@@ -602,13 +714,15 @@ function buildWorkspaceConfig(payload) {
       externalIamEnabled,
       sessionSecurityEnabled: sessionSecurityConfig.enabled,
       organizationHierarchyEnabled: organizationHierarchyConfig.enabled,
+      notificationsEnabled: notificationsConfig.enabled,
+      liquibaseEnabled: databaseMigrationConfig.liquibaseEnabled,
     },
   );
 
   const { hash, salt } = hashPassword(superAdminPassword);
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     initializedAt: new Date().toISOString(),
     project: {
       title: projectTitle,
@@ -633,6 +747,8 @@ function buildWorkspaceConfig(payload) {
       },
       sessionSecurity: sessionSecurityConfig,
       organizationHierarchy: organizationHierarchyConfig,
+      notifications: notificationsConfig,
+      databaseMigration: databaseMigrationConfig,
     },
     featurePacks,
     managedBy: {
@@ -742,6 +858,64 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
     },
     { strict: true, forceEnabled: organizationHierarchyEnabled },
   );
+  const hasNotificationsEnabledOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "notificationsEnabled",
+  );
+  const currentNotifications = currentConfig?.backendOptions?.notifications || {};
+  const notificationsEnabled = hasNotificationsEnabledOverride
+    ? normalizeBool(safePayload.notificationsEnabled)
+    : (currentNotifications.enabled === undefined ? true : Boolean(currentNotifications.enabled));
+  const hasNotificationsSenderAddressOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "notificationsSenderAddress",
+  );
+  const hasNotificationsAuditOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "notificationsAuditEnabled",
+  );
+  const notificationsConfig = normalizeNotificationsConfig(
+    {
+      enabled: notificationsEnabled,
+      senderAddress: hasNotificationsSenderAddressOverride
+        ? safePayload.notificationsSenderAddress
+        : currentNotifications.senderAddress,
+      auditEnabled: hasNotificationsAuditOverride
+        ? safePayload.notificationsAuditEnabled
+        : currentNotifications.auditEnabled,
+    },
+    { strict: true, forceEnabled: notificationsEnabled },
+  );
+  const hasLiquibaseEnabledOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "liquibaseEnabled",
+  );
+  const currentDatabaseMigration = currentConfig?.backendOptions?.databaseMigration || {};
+  const liquibaseEnabled = hasLiquibaseEnabledOverride
+    ? normalizeBool(safePayload.liquibaseEnabled)
+    : (currentDatabaseMigration.liquibaseEnabled === undefined
+      ? true
+      : Boolean(currentDatabaseMigration.liquibaseEnabled));
+  const hasLiquibaseChangelogPathOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "liquibaseChangelogPath",
+  );
+  const hasLiquibaseContextsOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "liquibaseContexts",
+  );
+  const databaseMigrationConfig = normalizeDatabaseMigrationConfig(
+    {
+      liquibaseEnabled,
+      changelogPath: hasLiquibaseChangelogPathOverride
+        ? safePayload.liquibaseChangelogPath
+        : currentDatabaseMigration.changelogPath,
+      contexts: hasLiquibaseContextsOverride
+        ? safePayload.liquibaseContexts
+        : currentDatabaseMigration.contexts,
+    },
+    { strict: true, forceEnabled: liquibaseEnabled },
+  );
 
   const featurePacksEnabled = normalizeStringList(safePayload.featurePacksEnabled).map((entry) => entry.toLowerCase());
   const rawFeaturePacks =
@@ -759,12 +933,14 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
       externalIamEnabled,
       sessionSecurityEnabled: sessionSecurityConfig.enabled,
       organizationHierarchyEnabled: organizationHierarchyConfig.enabled,
+      notificationsEnabled: notificationsConfig.enabled,
+      liquibaseEnabled: databaseMigrationConfig.liquibaseEnabled,
     },
   );
 
   return {
     ...currentConfig,
-    schemaVersion: 3,
+    schemaVersion: 4,
     project: {
       ...currentConfig.project,
       basePackage,
@@ -777,6 +953,8 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
       },
       sessionSecurity: sessionSecurityConfig,
       organizationHierarchy: organizationHierarchyConfig,
+      notifications: notificationsConfig,
+      databaseMigration: databaseMigrationConfig,
     },
     featurePacks,
   };
@@ -796,6 +974,12 @@ function markWorkspaceMigrated(config) {
         organizationHierarchyEnabled: config?.backendOptions?.organizationHierarchy?.enabled === undefined
           ? true
           : Boolean(config?.backendOptions?.organizationHierarchy?.enabled),
+        notificationsEnabled: config?.backendOptions?.notifications?.enabled === undefined
+          ? true
+          : Boolean(config?.backendOptions?.notifications?.enabled),
+        liquibaseEnabled: config?.backendOptions?.databaseMigration?.liquibaseEnabled === undefined
+          ? true
+          : Boolean(config?.backendOptions?.databaseMigration?.liquibaseEnabled),
       },
     ),
     managedBy: {

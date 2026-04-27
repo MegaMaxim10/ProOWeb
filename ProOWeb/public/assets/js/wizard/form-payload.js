@@ -29,5 +29,11 @@ export function extractWizardFormPayload(form) {
     organizationHierarchyEnabled: formData.get("organizationHierarchyEnabled") === "on",
     organizationDefaultAssignmentStrategy: formData.get("organizationDefaultAssignmentStrategy") || "",
     organizationMaxTraversalDepth: formData.get("organizationMaxTraversalDepth") || "",
+    notificationsEnabled: formData.get("notificationsEnabled") === "on",
+    notificationsSenderAddress: formData.get("notificationsSenderAddress") || "",
+    notificationsAuditEnabled: formData.get("notificationsAuditEnabled") === "on",
+    liquibaseEnabled: formData.get("liquibaseEnabled") === "on",
+    liquibaseChangelogPath: formData.get("liquibaseChangelogPath") || "",
+    liquibaseContexts: formData.get("liquibaseContexts") || "",
   };
 }

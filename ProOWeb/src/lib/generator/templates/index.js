@@ -51,6 +51,7 @@ const { buildGatewayAuthenticationFlowControllerJava } = require("./backend/spri
 const { buildGatewayExternalAuthenticationControllerJava } = require("./backend/springboot/buildGatewayExternalAuthenticationControllerJava");
 const { buildGatewaySessionSecurityControllerJava } = require("./backend/springboot/buildGatewaySessionSecurityControllerJava");
 const { buildGatewayOrganizationHierarchyControllerJava } = require("./backend/springboot/buildGatewayOrganizationHierarchyControllerJava");
+const { buildGatewayNotificationWorkflowControllerJava } = require("./backend/springboot/buildGatewayNotificationWorkflowControllerJava");
 const { buildGatewaySecurityConfigJava } = require("./backend/springboot/buildGatewaySecurityConfigJava");
 const { buildGatewayPbkdf2WorkspacePasswordEncoderJava } = require("./backend/springboot/buildGatewayPbkdf2WorkspacePasswordEncoderJava");
 const { buildKernelDomainMarkerJava } = require("./backend/springboot/buildKernelDomainMarkerJava");
@@ -58,9 +59,15 @@ const { buildKernelApplicationMarkerJava } = require("./backend/springboot/build
 const { buildKernelInfrastructureMarkerJava } = require("./backend/springboot/buildKernelInfrastructureMarkerJava");
 const { buildKernelCorsConfigJava } = require("./backend/springboot/buildKernelCorsConfigJava");
 const { buildCommonEmailNotificationJava } = require("./backend/springboot/buildCommonEmailNotificationJava");
+const { buildCommonNotificationTemplateJava } = require("./backend/springboot/buildCommonNotificationTemplateJava");
+const { buildCommonNotificationAuditEntryJava } = require("./backend/springboot/buildCommonNotificationAuditEntryJava");
 const { buildCommonSendEmailNotificationPortJava } = require("./backend/springboot/buildCommonSendEmailNotificationPortJava");
 const { buildCommonNotifyByEmailUseCaseJava } = require("./backend/springboot/buildCommonNotifyByEmailUseCaseJava");
+const { buildCommonDispatchNotificationUseCaseJava } = require("./backend/springboot/buildCommonDispatchNotificationUseCaseJava");
+const { buildCommonReadNotificationTemplatesUseCaseJava } = require("./backend/springboot/buildCommonReadNotificationTemplatesUseCaseJava");
+const { buildCommonReadNotificationAuditTrailUseCaseJava } = require("./backend/springboot/buildCommonReadNotificationAuditTrailUseCaseJava");
 const { buildCommonNotifyByEmailServiceJava } = require("./backend/springboot/buildCommonNotifyByEmailServiceJava");
+const { buildCommonNotificationWorkflowServiceJava } = require("./backend/springboot/buildCommonNotificationWorkflowServiceJava");
 const { buildCommonModuleConfigJava } = require("./backend/springboot/buildCommonModuleConfigJava");
 const { buildCommonMailSenderEmailNotificationAdapterJava } = require("./backend/springboot/buildCommonMailSenderEmailNotificationAdapterJava");
 const { buildIdentityDomainMarkerJava } = require("./backend/springboot/buildIdentityDomainMarkerJava");
@@ -133,6 +140,12 @@ const { buildAuthenticationFlowsItJava } = require("./backend/springboot/buildAu
 const { buildExternalIamAuthenticationItJava } = require("./backend/springboot/buildExternalIamAuthenticationItJava");
 const { buildSessionDeviceSecurityItJava } = require("./backend/springboot/buildSessionDeviceSecurityItJava");
 const { buildOrganizationHierarchyItJava } = require("./backend/springboot/buildOrganizationHierarchyItJava");
+const { buildNotificationWorkflowsItJava } = require("./backend/springboot/buildNotificationWorkflowsItJava");
+const { buildLiquibaseBaselineItJava } = require("./backend/springboot/buildLiquibaseBaselineItJava");
+const { buildLiquibaseMasterChangelogYaml } = require("./backend/springboot/buildLiquibaseMasterChangelogYaml");
+const { buildLiquibaseBaselineSchemaChangelogYaml } = require("./backend/springboot/buildLiquibaseBaselineSchemaChangelogYaml");
+const { buildLiquibaseReferenceDataChangelogYaml } = require("./backend/springboot/buildLiquibaseReferenceDataChangelogYaml");
+const { buildLiquibaseReadmeMd } = require("./backend/springboot/buildLiquibaseReadmeMd");
 const { buildIdentityUserSessionObservationJava } = require("./backend/springboot/buildIdentityUserSessionObservationJava");
 const { buildFrontendPackageJson } = require("./frontend/react/buildFrontendPackageJson");
 const { buildFrontendIndexHtml } = require("./frontend/react/buildFrontendIndexHtml");
@@ -173,6 +186,17 @@ const { buildFrontendResolveOrganizationAssignmentUseCaseJs } = require("./front
 const { buildFrontendHttpOrganizationHierarchyAdapterJs } = require("./frontend/react/buildFrontendHttpOrganizationHierarchyAdapterJs");
 const { buildFrontendUseOrganizationHierarchyHookJs } = require("./frontend/react/buildFrontendUseOrganizationHierarchyHookJs");
 const { buildFrontendOrganizationHierarchyPanelJsx } = require("./frontend/react/buildFrontendOrganizationHierarchyPanelJsx");
+const { buildFrontendNotificationTemplateModelJs } = require("./frontend/react/buildFrontendNotificationTemplateModelJs");
+const { buildFrontendNotificationAuditEntryModelJs } = require("./frontend/react/buildFrontendNotificationAuditEntryModelJs");
+const { buildFrontendLoadNotificationTemplatesPortJs } = require("./frontend/react/buildFrontendLoadNotificationTemplatesPortJs");
+const { buildFrontendDispatchNotificationPortJs } = require("./frontend/react/buildFrontendDispatchNotificationPortJs");
+const { buildFrontendLoadNotificationAuditTrailPortJs } = require("./frontend/react/buildFrontendLoadNotificationAuditTrailPortJs");
+const { buildFrontendReadNotificationTemplatesUseCaseJs } = require("./frontend/react/buildFrontendReadNotificationTemplatesUseCaseJs");
+const { buildFrontendDispatchNotificationUseCaseJs } = require("./frontend/react/buildFrontendDispatchNotificationUseCaseJs");
+const { buildFrontendReadNotificationAuditTrailUseCaseJs } = require("./frontend/react/buildFrontendReadNotificationAuditTrailUseCaseJs");
+const { buildFrontendHttpNotificationWorkflowAdapterJs } = require("./frontend/react/buildFrontendHttpNotificationWorkflowAdapterJs");
+const { buildFrontendUseNotificationWorkflowsHookJs } = require("./frontend/react/buildFrontendUseNotificationWorkflowsHookJs");
+const { buildFrontendNotificationWorkflowPanelJsx } = require("./frontend/react/buildFrontendNotificationWorkflowPanelJsx");
 const { buildFrontendCss } = require("./frontend/react/buildFrontendCss");
 const { buildFrontendViteConfig } = require("./frontend/react/buildFrontendViteConfig");
 const { buildComposeFile } = require("./deployment/docker/buildComposeFile");
@@ -244,6 +268,7 @@ module.exports = {
   buildGatewayExternalAuthenticationControllerJava,
   buildGatewaySessionSecurityControllerJava,
   buildGatewayOrganizationHierarchyControllerJava,
+  buildGatewayNotificationWorkflowControllerJava,
   buildGatewaySecurityConfigJava,
   buildGatewayPbkdf2WorkspacePasswordEncoderJava,
   buildKernelDomainMarkerJava,
@@ -251,9 +276,15 @@ module.exports = {
   buildKernelInfrastructureMarkerJava,
   buildKernelCorsConfigJava,
   buildCommonEmailNotificationJava,
+  buildCommonNotificationTemplateJava,
+  buildCommonNotificationAuditEntryJava,
   buildCommonSendEmailNotificationPortJava,
   buildCommonNotifyByEmailUseCaseJava,
+  buildCommonDispatchNotificationUseCaseJava,
+  buildCommonReadNotificationTemplatesUseCaseJava,
+  buildCommonReadNotificationAuditTrailUseCaseJava,
   buildCommonNotifyByEmailServiceJava,
+  buildCommonNotificationWorkflowServiceJava,
   buildCommonModuleConfigJava,
   buildCommonMailSenderEmailNotificationAdapterJava,
   buildIdentityDomainMarkerJava,
@@ -327,6 +358,12 @@ module.exports = {
   buildExternalIamAuthenticationItJava,
   buildSessionDeviceSecurityItJava,
   buildOrganizationHierarchyItJava,
+  buildNotificationWorkflowsItJava,
+  buildLiquibaseBaselineItJava,
+  buildLiquibaseMasterChangelogYaml,
+  buildLiquibaseBaselineSchemaChangelogYaml,
+  buildLiquibaseReferenceDataChangelogYaml,
+  buildLiquibaseReadmeMd,
   buildFrontendPackageJson,
   buildFrontendIndexHtml,
   buildFrontendMainJsx,
@@ -366,6 +403,17 @@ module.exports = {
   buildFrontendHttpOrganizationHierarchyAdapterJs,
   buildFrontendUseOrganizationHierarchyHookJs,
   buildFrontendOrganizationHierarchyPanelJsx,
+  buildFrontendNotificationTemplateModelJs,
+  buildFrontendNotificationAuditEntryModelJs,
+  buildFrontendLoadNotificationTemplatesPortJs,
+  buildFrontendDispatchNotificationPortJs,
+  buildFrontendLoadNotificationAuditTrailPortJs,
+  buildFrontendReadNotificationTemplatesUseCaseJs,
+  buildFrontendDispatchNotificationUseCaseJs,
+  buildFrontendReadNotificationAuditTrailUseCaseJs,
+  buildFrontendHttpNotificationWorkflowAdapterJs,
+  buildFrontendUseNotificationWorkflowsHookJs,
+  buildFrontendNotificationWorkflowPanelJsx,
   buildFrontendCss,
   buildFrontendViteConfig,
   buildComposeFile,

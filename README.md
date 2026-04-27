@@ -33,6 +33,7 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
 - Supports Step 6 external IAM authentication (OIDC-first, auth-only) while RBAC stays internal.
 - Supports Step 7 session/device security baseline (session observation, risk detection, revocation APIs).
 - Supports Step 8 organization hierarchy baseline (units, supervisors, members, hierarchy-aware assignment resolution).
+- Supports Step 9 notification workflows + Liquibase baseline (template-driven notification dispatch/audit, managed changelog generation).
 
 ## Wizard Git Policy
 
@@ -89,6 +90,29 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `POST /api/admin/organization/units/{unitCode}/supervisor/{username}`
   - `POST /api/admin/organization/units/{unitCode}/members/{username}`
   - `GET /api/admin/organization/assignment/resolve`
+
+## Notifications and Liquibase Policy (Step 9)
+
+- Notification workflows are generated through `notifications-email` feature pack.
+- Wizard/runtime options:
+  - `notificationsEnabled`
+  - `notificationsSenderAddress`
+  - `notificationsAuditEnabled`
+- Generated notification APIs:
+  - `GET /api/admin/notifications/templates`
+  - `POST /api/admin/notifications/dispatch`
+  - `GET /api/admin/notifications/audit`
+
+- Liquibase baseline is generated through `database-liquibase` feature pack.
+- Wizard/runtime options:
+  - `liquibaseEnabled`
+  - `liquibaseChangelogPath`
+  - `liquibaseContexts`
+- Generated Liquibase assets:
+  - `db.changelog-master.yaml`
+  - `changesets/001-baseline-schema.yaml`
+  - `changesets/010-reference-data.yaml`
+  - `db/changelog/README.md`
 
 ## Smart Migration
 

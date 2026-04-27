@@ -25,6 +25,13 @@ function buildBackendApplicationModulePomXml(projectSlug, swaggerEnabled, option
       <version>0.0.1-SNAPSHOT</version>
     </dependency>`
     : "";
+  const liquibaseDependency = options.liquibaseEnabled
+    ? `
+    <dependency>
+      <groupId>org.liquibase</groupId>
+      <artifactId>liquibase-core</artifactId>
+    </dependency>`
+    : "";
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -83,7 +90,7 @@ function buildBackendApplicationModulePomXml(projectSlug, swaggerEnabled, option
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
       <scope>runtime</scope>
-    </dependency>${swaggerDependency}
+    </dependency>${swaggerDependency}${liquibaseDependency}
 
     <dependency>
       <groupId>org.springframework.boot</groupId>

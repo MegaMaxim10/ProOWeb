@@ -11,16 +11,21 @@ function buildFrontendShellAppJsx(options = {}) {
   const organizationImport = options.organizationEnabled
     ? `import { OrganizationHierarchyPanel } from "../../organization/ui/OrganizationHierarchyPanel";\n`
     : "";
+  const notificationsImport = options.notificationsEnabled
+    ? `import { NotificationWorkflowPanel } from "../../notifications/ui/NotificationWorkflowPanel";\n`
+    : "";
   const identitySection = options.identityEnabled ? "\n      <IdentityAdminPanel />" : "";
   const authSection = options.authEnabled ? "\n      <AuthenticationWorkbench />" : "";
   const sessionSecuritySection = options.sessionSecurityEnabled ? "\n      <SessionSecurityPanel />" : "";
   const organizationSection = options.organizationEnabled ? "\n      <OrganizationHierarchyPanel />" : "";
+  const notificationsSection = options.notificationsEnabled ? "\n      <NotificationWorkflowPanel />" : "";
 
   return `import { useSystemSnapshot } from "./useSystemSnapshot";
 ${identityImport}
 ${authImport}
 ${sessionSecurityImport}
 ${organizationImport}
+${notificationsImport}
 export function ShellApp() {
   const { snapshot, loading, error, healthLabel } = useSystemSnapshot();
   const meta = snapshot?.meta;
@@ -50,7 +55,7 @@ export function ShellApp() {
             Healthcheck: <span className={healthLabel === "UP" ? "ok" : "warn"}>{healthLabel}</span>
           </p>
         ) : null}
-      </section>${identitySection}${authSection}${sessionSecuritySection}${organizationSection}
+      </section>${identitySection}${authSection}${sessionSecuritySection}${organizationSection}${notificationsSection}
     </main>
   );
 }

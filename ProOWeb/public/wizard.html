@@ -171,6 +171,52 @@
             </div>
           </fieldset>
 
+          <fieldset>
+            <legend>Notification Workflows</legend>
+            <label class="inline-row">
+              <input id="notifications-toggle" type="checkbox" name="notificationsEnabled" checked />
+              Activer les notifications email + audit trail
+            </label>
+            <p class="fieldset-hint">
+              Genere des templates de notification prets a l'usage et un workflow de test/audit.
+            </p>
+            <div id="notifications-config">
+              <label>
+                Sender address
+                <input type="email" name="notificationsSenderAddress" value="no-reply@prooweb.local" />
+              </label>
+              <label class="inline-row">
+                <input type="checkbox" name="notificationsAuditEnabled" checked />
+                Activer le canal d'audit des notifications
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Database Migrations (Liquibase)</legend>
+            <label class="inline-row">
+              <input id="liquibase-toggle" type="checkbox" name="liquibaseEnabled" checked />
+              Activer la baseline Liquibase
+            </label>
+            <p class="fieldset-hint">
+              Rend les migrations de schema reproductibles avec conventions de changelog.
+            </p>
+            <div id="liquibase-config">
+              <label>
+                Changelog path
+                <input
+                  type="text"
+                  name="liquibaseChangelogPath"
+                  value="classpath:db/changelog/db.changelog-master.yaml"
+                />
+              </label>
+              <label>
+                Liquibase contexts
+                <input type="text" name="liquibaseContexts" value="baseline,reference-data" />
+              </label>
+            </div>
+          </fieldset>
+
           <label>
             Frontend web
             <select name="frontendWebTech" required>

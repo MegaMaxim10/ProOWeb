@@ -43,6 +43,12 @@ This workspace was generated and managed by ProOWeb.
 - Organization hierarchy: ${config.backendOptions.organizationHierarchy?.enabled ? "enabled" : "disabled"}
 - Default assignment strategy: ${config.backendOptions.organizationHierarchy?.defaultAssignmentStrategy || "SUPERVISOR_THEN_ANCESTORS"}
 - Max hierarchy traversal depth: ${config.backendOptions.organizationHierarchy?.maxTraversalDepth || "8"}
+- Notifications: ${config.backendOptions.notifications?.enabled ? "enabled" : "disabled"}
+- Notification sender: ${config.backendOptions.notifications?.senderAddress || "no-reply@prooweb.local"}
+- Notification audit channel: ${config.backendOptions.notifications?.auditEnabled ? "enabled" : "disabled"}
+- Liquibase: ${config.backendOptions.databaseMigration?.liquibaseEnabled ? "enabled" : "disabled"}
+- Liquibase changelog path: ${config.backendOptions.databaseMigration?.changelogPath || "classpath:db/changelog/db.changelog-master.yaml"}
+- Liquibase contexts: ${config.backendOptions.databaseMigration?.contexts || "baseline,reference-data"}
 
 ## Active feature packs
 ${activeFeaturePacks.length > 0 ? activeFeaturePacks.map((packId) => `- ${packId}`).join("\n") : "- none"}

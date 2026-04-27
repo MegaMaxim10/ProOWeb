@@ -20,3 +20,4 @@ This folder contains the Step 1 documentation baseline in English.
 - `ADR-0006`: External IAM auth pack and configurable backend base package.
 - `ADR-0007`: Session and device security delivered through a dedicated feature pack.
 - `ADR-0008`: Organization hierarchy delivered through a dedicated feature pack with hierarchy-aware assignment strategies.
+- `ADR-0009`: Notifications workflows and Liquibase migration baseline delivered through dedicated feature packs.

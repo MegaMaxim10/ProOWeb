@@ -45,6 +45,32 @@ ${externalIamProvidersYaml}`
       )}"
       max-traversal-depth: ${Number(organizationHierarchyConfig.maxTraversalDepth || 8)}`
     : "";
+  const notificationsConfig = config.backendOptions?.notifications || {};
+  const notificationsSection = options.notificationsEnabled
+    ? `
+  notifications:
+    enabled: ${notificationsConfig.enabled === undefined ? true : Boolean(notificationsConfig.enabled)}
+    audit-enabled: ${notificationsConfig.auditEnabled === undefined ? true : Boolean(notificationsConfig.auditEnabled)}
+    email:
+      from: "${escapeYamlDoubleQuotes(notificationsConfig.senderAddress || "no-reply@prooweb.local")}"`
+    : `
+  notifications:
+    enabled: false
+    audit-enabled: false
+    email:
+      from: "${escapeYamlDoubleQuotes(notificationsConfig.senderAddress || "no-reply@prooweb.local")}"`;
+  const databaseMigrationConfig = config.backendOptions?.databaseMigration || {};
+  const liquibaseEnabled = options.liquibaseEnabled
+    ? (databaseMigrationConfig.liquibaseEnabled === undefined
+      ? true
+      : Boolean(databaseMigrationConfig.liquibaseEnabled))
+    : false;
+  const liquibaseChangeLog = escapeYamlDoubleQuotes(
+    databaseMigrationConfig.changelogPath || "classpath:db/changelog/db.changelog-master.yaml",
+  );
+  const liquibaseContexts = escapeYamlDoubleQuotes(
+    databaseMigrationConfig.contexts || "baseline,reference-data",
+  );
   const authSection = options.authEnabled
     ? `
   auth:
@@ -86,10 +112,14 @@ spring:
     password: \${SPRING_DATASOURCE_PASSWORD:prooweb}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${liquibaseEnabled ? "validate" : "update"}
     properties:
       hibernate:
         format_sql: true
+  liquibase:
+    enabled: ${liquibaseEnabled}
+    change-log: "${liquibaseChangeLog}"
+    contexts: "${liquibaseContexts}"
   mail:
     host: \${SPRING_MAIL_HOST:localhost}
     port: \${SPRING_MAIL_PORT:1025}
@@ -120,9 +150,7 @@ app:
 ${authSection}
 ${identitySection}
 ${organizationHierarchySection}
-  notifications:
-    email:
-      from: "no-reply@prooweb.local"
+${notificationsSection}
 `;
 }
 

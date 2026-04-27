@@ -48,6 +48,9 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 ## Phase 9 - Notifications and Database Migration Maturity
 - Expand email notification templates/channels.
 - Provide robust Liquibase baseline and migration conventions.
+- Implementation baseline:
+  - `notifications-email` feature pack (backend + frontend + IT),
+  - `database-liquibase` feature pack (generated changelogs + IT).
 - Exit criteria: notification workflows operational and Liquibase migrations reproducible.
 
 ## Phase 10 - Wizard v2 and Reconfiguration Lifecycle

@@ -131,9 +131,15 @@ const {
   buildKernelInfrastructureMarkerJava,
   buildKernelCorsConfigJava,
   buildCommonEmailNotificationJava,
+  buildCommonNotificationTemplateJava,
+  buildCommonNotificationAuditEntryJava,
   buildCommonSendEmailNotificationPortJava,
   buildCommonNotifyByEmailUseCaseJava,
+  buildCommonDispatchNotificationUseCaseJava,
+  buildCommonReadNotificationTemplatesUseCaseJava,
+  buildCommonReadNotificationAuditTrailUseCaseJava,
   buildCommonNotifyByEmailServiceJava,
+  buildCommonNotificationWorkflowServiceJava,
   buildCommonModuleConfigJava,
   buildCommonMailSenderEmailNotificationAdapterJava,
   buildHexSystemDomainMarkerJava,
@@ -156,6 +162,7 @@ const {
   buildGatewayExternalAuthenticationControllerJava,
   buildGatewaySessionSecurityControllerJava,
   buildGatewayOrganizationHierarchyControllerJava,
+  buildGatewayNotificationWorkflowControllerJava,
   buildGatewaySecurityConfigJava,
   buildGatewayPbkdf2WorkspacePasswordEncoderJava,
   buildTestSupportMarkerJava,
@@ -165,6 +172,12 @@ const {
   buildExternalIamAuthenticationItJava,
   buildSessionDeviceSecurityItJava,
   buildOrganizationHierarchyItJava,
+  buildNotificationWorkflowsItJava,
+  buildLiquibaseBaselineItJava,
+  buildLiquibaseMasterChangelogYaml,
+  buildLiquibaseBaselineSchemaChangelogYaml,
+  buildLiquibaseReferenceDataChangelogYaml,
+  buildLiquibaseReadmeMd,
   buildIdentityDomainMarkerJava,
   buildIdentityApplicationMarkerJava,
   buildIdentityInfrastructureMarkerJava,
@@ -268,6 +281,17 @@ const {
   buildFrontendHttpOrganizationHierarchyAdapterJs,
   buildFrontendUseOrganizationHierarchyHookJs,
   buildFrontendOrganizationHierarchyPanelJsx,
+  buildFrontendNotificationTemplateModelJs,
+  buildFrontendNotificationAuditEntryModelJs,
+  buildFrontendLoadNotificationTemplatesPortJs,
+  buildFrontendDispatchNotificationPortJs,
+  buildFrontendLoadNotificationAuditTrailPortJs,
+  buildFrontendReadNotificationTemplatesUseCaseJs,
+  buildFrontendDispatchNotificationUseCaseJs,
+  buildFrontendReadNotificationAuditTrailUseCaseJs,
+  buildFrontendHttpNotificationWorkflowAdapterJs,
+  buildFrontendUseNotificationWorkflowsHookJs,
+  buildFrontendNotificationWorkflowPanelJsx,
   buildFrontendCss,
   buildFrontendViteConfig,
   buildComposeFile,
@@ -300,6 +324,33 @@ function writeFiles(baseDir, definitions, writeManagedFile, options = {}) {
   }
 }
 
+function normalizeLiquibaseResourcePath(rawPath) {
+  const normalized = String(rawPath || "").trim();
+  if (!normalized) {
+    return "db/changelog/db.changelog-master.yaml";
+  }
+
+  const withoutClasspathPrefix = normalized.toLowerCase().startsWith("classpath:")
+    ? normalized.slice("classpath:".length)
+    : normalized;
+
+  return withoutClasspathPrefix.replace(/^\/+/, "") || "db/changelog/db.changelog-master.yaml";
+}
+
+function resolveLiquibaseResourceLayout(config) {
+  const configuredPath = config?.backendOptions?.databaseMigration?.changelogPath;
+  const masterResourcePath = normalizeLiquibaseResourcePath(configuredPath);
+  const masterDirectory = path.posix.dirname(masterResourcePath);
+  const changesetsDirectory = masterDirectory === "." ? "changesets" : `${masterDirectory}/changesets`;
+
+  return {
+    masterResourcePath,
+    baselineResourcePath: `${changesetsDirectory}/001-baseline-schema.yaml`,
+    referenceDataResourcePath: `${changesetsDirectory}/010-reference-data.yaml`,
+    readmeResourcePath: `${masterDirectory === "." ? "" : `${masterDirectory}/`}README.md`,
+  };
+}
+
 function generateBackendScaffold(backendRoot, config, writeManagedFile, generationPlan) {
   const projectSlug = config.project.slug;
   const projectTitle = config.project.title;
@@ -309,6 +360,8 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
   const externalIamEnabled = generationPlan.isEnabled("external-iam-auth");
   const sessionSecurityEnabled = generationPlan.isEnabled("session-device-security");
   const organizationEnabled = generationPlan.isEnabled("organization-hierarchy");
+  const notificationsEnabled = generationPlan.isEnabled("notifications-email");
+  const liquibaseEnabled = generationPlan.isEnabled("database-liquibase");
 
   writeFiles(
     backendRoot,
@@ -330,7 +383,11 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       { relativePath: "common/common-infrastructure/pom.xml", content: buildBackendCommonInfrastructurePomXml() },
       {
         relativePath: "gateway/pom.xml",
-        content: buildBackendGatewayPomXml(projectSlug, { identityEnabled, organizationEnabled }),
+        content: buildBackendGatewayPomXml(projectSlug, {
+          identityEnabled,
+          organizationEnabled,
+          notificationsEnabled,
+        }),
       },
       { relativePath: "system/pom.xml", content: buildBackendSystemPomXml(projectSlug) },
       { relativePath: "system/system-domain/pom.xml", content: buildBackendSystemDomainPomXml() },
@@ -355,6 +412,7 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
         content: buildBackendApplicationModulePomXml(projectSlug, swaggerEnabled, {
           identityEnabled,
           organizationEnabled,
+          liquibaseEnabled,
         }),
       },
       { relativePath: "tests/pom.xml", content: buildBackendTestsPomXml(projectSlug) },
@@ -406,6 +464,16 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       },
       {
         relativePath:
+          "common/common-domain/src/main/java/com/prooweb/generated/common/domain/notification/model/NotificationTemplate.java",
+        content: buildCommonNotificationTemplateJava(),
+      },
+      {
+        relativePath:
+          "common/common-domain/src/main/java/com/prooweb/generated/common/domain/notification/model/NotificationAuditEntry.java",
+        content: buildCommonNotificationAuditEntryJava(),
+      },
+      {
+        relativePath:
           "common/common-domain/src/main/java/com/prooweb/generated/common/domain/notification/port/out/SendEmailNotificationPort.java",
         content: buildCommonSendEmailNotificationPortJava(),
       },
@@ -416,8 +484,28 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       },
       {
         relativePath:
+          "common/common-application/src/main/java/com/prooweb/generated/common/application/notification/port/in/DispatchNotificationUseCase.java",
+        content: buildCommonDispatchNotificationUseCaseJava(),
+      },
+      {
+        relativePath:
+          "common/common-application/src/main/java/com/prooweb/generated/common/application/notification/port/in/ReadNotificationTemplatesUseCase.java",
+        content: buildCommonReadNotificationTemplatesUseCaseJava(),
+      },
+      {
+        relativePath:
+          "common/common-application/src/main/java/com/prooweb/generated/common/application/notification/port/in/ReadNotificationAuditTrailUseCase.java",
+        content: buildCommonReadNotificationAuditTrailUseCaseJava(),
+      },
+      {
+        relativePath:
           "common/common-application/src/main/java/com/prooweb/generated/common/application/notification/service/NotifyByEmailService.java",
         content: buildCommonNotifyByEmailServiceJava(),
+      },
+      {
+        relativePath:
+          "common/common-application/src/main/java/com/prooweb/generated/common/application/notification/service/NotificationWorkflowService.java",
+        content: buildCommonNotificationWorkflowServiceJava(),
       },
       {
         relativePath:
@@ -552,6 +640,15 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
             },
           ]
         : []),
+      ...(notificationsEnabled
+        ? [
+            {
+              relativePath:
+                "gateway/src/main/java/com/prooweb/generated/gateway/api/NotificationWorkflowController.java",
+              content: buildGatewayNotificationWorkflowControllerJava(),
+            },
+          ]
+        : []),
       {
         relativePath: "prooweb-application/src/main/java/com/prooweb/generated/app/ProowebApplication.java",
         content: buildBackendApplicationJava(),
@@ -630,6 +727,34 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       buildOrganizationHierarchyItJava(),
       {
         owners: ["organization-hierarchy"],
+        category: "backend-tests",
+      },
+    );
+  }
+
+  if (notificationsEnabled) {
+    writeManagedFile(
+      path.join(
+        backendRoot,
+        "tests/system-infrastructure-it/src/test/java/com/prooweb/generated/tests/system/NotificationWorkflowsIT.java",
+      ),
+      buildNotificationWorkflowsItJava(),
+      {
+        owners: ["notifications-email"],
+        category: "backend-tests",
+      },
+    );
+  }
+
+  if (liquibaseEnabled) {
+    writeManagedFile(
+      path.join(
+        backendRoot,
+        "tests/system-infrastructure-it/src/test/java/com/prooweb/generated/tests/system/LiquibaseBaselineIT.java",
+      ),
+      buildLiquibaseBaselineItJava(),
+      {
+        owners: ["database-liquibase"],
         category: "backend-tests",
       },
     );
@@ -1026,6 +1151,44 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
     );
   }
 
+  if (liquibaseEnabled) {
+    const liquibaseLayout = resolveLiquibaseResourceLayout(config);
+    const resourcesRoot = path.join(backendRoot, "prooweb-application/src/main/resources");
+
+    writeManagedFile(
+      path.join(resourcesRoot, liquibaseLayout.masterResourcePath),
+      buildLiquibaseMasterChangelogYaml(),
+      {
+        owners: ["database-liquibase"],
+        category: "backend",
+      },
+    );
+    writeManagedFile(
+      path.join(resourcesRoot, liquibaseLayout.baselineResourcePath),
+      buildLiquibaseBaselineSchemaChangelogYaml(),
+      {
+        owners: ["database-liquibase"],
+        category: "backend",
+      },
+    );
+    writeManagedFile(
+      path.join(resourcesRoot, liquibaseLayout.referenceDataResourcePath),
+      buildLiquibaseReferenceDataChangelogYaml(),
+      {
+        owners: ["database-liquibase"],
+        category: "backend",
+      },
+    );
+    writeManagedFile(
+      path.join(resourcesRoot, liquibaseLayout.readmeResourcePath),
+      buildLiquibaseReadmeMd(),
+      {
+        owners: ["database-liquibase"],
+        category: "docs",
+      },
+    );
+  }
+
   writeManagedFile(
     path.join(backendRoot, "prooweb-application/src/main/resources/application.yml"),
     buildBackendApplicationYaml(config, {
@@ -1034,6 +1197,8 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       externalIamEnabled,
       sessionSecurityEnabled,
       organizationHierarchyEnabled: organizationEnabled,
+      notificationsEnabled,
+      liquibaseEnabled,
     }),
     {
       owners: ["backend-platform"],
@@ -1059,6 +1224,7 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
   const externalIamEnabled = generationPlan.isEnabled("external-iam-auth");
   const sessionSecurityEnabled = generationPlan.isEnabled("session-device-security");
   const organizationEnabled = generationPlan.isEnabled("organization-hierarchy");
+  const notificationsEnabled = generationPlan.isEnabled("notifications-email");
   const defaultExternalIamProviderId = Array.isArray(config?.backendOptions?.externalIam?.providers)
     && config.backendOptions.externalIam.providers.length > 0
     ? config.backendOptions.externalIam.providers[0].id
@@ -1094,7 +1260,13 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
   writeManagedFile(path.join(frontendRoot, "src/modules/system/ui/useSystemSnapshot.js"), buildFrontendUseSystemSnapshotHookJs(), metadata);
   writeManagedFile(
     path.join(frontendRoot, "src/modules/system/ui/ShellApp.jsx"),
-    buildFrontendShellAppJsx({ identityEnabled, authEnabled, sessionSecurityEnabled, organizationEnabled }),
+    buildFrontendShellAppJsx({
+      identityEnabled,
+      authEnabled,
+      sessionSecurityEnabled,
+      organizationEnabled,
+      notificationsEnabled,
+    }),
     metadata,
   );
 
@@ -1280,6 +1452,69 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
       path.join(frontendRoot, "src/modules/organization/ui/OrganizationHierarchyPanel.jsx"),
       buildFrontendOrganizationHierarchyPanelJsx(),
       organizationMetadata,
+    );
+  }
+
+  if (notificationsEnabled) {
+    const notificationsMetadata = {
+      owners: ["notifications-email"],
+      category: "frontend",
+    };
+
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/notifications/domain/model/NotificationTemplate.js"),
+      buildFrontendNotificationTemplateModelJs(),
+      notificationsMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/notifications/domain/model/NotificationAuditEntry.js"),
+      buildFrontendNotificationAuditEntryModelJs(),
+      notificationsMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/notifications/domain/port/out/LoadNotificationTemplatesPort.js"),
+      buildFrontendLoadNotificationTemplatesPortJs(),
+      notificationsMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/notifications/domain/port/out/DispatchNotificationPort.js"),
+      buildFrontendDispatchNotificationPortJs(),
+      notificationsMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/notifications/domain/port/out/LoadNotificationAuditTrailPort.js"),
+      buildFrontendLoadNotificationAuditTrailPortJs(),
+      notificationsMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/notifications/application/usecase/ReadNotificationTemplates.js"),
+      buildFrontendReadNotificationTemplatesUseCaseJs(),
+      notificationsMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/notifications/application/usecase/DispatchNotification.js"),
+      buildFrontendDispatchNotificationUseCaseJs(),
+      notificationsMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/notifications/application/usecase/ReadNotificationAuditTrail.js"),
+      buildFrontendReadNotificationAuditTrailUseCaseJs(),
+      notificationsMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/notifications/infrastructure/adapter/out/http/HttpNotificationWorkflowAdapter.js"),
+      buildFrontendHttpNotificationWorkflowAdapterJs(),
+      notificationsMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/notifications/ui/useNotificationWorkflows.js"),
+      buildFrontendUseNotificationWorkflowsHookJs(),
+      notificationsMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/notifications/ui/NotificationWorkflowPanel.jsx"),
+      buildFrontendNotificationWorkflowPanelJsx(),
+      notificationsMetadata,
     );
   }
 

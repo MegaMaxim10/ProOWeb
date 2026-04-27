@@ -89,12 +89,17 @@ h1 {
 }
 
 .identity-box input,
-.identity-box select {
+.identity-box select,
+.identity-box textarea {
   width: 100%;
   border: 1px solid #c4d1de;
   border-radius: 8px;
   padding: 0.42rem 0.55rem;
   font-size: 0.95rem;
+}
+
+.identity-box textarea {
+  resize: vertical;
 }
 
 .identity-box button {

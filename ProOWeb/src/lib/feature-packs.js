@@ -56,6 +56,22 @@ const FEATURE_PACK_DEFINITIONS = Object.freeze([
     description: "Generate organization hierarchy management and hierarchy-aware assignment strategies.",
   },
   {
+    id: "notifications-email",
+    category: "application",
+    defaultEnabled: true,
+    supportedModes: ["full"],
+    dependencies: ["backend-platform", "frontend-web-react", "identity-rbac"],
+    description: "Generate notification templates/channels baseline with operational email workflows.",
+  },
+  {
+    id: "database-liquibase",
+    category: "application",
+    defaultEnabled: true,
+    supportedModes: ["full"],
+    dependencies: ["backend-platform"],
+    description: "Generate Liquibase changelog baseline and migration conventions for reproducible schema evolution.",
+  },
+  {
     id: "mobile-placeholder",
     category: "application",
     defaultEnabled: true,

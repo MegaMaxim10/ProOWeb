@@ -26,6 +26,8 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
   const externalIamConfig = workspace.backendOptions?.externalIam;
   const sessionSecurityConfig = workspace.backendOptions?.sessionSecurity;
   const organizationHierarchyConfig = workspace.backendOptions?.organizationHierarchy;
+  const notificationsConfig = workspace.backendOptions?.notifications;
+  const databaseMigrationConfig = workspace.backendOptions?.databaseMigration;
   const externalProviderIds = Array.isArray(externalIamConfig?.providers)
     ? externalIamConfig.providers.map((provider) => provider.id).filter(Boolean)
     : [];
@@ -43,7 +45,13 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
     "Max devices/window: " + (sessionSecurityConfig?.maxDistinctDevices || "-") + "<br />" +
     "Organization hierarchy: " + (organizationHierarchyConfig?.enabled ? "active" : "desactive") + "<br />" +
     "Default assignment strategy: " + (organizationHierarchyConfig?.defaultAssignmentStrategy || "-") + "<br />" +
-    "Max hierarchy depth: " + (organizationHierarchyConfig?.maxTraversalDepth || "-");
+    "Max hierarchy depth: " + (organizationHierarchyConfig?.maxTraversalDepth || "-") + "<br />" +
+    "Notifications: " + (notificationsConfig?.enabled ? "active" : "desactive") + "<br />" +
+    "Notification sender: " + (notificationsConfig?.senderAddress || "-") + "<br />" +
+    "Notification audit: " + (notificationsConfig?.auditEnabled ? "active" : "desactive") + "<br />" +
+    "Liquibase: " + (databaseMigrationConfig?.liquibaseEnabled ? "active" : "desactive") + "<br />" +
+    "Liquibase changelog: " + (databaseMigrationConfig?.changelogPath || "-") + "<br />" +
+    "Liquibase contexts: " + (databaseMigrationConfig?.contexts || "-");
 
   const managementLine = documentRef.getElementById("management-line");
   managementLine.textContent =
