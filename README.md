@@ -13,7 +13,7 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
 - Shows a wizard when the workspace is not initialized.
 - Captures base project settings, super-admin account details, Git repository policy,
   backend Swagger UI options, backend base package, external IAM auth configuration,
-  and session/device security preferences.
+  session/device security preferences, and organization hierarchy preferences.
 - Generates the target project at repository root:
   - `src/backend/springboot` with strict Njangui-inspired modular structure:
     - `gateway`,
@@ -32,6 +32,7 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
   automatic backup, and detailed report.
 - Supports Step 6 external IAM authentication (OIDC-first, auth-only) while RBAC stays internal.
 - Supports Step 7 session/device security baseline (session observation, risk detection, revocation APIs).
+- Supports Step 8 organization hierarchy baseline (units, supervisors, members, hierarchy-aware assignment resolution).
 
 ## Wizard Git Policy
 
@@ -73,6 +74,21 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
 - Generated APIs:
   - `GET /api/account/sessions`
   - `POST /api/account/sessions/revoke`
+
+## Organization Hierarchy Policy (Step 8)
+
+- Organization hierarchy is generated through `organization-hierarchy` feature pack.
+- The generated backend includes a strict `organization` module (`organization-domain`, `organization-application`, `organization-infrastructure`).
+- Wizard/runtime options:
+  - `organizationHierarchyEnabled`
+  - `organizationDefaultAssignmentStrategy`
+  - `organizationMaxTraversalDepth`
+- Generated APIs:
+  - `GET /api/admin/organization/units`
+  - `POST /api/admin/organization/units`
+  - `POST /api/admin/organization/units/{unitCode}/supervisor/{username}`
+  - `POST /api/admin/organization/units/{unitCode}/members/{username}`
+  - `GET /api/admin/organization/assignment/resolve`
 
 ## Smart Migration
 

@@ -10,6 +10,12 @@ const GENERATED_ROOT_DIRNAME = "root";
 const DEFAULT_BASE_PACKAGE = "com.prooweb.generated";
 const EXTERNAL_IAM_FEATURE_PACK_ID = "external-iam-auth";
 const SESSION_DEVICE_SECURITY_FEATURE_PACK_ID = "session-device-security";
+const ORGANIZATION_HIERARCHY_FEATURE_PACK_ID = "organization-hierarchy";
+const ORGANIZATION_ASSIGNMENT_STRATEGIES = [
+  "SUPERVISOR_ONLY",
+  "SUPERVISOR_THEN_ANCESTORS",
+  "UNIT_MEMBERS",
+];
 
 const SUPPORTED_STACK = {
   backendTech: ["springboot"],
@@ -192,6 +198,43 @@ function normalizeSessionSecurityConfig(rawConfig = {}, options = {}) {
   };
 }
 
+function normalizeAssignmentStrategy(value) {
+  const normalized = normalizeString(value)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  if (ORGANIZATION_ASSIGNMENT_STRATEGIES.includes(normalized)) {
+    return normalized;
+  }
+
+  return "SUPERVISOR_THEN_ANCESTORS";
+}
+
+function normalizeOrganizationHierarchyConfig(rawConfig = {}, options = {}) {
+  const enabled = options.forceEnabled !== undefined
+    ? Boolean(options.forceEnabled)
+    : (rawConfig.enabled === undefined ? true : normalizeBool(rawConfig.enabled));
+  const defaultAssignmentStrategy = normalizeAssignmentStrategy(rawConfig.defaultAssignmentStrategy);
+  const maxTraversalDepth = normalizePositiveInteger(
+    rawConfig.maxTraversalDepth,
+    8,
+    "organizationHierarchy.maxTraversalDepth",
+  );
+
+  if (options.strict && enabled) {
+    if (maxTraversalDepth < 1 || maxTraversalDepth > 16) {
+      throw new Error("organizationHierarchy.maxTraversalDepth must be between 1 and 16.");
+    }
+  }
+
+  return {
+    enabled,
+    defaultAssignmentStrategy,
+    maxTraversalDepth,
+  };
+}
+
 function withConfigDrivenFeaturePacks(featurePacks, options = {}) {
   const enabled = Array.isArray(featurePacks?.enabled) ? featurePacks.enabled : [];
   const enabledSet = new Set(enabled);
@@ -206,6 +249,12 @@ function withConfigDrivenFeaturePacks(featurePacks, options = {}) {
     enabledSet.add(SESSION_DEVICE_SECURITY_FEATURE_PACK_ID);
   } else {
     enabledSet.delete(SESSION_DEVICE_SECURITY_FEATURE_PACK_ID);
+  }
+
+  if (options.organizationHierarchyEnabled) {
+    enabledSet.add(ORGANIZATION_HIERARCHY_FEATURE_PACK_ID);
+  } else {
+    enabledSet.delete(ORGANIZATION_HIERARCHY_FEATURE_PACK_ID);
   }
 
   return normalizeFeaturePacks({
@@ -311,6 +360,7 @@ function readWorkspaceConfig() {
   const swaggerUi = parsed.backendOptions.swaggerUi || {};
   const externalIam = parsed.backendOptions.externalIam || {};
   const sessionSecurity = parsed.backendOptions.sessionSecurity || {};
+  const organizationHierarchy = parsed.backendOptions.organizationHierarchy || {};
   parsed.backendOptions.swaggerUi = {
     enabled: Boolean(swaggerUi.enabled),
     profiles: normalizeStringList(swaggerUi.profiles).map((value) => value.toLowerCase()),
@@ -327,12 +377,21 @@ function readWorkspaceConfig() {
     },
     { strict: false },
   );
+  parsed.backendOptions.organizationHierarchy = normalizeOrganizationHierarchyConfig(
+    {
+      enabled: organizationHierarchy.enabled,
+      defaultAssignmentStrategy: organizationHierarchy.defaultAssignmentStrategy,
+      maxTraversalDepth: organizationHierarchy.maxTraversalDepth,
+    },
+    { strict: false },
+  );
 
   parsed.featurePacks = withConfigDrivenFeaturePacks(
     normalizeFeaturePacks(parsed.featurePacks),
     {
       externalIamEnabled: parsed.backendOptions.externalIam.enabled,
       sessionSecurityEnabled: parsed.backendOptions.sessionSecurity.enabled,
+      organizationHierarchyEnabled: parsed.backendOptions.organizationHierarchy.enabled,
     },
   );
   parsed.managedBy = normalizeManagedBy(parsed);
@@ -404,6 +463,7 @@ function toPublicWorkspaceConfig(config) {
   };
   const externalIam = backendOptions.externalIam || {};
   const sessionSecurity = backendOptions.sessionSecurity || {};
+  const organizationHierarchy = backendOptions.organizationHierarchy || {};
   backendOptions.externalIam = {
     enabled: Boolean(externalIam.enabled),
     providers: normalizeExternalIamProviders(externalIam.providers).map((provider) => ({
@@ -421,6 +481,14 @@ function toPublicWorkspaceConfig(config) {
       enabled: sessionSecurity.enabled,
       suspiciousWindowMinutes: sessionSecurity.suspiciousWindowMinutes,
       maxDistinctDevices: sessionSecurity.maxDistinctDevices,
+    },
+    { strict: false },
+  );
+  backendOptions.organizationHierarchy = normalizeOrganizationHierarchyConfig(
+    {
+      enabled: organizationHierarchy.enabled,
+      defaultAssignmentStrategy: organizationHierarchy.defaultAssignmentStrategy,
+      maxTraversalDepth: organizationHierarchy.maxTraversalDepth,
     },
     { strict: false },
   );
@@ -469,6 +537,17 @@ function buildWorkspaceConfig(payload) {
       maxDistinctDevices: payload.sessionSecurityMaxDistinctDevices,
     },
     { strict: true, forceEnabled: sessionSecurityEnabled },
+  );
+  const organizationHierarchyEnabled = Object.prototype.hasOwnProperty.call(payload, "organizationHierarchyEnabled")
+    ? normalizeBool(payload.organizationHierarchyEnabled)
+    : true;
+  const organizationHierarchyConfig = normalizeOrganizationHierarchyConfig(
+    {
+      enabled: organizationHierarchyEnabled,
+      defaultAssignmentStrategy: payload.organizationDefaultAssignmentStrategy,
+      maxTraversalDepth: payload.organizationMaxTraversalDepth,
+    },
+    { strict: true, forceEnabled: organizationHierarchyEnabled },
   );
   const featurePacksEnabled = normalizeStringList(payload.featurePacksEnabled).map((entry) => entry.toLowerCase());
   const featurePackConfigs = payload?.featurePackConfigs;
@@ -522,13 +601,14 @@ function buildWorkspaceConfig(payload) {
     {
       externalIamEnabled,
       sessionSecurityEnabled: sessionSecurityConfig.enabled,
+      organizationHierarchyEnabled: organizationHierarchyConfig.enabled,
     },
   );
 
   const { hash, salt } = hashPassword(superAdminPassword);
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     initializedAt: new Date().toISOString(),
     project: {
       title: projectTitle,
@@ -552,6 +632,7 @@ function buildWorkspaceConfig(payload) {
         providers: externalIamProviders,
       },
       sessionSecurity: sessionSecurityConfig,
+      organizationHierarchy: organizationHierarchyConfig,
     },
     featurePacks,
     managedBy: {
@@ -633,6 +714,34 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
     },
     { strict: true, forceEnabled: sessionSecurityEnabled },
   );
+  const hasOrganizationHierarchyEnabledOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "organizationHierarchyEnabled",
+  );
+  const currentOrganizationHierarchy = currentConfig?.backendOptions?.organizationHierarchy || {};
+  const organizationHierarchyEnabled = hasOrganizationHierarchyEnabledOverride
+    ? normalizeBool(safePayload.organizationHierarchyEnabled)
+    : (currentOrganizationHierarchy.enabled === undefined ? true : Boolean(currentOrganizationHierarchy.enabled));
+  const hasOrganizationDefaultStrategyOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "organizationDefaultAssignmentStrategy",
+  );
+  const hasOrganizationMaxDepthOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "organizationMaxTraversalDepth",
+  );
+  const organizationHierarchyConfig = normalizeOrganizationHierarchyConfig(
+    {
+      enabled: organizationHierarchyEnabled,
+      defaultAssignmentStrategy: hasOrganizationDefaultStrategyOverride
+        ? safePayload.organizationDefaultAssignmentStrategy
+        : currentOrganizationHierarchy.defaultAssignmentStrategy,
+      maxTraversalDepth: hasOrganizationMaxDepthOverride
+        ? safePayload.organizationMaxTraversalDepth
+        : currentOrganizationHierarchy.maxTraversalDepth,
+    },
+    { strict: true, forceEnabled: organizationHierarchyEnabled },
+  );
 
   const featurePacksEnabled = normalizeStringList(safePayload.featurePacksEnabled).map((entry) => entry.toLowerCase());
   const rawFeaturePacks =
@@ -649,11 +758,13 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
     {
       externalIamEnabled,
       sessionSecurityEnabled: sessionSecurityConfig.enabled,
+      organizationHierarchyEnabled: organizationHierarchyConfig.enabled,
     },
   );
 
   return {
     ...currentConfig,
+    schemaVersion: 3,
     project: {
       ...currentConfig.project,
       basePackage,
@@ -665,6 +776,7 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
         providers: externalIamProviders,
       },
       sessionSecurity: sessionSecurityConfig,
+      organizationHierarchy: organizationHierarchyConfig,
     },
     featurePacks,
   };
@@ -681,6 +793,9 @@ function markWorkspaceMigrated(config) {
       {
         externalIamEnabled: Boolean(config?.backendOptions?.externalIam?.enabled),
         sessionSecurityEnabled: Boolean(config?.backendOptions?.sessionSecurity?.enabled),
+        organizationHierarchyEnabled: config?.backendOptions?.organizationHierarchy?.enabled === undefined
+          ? true
+          : Boolean(config?.backendOptions?.organizationHierarchy?.enabled),
       },
     ),
     managedBy: {

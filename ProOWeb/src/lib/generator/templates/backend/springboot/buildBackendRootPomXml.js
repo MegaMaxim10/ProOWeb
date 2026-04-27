@@ -2,6 +2,7 @@ const { escapeXml } = require("../../_shared/escape");
 
 function buildBackendRootPomXml(projectTitle, projectSlug, options = {}) {
   const identityModule = options.identityEnabled ? "\n    <module>identity</module>" : "";
+  const organizationModule = options.organizationEnabled ? "\n    <module>organization</module>" : "";
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -27,6 +28,7 @@ function buildBackendRootPomXml(projectTitle, projectSlug, options = {}) {
     <module>kernel</module>
     <module>common</module>
     ${identityModule}
+    ${organizationModule}
     <module>gateway</module>
     <module>system</module>
     <module>prooweb-application</module>

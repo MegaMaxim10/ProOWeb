@@ -8,14 +8,19 @@ function buildFrontendShellAppJsx(options = {}) {
   const sessionSecurityImport = options.sessionSecurityEnabled
     ? `import { SessionSecurityPanel } from "../../session-security/ui/SessionSecurityPanel";\n`
     : "";
+  const organizationImport = options.organizationEnabled
+    ? `import { OrganizationHierarchyPanel } from "../../organization/ui/OrganizationHierarchyPanel";\n`
+    : "";
   const identitySection = options.identityEnabled ? "\n      <IdentityAdminPanel />" : "";
   const authSection = options.authEnabled ? "\n      <AuthenticationWorkbench />" : "";
   const sessionSecuritySection = options.sessionSecurityEnabled ? "\n      <SessionSecurityPanel />" : "";
+  const organizationSection = options.organizationEnabled ? "\n      <OrganizationHierarchyPanel />" : "";
 
   return `import { useSystemSnapshot } from "./useSystemSnapshot";
 ${identityImport}
 ${authImport}
 ${sessionSecurityImport}
+${organizationImport}
 export function ShellApp() {
   const { snapshot, loading, error, healthLabel } = useSystemSnapshot();
   const meta = snapshot?.meta;
@@ -45,7 +50,7 @@ export function ShellApp() {
             Healthcheck: <span className={healthLabel === "UP" ? "ok" : "warn"}>{healthLabel}</span>
           </p>
         ) : null}
-      </section>${identitySection}${authSection}${sessionSecuritySection}
+      </section>${identitySection}${authSection}${sessionSecuritySection}${organizationSection}
     </main>
   );
 }

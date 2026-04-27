@@ -48,6 +48,14 @@ const FEATURE_PACK_DEFINITIONS = Object.freeze([
     description: "Generate session observation, device-risk detection, and session revocation workflows.",
   },
   {
+    id: "organization-hierarchy",
+    category: "application",
+    defaultEnabled: true,
+    supportedModes: ["full"],
+    dependencies: ["identity-rbac", "frontend-web-react"],
+    description: "Generate organization hierarchy management and hierarchy-aware assignment strategies.",
+  },
+  {
     id: "mobile-placeholder",
     category: "application",
     defaultEnabled: true,

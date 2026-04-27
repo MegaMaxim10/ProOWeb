@@ -141,6 +141,36 @@
             </div>
           </fieldset>
 
+          <fieldset>
+            <legend>Organization Hierarchy</legend>
+            <label class="inline-row">
+              <input
+                id="organization-hierarchy-toggle"
+                type="checkbox"
+                name="organizationHierarchyEnabled"
+                checked
+              />
+              Activer le module d'organigramme organisationnel
+            </label>
+            <p class="fieldset-hint">
+              Sert de base aux strategies d'affectation hierarchiques des taches metier.
+            </p>
+            <div id="organization-hierarchy-config">
+              <label>
+                Default assignment strategy
+                <select name="organizationDefaultAssignmentStrategy">
+                  <option value="SUPERVISOR_THEN_ANCESTORS">SUPERVISOR_THEN_ANCESTORS</option>
+                  <option value="SUPERVISOR_ONLY">SUPERVISOR_ONLY</option>
+                  <option value="UNIT_MEMBERS">UNIT_MEMBERS</option>
+                </select>
+              </label>
+              <label>
+                Max traversal depth
+                <input type="number" min="1" max="16" name="organizationMaxTraversalDepth" value="8" />
+              </label>
+            </div>
+          </fieldset>
+
           <label>
             Frontend web
             <select name="frontendWebTech" required>

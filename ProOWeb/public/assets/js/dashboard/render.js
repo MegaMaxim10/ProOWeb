@@ -25,6 +25,7 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
   const swaggerConfig = workspace.backendOptions?.swaggerUi;
   const externalIamConfig = workspace.backendOptions?.externalIam;
   const sessionSecurityConfig = workspace.backendOptions?.sessionSecurity;
+  const organizationHierarchyConfig = workspace.backendOptions?.organizationHierarchy;
   const externalProviderIds = Array.isArray(externalIamConfig?.providers)
     ? externalIamConfig.providers.map((provider) => provider.id).filter(Boolean)
     : [];
@@ -39,7 +40,10 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
     "Providers IAM: " + (externalProviderIds.join(", ") || "aucun") + "<br />" +
     "Session security: " + (sessionSecurityConfig?.enabled ? "active" : "desactive") + "<br />" +
     "Risk window (min): " + (sessionSecurityConfig?.suspiciousWindowMinutes || "-") + "<br />" +
-    "Max devices/window: " + (sessionSecurityConfig?.maxDistinctDevices || "-");
+    "Max devices/window: " + (sessionSecurityConfig?.maxDistinctDevices || "-") + "<br />" +
+    "Organization hierarchy: " + (organizationHierarchyConfig?.enabled ? "active" : "desactive") + "<br />" +
+    "Default assignment strategy: " + (organizationHierarchyConfig?.defaultAssignmentStrategy || "-") + "<br />" +
+    "Max hierarchy depth: " + (organizationHierarchyConfig?.maxTraversalDepth || "-");
 
   const managementLine = documentRef.getElementById("management-line");
   managementLine.textContent =

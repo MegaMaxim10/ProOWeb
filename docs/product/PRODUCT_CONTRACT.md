@@ -30,7 +30,7 @@ The product position is intentionally between:
   - authentication (internal + external IAM auth-only mode),
   - session/device security (observation, risk detection, revocation),
   - email notifications,
-  - organization hierarchy,
+  - organization hierarchy and hierarchy-aware assignment strategies,
   - Liquibase baseline and migration discipline.
 - Process modeling lifecycle to be built progressively:
   - modeling,

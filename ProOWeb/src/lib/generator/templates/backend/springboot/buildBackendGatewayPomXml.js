@@ -13,6 +13,14 @@ function buildBackendGatewayPomXml(projectSlug, options = {}) {
       <artifactId>spring-boot-starter-security</artifactId>
     </dependency>`
     : "";
+  const organizationDependency = options.organizationEnabled
+    ? `
+    <dependency>
+      <groupId>com.prooweb.generated</groupId>
+      <artifactId>organization-application</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+    </dependency>`
+    : "";
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -34,7 +42,7 @@ function buildBackendGatewayPomXml(projectSlug, options = {}) {
       <groupId>com.prooweb.generated</groupId>
       <artifactId>system-application</artifactId>
       <version>0.0.1-SNAPSHOT</version>
-    </dependency>${identityDependencies}
+    </dependency>${identityDependencies}${organizationDependency}
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>

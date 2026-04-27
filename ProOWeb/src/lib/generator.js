@@ -112,6 +112,10 @@ const {
   buildBackendIdentityDomainPomXml,
   buildBackendIdentityApplicationPomXml,
   buildBackendIdentityInfrastructurePomXml,
+  buildBackendOrganizationPomXml,
+  buildBackendOrganizationDomainPomXml,
+  buildBackendOrganizationApplicationPomXml,
+  buildBackendOrganizationInfrastructurePomXml,
   buildBackendApplicationModulePomXml,
   buildBackendTestsPomXml,
   buildBackendCoveragePomXml,
@@ -151,6 +155,7 @@ const {
   buildGatewayAuthenticationFlowControllerJava,
   buildGatewayExternalAuthenticationControllerJava,
   buildGatewaySessionSecurityControllerJava,
+  buildGatewayOrganizationHierarchyControllerJava,
   buildGatewaySecurityConfigJava,
   buildGatewayPbkdf2WorkspacePasswordEncoderJava,
   buildTestSupportMarkerJava,
@@ -159,6 +164,7 @@ const {
   buildAuthenticationFlowsItJava,
   buildExternalIamAuthenticationItJava,
   buildSessionDeviceSecurityItJava,
+  buildOrganizationHierarchyItJava,
   buildIdentityDomainMarkerJava,
   buildIdentityApplicationMarkerJava,
   buildIdentityInfrastructureMarkerJava,
@@ -211,6 +217,18 @@ const {
   buildIdentityJpaAuthenticationFlowAdapterJava,
   buildIdentityHs256ExternalIamAuthenticationAdapterJava,
   buildIdentityInMemorySessionObservationAdapterJava,
+  buildOrganizationDomainMarkerJava,
+  buildOrganizationUnitModelJava,
+  buildOrganizationHierarchyRepositoryPortJava,
+  buildOrganizationApplicationMarkerJava,
+  buildReadOrganizationHierarchyUseCaseJava,
+  buildManageOrganizationHierarchyUseCaseJava,
+  buildResolveHierarchyAssignmentUseCaseJava,
+  buildOrganizationHierarchyServiceJava,
+  buildOrganizationInfrastructureMarkerJava,
+  buildOrganizationHierarchyPropertiesJava,
+  buildOrganizationModuleConfigJava,
+  buildOrganizationInMemoryHierarchyRepositoryAdapterJava,
   buildFrontendPackageJson,
   buildFrontendIndexHtml,
   buildFrontendMainJsx,
@@ -241,6 +259,15 @@ const {
   buildFrontendHttpSessionSecurityAdapterJs,
   buildFrontendUseSessionSecurityHookJs,
   buildFrontendSessionSecurityPanelJsx,
+  buildFrontendOrganizationUnitModelJs,
+  buildFrontendReadOrganizationUnitsUseCaseJs,
+  buildFrontendCreateOrganizationUnitUseCaseJs,
+  buildFrontendAssignOrganizationSupervisorUseCaseJs,
+  buildFrontendAssignOrganizationMemberUseCaseJs,
+  buildFrontendResolveOrganizationAssignmentUseCaseJs,
+  buildFrontendHttpOrganizationHierarchyAdapterJs,
+  buildFrontendUseOrganizationHierarchyHookJs,
+  buildFrontendOrganizationHierarchyPanelJsx,
   buildFrontendCss,
   buildFrontendViteConfig,
   buildComposeFile,
@@ -281,13 +308,17 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
   const authEnabled = generationPlan.isEnabled("auth-flows");
   const externalIamEnabled = generationPlan.isEnabled("external-iam-auth");
   const sessionSecurityEnabled = generationPlan.isEnabled("session-device-security");
+  const organizationEnabled = generationPlan.isEnabled("organization-hierarchy");
 
   writeFiles(
     backendRoot,
     [
       {
         relativePath: "pom.xml",
-        content: buildBackendRootPomXml(projectTitle, projectSlug, { identityEnabled }),
+        content: buildBackendRootPomXml(projectTitle, projectSlug, {
+          identityEnabled,
+          organizationEnabled,
+        }),
       },
       { relativePath: "kernel/pom.xml", content: buildBackendKernelPomXml(projectSlug) },
       { relativePath: "kernel/kernel-domain/pom.xml", content: buildBackendKernelDomainPomXml() },
@@ -297,14 +328,34 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       { relativePath: "common/common-domain/pom.xml", content: buildBackendCommonDomainPomXml() },
       { relativePath: "common/common-application/pom.xml", content: buildBackendCommonApplicationPomXml() },
       { relativePath: "common/common-infrastructure/pom.xml", content: buildBackendCommonInfrastructurePomXml() },
-      { relativePath: "gateway/pom.xml", content: buildBackendGatewayPomXml(projectSlug, { identityEnabled }) },
+      {
+        relativePath: "gateway/pom.xml",
+        content: buildBackendGatewayPomXml(projectSlug, { identityEnabled, organizationEnabled }),
+      },
       { relativePath: "system/pom.xml", content: buildBackendSystemPomXml(projectSlug) },
       { relativePath: "system/system-domain/pom.xml", content: buildBackendSystemDomainPomXml() },
       { relativePath: "system/system-application/pom.xml", content: buildBackendSystemApplicationPomXml() },
       { relativePath: "system/system-infrastructure/pom.xml", content: buildBackendSystemInfrastructurePomXml() },
+      ...(organizationEnabled
+        ? [
+            { relativePath: "organization/pom.xml", content: buildBackendOrganizationPomXml(projectSlug) },
+            { relativePath: "organization/organization-domain/pom.xml", content: buildBackendOrganizationDomainPomXml() },
+            {
+              relativePath: "organization/organization-application/pom.xml",
+              content: buildBackendOrganizationApplicationPomXml(),
+            },
+            {
+              relativePath: "organization/organization-infrastructure/pom.xml",
+              content: buildBackendOrganizationInfrastructurePomXml(),
+            },
+          ]
+        : []),
       {
         relativePath: "prooweb-application/pom.xml",
-        content: buildBackendApplicationModulePomXml(projectSlug, swaggerEnabled, { identityEnabled }),
+        content: buildBackendApplicationModulePomXml(projectSlug, swaggerEnabled, {
+          identityEnabled,
+          organizationEnabled,
+        }),
       },
       { relativePath: "tests/pom.xml", content: buildBackendTestsPomXml(projectSlug) },
       { relativePath: "tests/test-support/pom.xml", content: buildBackendTestSupportPomXml() },
@@ -455,6 +506,15 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
               relativePath: "gateway/src/main/java/com/prooweb/generated/gateway/api/IdentityAdminController.java",
               content: buildGatewayIdentityAdminControllerJava(),
             },
+            ...(organizationEnabled
+              ? [
+                  {
+                    relativePath:
+                      "gateway/src/main/java/com/prooweb/generated/gateway/api/OrganizationHierarchyController.java",
+                    content: buildGatewayOrganizationHierarchyControllerJava(),
+                  },
+                ]
+              : []),
             ...(authEnabled
                 ? [
                   {
@@ -556,6 +616,20 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       buildSessionDeviceSecurityItJava(),
       {
         owners: ["session-device-security"],
+        category: "backend-tests",
+      },
+    );
+  }
+
+  if (organizationEnabled) {
+    writeManagedFile(
+      path.join(
+        backendRoot,
+        "tests/system-infrastructure-it/src/test/java/com/prooweb/generated/tests/system/OrganizationHierarchyIT.java",
+      ),
+      buildOrganizationHierarchyItJava(),
+      {
+        owners: ["organization-hierarchy"],
         category: "backend-tests",
       },
     );
@@ -879,6 +953,79 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
     }
   }
 
+  if (organizationEnabled) {
+    writeFiles(
+      backendRoot,
+      [
+        {
+          relativePath:
+            "organization/organization-domain/src/main/java/com/prooweb/generated/organization/domain/OrganizationDomainMarker.java",
+          content: buildOrganizationDomainMarkerJava(),
+        },
+        {
+          relativePath:
+            "organization/organization-domain/src/main/java/com/prooweb/generated/organization/domain/model/OrganizationUnit.java",
+          content: buildOrganizationUnitModelJava(),
+        },
+        {
+          relativePath:
+            "organization/organization-domain/src/main/java/com/prooweb/generated/organization/domain/port/out/OrganizationHierarchyRepositoryPort.java",
+          content: buildOrganizationHierarchyRepositoryPortJava(),
+        },
+        {
+          relativePath:
+            "organization/organization-application/src/main/java/com/prooweb/generated/organization/application/OrganizationApplicationMarker.java",
+          content: buildOrganizationApplicationMarkerJava(),
+        },
+        {
+          relativePath:
+            "organization/organization-application/src/main/java/com/prooweb/generated/organization/application/port/in/ReadOrganizationHierarchyUseCase.java",
+          content: buildReadOrganizationHierarchyUseCaseJava(),
+        },
+        {
+          relativePath:
+            "organization/organization-application/src/main/java/com/prooweb/generated/organization/application/port/in/ManageOrganizationHierarchyUseCase.java",
+          content: buildManageOrganizationHierarchyUseCaseJava(),
+        },
+        {
+          relativePath:
+            "organization/organization-application/src/main/java/com/prooweb/generated/organization/application/port/in/ResolveHierarchyAssignmentUseCase.java",
+          content: buildResolveHierarchyAssignmentUseCaseJava(),
+        },
+        {
+          relativePath:
+            "organization/organization-application/src/main/java/com/prooweb/generated/organization/application/service/OrganizationHierarchyService.java",
+          content: buildOrganizationHierarchyServiceJava(),
+        },
+        {
+          relativePath:
+            "organization/organization-infrastructure/src/main/java/com/prooweb/generated/organization/infrastructure/OrganizationInfrastructureMarker.java",
+          content: buildOrganizationInfrastructureMarkerJava(),
+        },
+        {
+          relativePath:
+            "organization/organization-infrastructure/src/main/java/com/prooweb/generated/organization/infrastructure/config/OrganizationHierarchyProperties.java",
+          content: buildOrganizationHierarchyPropertiesJava(),
+        },
+        {
+          relativePath:
+            "organization/organization-infrastructure/src/main/java/com/prooweb/generated/organization/infrastructure/config/OrganizationModuleConfig.java",
+          content: buildOrganizationModuleConfigJava(),
+        },
+        {
+          relativePath:
+            "organization/organization-infrastructure/src/main/java/com/prooweb/generated/organization/infrastructure/adapter/out/hierarchy/InMemoryOrganizationHierarchyRepositoryAdapter.java",
+          content: buildOrganizationInMemoryHierarchyRepositoryAdapterJava(),
+        },
+      ],
+      writeManagedFile,
+      {
+        owners: ["organization-hierarchy"],
+        category: "backend",
+      },
+    );
+  }
+
   writeManagedFile(
     path.join(backendRoot, "prooweb-application/src/main/resources/application.yml"),
     buildBackendApplicationYaml(config, {
@@ -886,6 +1033,7 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       authEnabled,
       externalIamEnabled,
       sessionSecurityEnabled,
+      organizationHierarchyEnabled: organizationEnabled,
     }),
     {
       owners: ["backend-platform"],
@@ -910,6 +1058,7 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
   const authEnabled = generationPlan.isEnabled("auth-flows");
   const externalIamEnabled = generationPlan.isEnabled("external-iam-auth");
   const sessionSecurityEnabled = generationPlan.isEnabled("session-device-security");
+  const organizationEnabled = generationPlan.isEnabled("organization-hierarchy");
   const defaultExternalIamProviderId = Array.isArray(config?.backendOptions?.externalIam?.providers)
     && config.backendOptions.externalIam.providers.length > 0
     ? config.backendOptions.externalIam.providers[0].id
@@ -945,7 +1094,7 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
   writeManagedFile(path.join(frontendRoot, "src/modules/system/ui/useSystemSnapshot.js"), buildFrontendUseSystemSnapshotHookJs(), metadata);
   writeManagedFile(
     path.join(frontendRoot, "src/modules/system/ui/ShellApp.jsx"),
-    buildFrontendShellAppJsx({ identityEnabled, authEnabled, sessionSecurityEnabled }),
+    buildFrontendShellAppJsx({ identityEnabled, authEnabled, sessionSecurityEnabled, organizationEnabled }),
     metadata,
   );
 
@@ -1078,6 +1227,59 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
       path.join(frontendRoot, "src/modules/session-security/ui/SessionSecurityPanel.jsx"),
       buildFrontendSessionSecurityPanelJsx(),
       sessionSecurityMetadata,
+    );
+  }
+
+  if (organizationEnabled) {
+    const organizationMetadata = {
+      owners: ["organization-hierarchy"],
+      category: "frontend",
+    };
+
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/organization/domain/model/OrganizationUnit.js"),
+      buildFrontendOrganizationUnitModelJs(),
+      organizationMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/organization/application/usecase/ReadOrganizationUnits.js"),
+      buildFrontendReadOrganizationUnitsUseCaseJs(),
+      organizationMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/organization/application/usecase/CreateOrganizationUnit.js"),
+      buildFrontendCreateOrganizationUnitUseCaseJs(),
+      organizationMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/organization/application/usecase/AssignOrganizationSupervisor.js"),
+      buildFrontendAssignOrganizationSupervisorUseCaseJs(),
+      organizationMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/organization/application/usecase/AssignOrganizationMember.js"),
+      buildFrontendAssignOrganizationMemberUseCaseJs(),
+      organizationMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/organization/application/usecase/ResolveOrganizationAssignment.js"),
+      buildFrontendResolveOrganizationAssignmentUseCaseJs(),
+      organizationMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/organization/infrastructure/adapter/out/http/HttpOrganizationHierarchyAdapter.js"),
+      buildFrontendHttpOrganizationHierarchyAdapterJs(),
+      organizationMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/organization/ui/useOrganizationHierarchy.js"),
+      buildFrontendUseOrganizationHierarchyHookJs(),
+      organizationMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/organization/ui/OrganizationHierarchyPanel.jsx"),
+      buildFrontendOrganizationHierarchyPanelJsx(),
+      organizationMetadata,
     );
   }
 

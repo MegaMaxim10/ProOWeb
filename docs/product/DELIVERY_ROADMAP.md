@@ -42,6 +42,7 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 ## Phase 8 - Organization Hierarchy Management
 - Generate generic organization structure module (units, supervisors, assignments).
 - Support hierarchy-aware task assignment rules.
+- Implementation baseline: `organization-hierarchy` feature pack.
 - Exit criteria: hierarchy model is editable and usable in assignment strategies.
 
 ## Phase 9 - Notifications and Database Migration Maturity

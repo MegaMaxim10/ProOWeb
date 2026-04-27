@@ -17,6 +17,14 @@ function buildBackendApplicationModulePomXml(projectSlug, swaggerEnabled, option
       <version>0.0.1-SNAPSHOT</version>
     </dependency>`
     : "";
+  const organizationInfrastructureDependency = options.organizationEnabled
+    ? `
+    <dependency>
+      <groupId>com.prooweb.generated</groupId>
+      <artifactId>organization-infrastructure</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+    </dependency>`
+    : "";
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -53,7 +61,7 @@ function buildBackendApplicationModulePomXml(projectSlug, swaggerEnabled, option
       <groupId>com.prooweb.generated</groupId>
       <artifactId>system-infrastructure</artifactId>
       <version>0.0.1-SNAPSHOT</version>
-    </dependency>${identityInfrastructureDependency}
+    </dependency>${identityInfrastructureDependency}${organizationInfrastructureDependency}
 
     <dependency>
       <groupId>org.springframework.boot</groupId>

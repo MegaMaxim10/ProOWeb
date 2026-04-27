@@ -26,5 +26,8 @@ export function extractWizardFormPayload(form) {
     sessionSecurityEnabled: formData.get("sessionSecurityEnabled") === "on",
     sessionSecurityWindowMinutes: formData.get("sessionSecurityWindowMinutes") || "",
     sessionSecurityMaxDistinctDevices: formData.get("sessionSecurityMaxDistinctDevices") || "",
+    organizationHierarchyEnabled: formData.get("organizationHierarchyEnabled") === "on",
+    organizationDefaultAssignmentStrategy: formData.get("organizationDefaultAssignmentStrategy") || "",
+    organizationMaxTraversalDepth: formData.get("organizationMaxTraversalDepth") || "",
   };
 }

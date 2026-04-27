@@ -32,6 +32,19 @@ ${externalIamProvidersYaml}`
       suspicious-window-minutes: ${Number(sessionSecurityConfig.suspiciousWindowMinutes || 60)}
       max-distinct-devices: ${Number(sessionSecurityConfig.maxDistinctDevices || 3)}`
     : "";
+  const organizationHierarchyConfig = config.backendOptions?.organizationHierarchy || {};
+  const organizationHierarchySection = options.organizationHierarchyEnabled
+    ? `
+  organization:
+    hierarchy:
+      enabled: ${organizationHierarchyConfig.enabled === undefined
+        ? true
+        : Boolean(organizationHierarchyConfig.enabled)}
+      default-assignment-strategy: "${escapeYamlDoubleQuotes(
+        organizationHierarchyConfig.defaultAssignmentStrategy || "SUPERVISOR_THEN_ANCESTORS",
+      )}"
+      max-traversal-depth: ${Number(organizationHierarchyConfig.maxTraversalDepth || 8)}`
+    : "";
   const authSection = options.authEnabled
     ? `
   auth:
@@ -106,6 +119,7 @@ app:
       profiles: "${escapeYamlDoubleQuotes(swaggerProfiles)}"
 ${authSection}
 ${identitySection}
+${organizationHierarchySection}
   notifications:
     email:
       from: "no-reply@prooweb.local"

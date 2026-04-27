@@ -40,6 +40,9 @@ This workspace was generated and managed by ProOWeb.
 - Session/device security: ${config.backendOptions.sessionSecurity?.enabled ? "enabled" : "disabled"}
 - Suspicious window (minutes): ${config.backendOptions.sessionSecurity?.suspiciousWindowMinutes || "60"}
 - Max distinct devices in window: ${config.backendOptions.sessionSecurity?.maxDistinctDevices || "3"}
+- Organization hierarchy: ${config.backendOptions.organizationHierarchy?.enabled ? "enabled" : "disabled"}
+- Default assignment strategy: ${config.backendOptions.organizationHierarchy?.defaultAssignmentStrategy || "SUPERVISOR_THEN_ANCESTORS"}
+- Max hierarchy traversal depth: ${config.backendOptions.organizationHierarchy?.maxTraversalDepth || "8"}
 
 ## Active feature packs
 ${activeFeaturePacks.length > 0 ? activeFeaturePacks.map((packId) => `- ${packId}`).join("\n") : "- none"}

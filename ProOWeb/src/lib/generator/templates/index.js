@@ -16,6 +16,10 @@ const { buildBackendIdentityPomXml } = require("./backend/springboot/buildBacken
 const { buildBackendIdentityDomainPomXml } = require("./backend/springboot/buildBackendIdentityDomainPomXml");
 const { buildBackendIdentityApplicationPomXml } = require("./backend/springboot/buildBackendIdentityApplicationPomXml");
 const { buildBackendIdentityInfrastructurePomXml } = require("./backend/springboot/buildBackendIdentityInfrastructurePomXml");
+const { buildBackendOrganizationPomXml } = require("./backend/springboot/buildBackendOrganizationPomXml");
+const { buildBackendOrganizationDomainPomXml } = require("./backend/springboot/buildBackendOrganizationDomainPomXml");
+const { buildBackendOrganizationApplicationPomXml } = require("./backend/springboot/buildBackendOrganizationApplicationPomXml");
+const { buildBackendOrganizationInfrastructurePomXml } = require("./backend/springboot/buildBackendOrganizationInfrastructurePomXml");
 const { buildBackendApplicationModulePomXml } = require("./backend/springboot/buildBackendApplicationModulePomXml");
 const { buildBackendTestsPomXml } = require("./backend/springboot/buildBackendTestsPomXml");
 const { buildBackendCoveragePomXml } = require("./backend/springboot/buildBackendCoveragePomXml");
@@ -46,6 +50,7 @@ const { buildGatewayIdentityAdminControllerJava } = require("./backend/springboo
 const { buildGatewayAuthenticationFlowControllerJava } = require("./backend/springboot/buildGatewayAuthenticationFlowControllerJava");
 const { buildGatewayExternalAuthenticationControllerJava } = require("./backend/springboot/buildGatewayExternalAuthenticationControllerJava");
 const { buildGatewaySessionSecurityControllerJava } = require("./backend/springboot/buildGatewaySessionSecurityControllerJava");
+const { buildGatewayOrganizationHierarchyControllerJava } = require("./backend/springboot/buildGatewayOrganizationHierarchyControllerJava");
 const { buildGatewaySecurityConfigJava } = require("./backend/springboot/buildGatewaySecurityConfigJava");
 const { buildGatewayPbkdf2WorkspacePasswordEncoderJava } = require("./backend/springboot/buildGatewayPbkdf2WorkspacePasswordEncoderJava");
 const { buildKernelDomainMarkerJava } = require("./backend/springboot/buildKernelDomainMarkerJava");
@@ -109,12 +114,25 @@ const { buildIdentityJpaIdentityRepositoryAdapterJava } = require("./backend/spr
 const { buildIdentityJpaAuthenticationFlowAdapterJava } = require("./backend/springboot/buildIdentityJpaAuthenticationFlowAdapterJava");
 const { buildIdentityHs256ExternalIamAuthenticationAdapterJava } = require("./backend/springboot/buildIdentityHs256ExternalIamAuthenticationAdapterJava");
 const { buildIdentityInMemorySessionObservationAdapterJava } = require("./backend/springboot/buildIdentityInMemorySessionObservationAdapterJava");
+const { buildOrganizationDomainMarkerJava } = require("./backend/springboot/buildOrganizationDomainMarkerJava");
+const { buildOrganizationUnitModelJava } = require("./backend/springboot/buildOrganizationUnitModelJava");
+const { buildOrganizationHierarchyRepositoryPortJava } = require("./backend/springboot/buildOrganizationHierarchyRepositoryPortJava");
+const { buildOrganizationApplicationMarkerJava } = require("./backend/springboot/buildOrganizationApplicationMarkerJava");
+const { buildReadOrganizationHierarchyUseCaseJava } = require("./backend/springboot/buildReadOrganizationHierarchyUseCaseJava");
+const { buildManageOrganizationHierarchyUseCaseJava } = require("./backend/springboot/buildManageOrganizationHierarchyUseCaseJava");
+const { buildResolveHierarchyAssignmentUseCaseJava } = require("./backend/springboot/buildResolveHierarchyAssignmentUseCaseJava");
+const { buildOrganizationHierarchyServiceJava } = require("./backend/springboot/buildOrganizationHierarchyServiceJava");
+const { buildOrganizationInfrastructureMarkerJava } = require("./backend/springboot/buildOrganizationInfrastructureMarkerJava");
+const { buildOrganizationHierarchyPropertiesJava } = require("./backend/springboot/buildOrganizationHierarchyPropertiesJava");
+const { buildOrganizationModuleConfigJava } = require("./backend/springboot/buildOrganizationModuleConfigJava");
+const { buildOrganizationInMemoryHierarchyRepositoryAdapterJava } = require("./backend/springboot/buildOrganizationInMemoryHierarchyRepositoryAdapterJava");
 const { buildTestSupportMarkerJava } = require("./backend/springboot/buildTestSupportMarkerJava");
 const { buildSystemApplicationUtJava } = require("./backend/springboot/buildSystemApplicationUtJava");
 const { buildSystemInfrastructureItJava } = require("./backend/springboot/buildSystemInfrastructureItJava");
 const { buildAuthenticationFlowsItJava } = require("./backend/springboot/buildAuthenticationFlowsItJava");
 const { buildExternalIamAuthenticationItJava } = require("./backend/springboot/buildExternalIamAuthenticationItJava");
 const { buildSessionDeviceSecurityItJava } = require("./backend/springboot/buildSessionDeviceSecurityItJava");
+const { buildOrganizationHierarchyItJava } = require("./backend/springboot/buildOrganizationHierarchyItJava");
 const { buildIdentityUserSessionObservationJava } = require("./backend/springboot/buildIdentityUserSessionObservationJava");
 const { buildFrontendPackageJson } = require("./frontend/react/buildFrontendPackageJson");
 const { buildFrontendIndexHtml } = require("./frontend/react/buildFrontendIndexHtml");
@@ -146,6 +164,15 @@ const { buildFrontendAuthenticationWorkbenchJsx } = require("./frontend/react/bu
 const { buildFrontendHttpSessionSecurityAdapterJs } = require("./frontend/react/buildFrontendHttpSessionSecurityAdapterJs");
 const { buildFrontendUseSessionSecurityHookJs } = require("./frontend/react/buildFrontendUseSessionSecurityHookJs");
 const { buildFrontendSessionSecurityPanelJsx } = require("./frontend/react/buildFrontendSessionSecurityPanelJsx");
+const { buildFrontendOrganizationUnitModelJs } = require("./frontend/react/buildFrontendOrganizationUnitModelJs");
+const { buildFrontendReadOrganizationUnitsUseCaseJs } = require("./frontend/react/buildFrontendReadOrganizationUnitsUseCaseJs");
+const { buildFrontendCreateOrganizationUnitUseCaseJs } = require("./frontend/react/buildFrontendCreateOrganizationUnitUseCaseJs");
+const { buildFrontendAssignOrganizationSupervisorUseCaseJs } = require("./frontend/react/buildFrontendAssignOrganizationSupervisorUseCaseJs");
+const { buildFrontendAssignOrganizationMemberUseCaseJs } = require("./frontend/react/buildFrontendAssignOrganizationMemberUseCaseJs");
+const { buildFrontendResolveOrganizationAssignmentUseCaseJs } = require("./frontend/react/buildFrontendResolveOrganizationAssignmentUseCaseJs");
+const { buildFrontendHttpOrganizationHierarchyAdapterJs } = require("./frontend/react/buildFrontendHttpOrganizationHierarchyAdapterJs");
+const { buildFrontendUseOrganizationHierarchyHookJs } = require("./frontend/react/buildFrontendUseOrganizationHierarchyHookJs");
+const { buildFrontendOrganizationHierarchyPanelJsx } = require("./frontend/react/buildFrontendOrganizationHierarchyPanelJsx");
 const { buildFrontendCss } = require("./frontend/react/buildFrontendCss");
 const { buildFrontendViteConfig } = require("./frontend/react/buildFrontendViteConfig");
 const { buildComposeFile } = require("./deployment/docker/buildComposeFile");
@@ -182,6 +209,10 @@ module.exports = {
   buildBackendIdentityDomainPomXml,
   buildBackendIdentityApplicationPomXml,
   buildBackendIdentityInfrastructurePomXml,
+  buildBackendOrganizationPomXml,
+  buildBackendOrganizationDomainPomXml,
+  buildBackendOrganizationApplicationPomXml,
+  buildBackendOrganizationInfrastructurePomXml,
   buildBackendApplicationModulePomXml,
   buildBackendTestsPomXml,
   buildBackendCoveragePomXml,
@@ -212,6 +243,7 @@ module.exports = {
   buildGatewayAuthenticationFlowControllerJava,
   buildGatewayExternalAuthenticationControllerJava,
   buildGatewaySessionSecurityControllerJava,
+  buildGatewayOrganizationHierarchyControllerJava,
   buildGatewaySecurityConfigJava,
   buildGatewayPbkdf2WorkspacePasswordEncoderJava,
   buildKernelDomainMarkerJava,
@@ -276,12 +308,25 @@ module.exports = {
   buildIdentityJpaAuthenticationFlowAdapterJava,
   buildIdentityHs256ExternalIamAuthenticationAdapterJava,
   buildIdentityInMemorySessionObservationAdapterJava,
+  buildOrganizationDomainMarkerJava,
+  buildOrganizationUnitModelJava,
+  buildOrganizationHierarchyRepositoryPortJava,
+  buildOrganizationApplicationMarkerJava,
+  buildReadOrganizationHierarchyUseCaseJava,
+  buildManageOrganizationHierarchyUseCaseJava,
+  buildResolveHierarchyAssignmentUseCaseJava,
+  buildOrganizationHierarchyServiceJava,
+  buildOrganizationInfrastructureMarkerJava,
+  buildOrganizationHierarchyPropertiesJava,
+  buildOrganizationModuleConfigJava,
+  buildOrganizationInMemoryHierarchyRepositoryAdapterJava,
   buildTestSupportMarkerJava,
   buildSystemApplicationUtJava,
   buildSystemInfrastructureItJava,
   buildAuthenticationFlowsItJava,
   buildExternalIamAuthenticationItJava,
   buildSessionDeviceSecurityItJava,
+  buildOrganizationHierarchyItJava,
   buildFrontendPackageJson,
   buildFrontendIndexHtml,
   buildFrontendMainJsx,
@@ -312,6 +357,15 @@ module.exports = {
   buildFrontendHttpSessionSecurityAdapterJs,
   buildFrontendUseSessionSecurityHookJs,
   buildFrontendSessionSecurityPanelJsx,
+  buildFrontendOrganizationUnitModelJs,
+  buildFrontendReadOrganizationUnitsUseCaseJs,
+  buildFrontendCreateOrganizationUnitUseCaseJs,
+  buildFrontendAssignOrganizationSupervisorUseCaseJs,
+  buildFrontendAssignOrganizationMemberUseCaseJs,
+  buildFrontendResolveOrganizationAssignmentUseCaseJs,
+  buildFrontendHttpOrganizationHierarchyAdapterJs,
+  buildFrontendUseOrganizationHierarchyHookJs,
+  buildFrontendOrganizationHierarchyPanelJsx,
   buildFrontendCss,
   buildFrontendViteConfig,
   buildComposeFile,
