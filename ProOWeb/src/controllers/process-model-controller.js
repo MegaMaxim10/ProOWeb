@@ -172,6 +172,17 @@ function createProcessModelController({ processModelService, readJsonBody, sendJ
     }
   }
 
+  async function handleUndeployProcessModelVersion(request, response, modelKey, versionNumber) {
+    try {
+      await readJsonBody(request).catch(() => ({}));
+      const result = processModelService.undeployModelVersion(modelKey, versionNumber);
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, { error: error.message || "Failed to undeploy process version." });
+    }
+  }
+
   function handleReadProcessModelHistory(_request, response, modelKey) {
     try {
       const result = processModelService.readStudioHistory(modelKey);
@@ -233,6 +244,7 @@ function createProcessModelController({ processModelService, readJsonBody, sendJ
     handleCompareProcessModelVersions,
     handleTransitionProcessModelVersion,
     handleDeployProcessModelVersion,
+    handleUndeployProcessModelVersion,
     handleReadProcessModelHistory,
     handleCreateProcessModelSnapshot,
     handleUndoProcessModelSnapshot,

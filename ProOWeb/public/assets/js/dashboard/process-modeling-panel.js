@@ -15,6 +15,7 @@ import {
   compareProcessModelVersions,
   transitionProcessModelVersion,
   deployProcessModelVersion,
+  undeployProcessModelVersion,
 } from "./process-modeling-api.js";
 import { initializeBpmnStudio } from "./bpmn-studio.js";
 import { initializeSpecificationStudio } from "./specification-studio.js";
@@ -300,6 +301,10 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
   const deployFeedback = documentRef.getElementById("process-model-deploy-feedback");
   const deployModelSelector = documentRef.getElementById("process-deploy-model");
   const deployVersionSelector = documentRef.getElementById("process-deploy-version");
+  const undeployForm = documentRef.getElementById("process-model-undeploy-form");
+  const undeployFeedback = documentRef.getElementById("process-model-undeploy-feedback");
+  const undeployModelSelector = documentRef.getElementById("process-undeploy-model");
+  const undeployVersionSelector = documentRef.getElementById("process-undeploy-version");
 
   const runtimeContractForm = documentRef.getElementById("process-model-runtime-contract-form");
   const runtimeContractFeedback = documentRef.getElementById("process-model-runtime-contract-feedback");
@@ -318,6 +323,7 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
     || !diffForm
     || !transitionForm
     || !deployForm
+    || !undeployForm
     || !runtimeContractForm
     || !dataContractForm
   ) {
@@ -363,6 +369,7 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
     diffModelSelector,
     transitionModelSelector,
     deployModelSelector,
+    undeployModelSelector,
     runtimeContractModelSelector,
     dataContractModelSelector,
   ].filter(Boolean);
@@ -389,6 +396,11 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
   bindVersionSync({
     modelSelector: deployModelSelector,
     versionSelector: deployVersionSelector,
+    getModels,
+  });
+  bindVersionSync({
+    modelSelector: undeployModelSelector,
+    versionSelector: undeployVersionSelector,
     getModels,
   });
   bindVersionSync({
@@ -511,6 +523,24 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
       await refreshModels();
     } catch (error) {
       setFeedback(deployFeedback, error.message || "Failed to deploy version.", "error");
+    }
+  });
+
+  undeployForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setFeedback(undeployFeedback, "Undeploying process version and synchronizing managed artifacts...");
+
+    const form = new FormData(undeployForm);
+    const modelKey = String(form.get("modelKey") || "");
+    const versionNumber = form.get("versionNumber");
+
+    try {
+      const payload = await undeployProcessModelVersion(modelKey, versionNumber);
+      setFeedback(undeployFeedback, "Undeployment completed with managed cleanup report.", "success");
+      reportView.textContent = renderDeploymentReport(payload.undeployment);
+      await refreshModels();
+    } catch (error) {
+      setFeedback(undeployFeedback, error.message || "Failed to undeploy version.", "error");
     }
   });
 

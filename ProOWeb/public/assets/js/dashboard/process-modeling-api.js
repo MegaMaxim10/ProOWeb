@@ -83,6 +83,13 @@ export function deployProcessModelVersion(modelKey, versionNumber) {
   });
 }
 
+export function undeployProcessModelVersion(modelKey, versionNumber) {
+  return requestJson(`/api/process-models/${encodeURIComponent(modelKey)}/versions/${encodeURIComponent(versionNumber)}/undeploy`, {
+    method: "POST",
+    body: {},
+  });
+}
+
 export function fetchProcessModelHistory(modelKey) {
   return requestJson(`/api/process-models/${encodeURIComponent(modelKey)}/history`);
 }

@@ -2,6 +2,16 @@ function normalizeString(value) {
   return String(value || "").trim();
 }
 
+function extractTagAttribute(tagSource, attributeName) {
+  const pattern = new RegExp(`${attributeName}\\s*=\\s*(?:"([^"]+)"|'([^']+)')`, "i");
+  const match = String(tagSource || "").match(pattern);
+  if (!match) {
+    return "";
+  }
+
+  return match[1] || match[2] || "";
+}
+
 function toUniqueSortedStrings(values, fallback = []) {
   const source = Array.isArray(values) ? values : fallback;
   const normalized = [];
@@ -68,6 +78,87 @@ function normalizeInputSources(rawSources) {
   return normalized;
 }
 
+function extractSequenceFlows(bpmnXml) {
+  const xml = String(bpmnXml || "");
+  const flows = [];
+  const pattern = /<(?:[A-Za-z0-9_-]+:)?sequenceFlow\b[^>]*>/g;
+  let match = pattern.exec(xml);
+  while (match) {
+    const sourceTag = match[0];
+    const sourceRef = extractTagAttribute(sourceTag, "sourceRef");
+    const targetRef = extractTagAttribute(sourceTag, "targetRef");
+    if (sourceRef && targetRef) {
+      flows.push({ sourceRef, targetRef });
+    }
+    match = pattern.exec(xml);
+  }
+
+  return flows;
+}
+
+function buildRuntimeFlow({ bpmnXml, activityIds, configuredStartActivities }) {
+  const activitySet = new Set(activityIds);
+  const sequenceFlows = extractSequenceFlows(bpmnXml);
+  const transitions = [];
+  const seenTransitions = new Set();
+  const outgoingByActivity = {};
+  const incomingByActivity = {};
+
+  for (const activityId of activityIds) {
+    outgoingByActivity[activityId] = [];
+    incomingByActivity[activityId] = 0;
+  }
+
+  for (const flow of sequenceFlows) {
+    if (!activitySet.has(flow.sourceRef) || !activitySet.has(flow.targetRef)) {
+      continue;
+    }
+
+    const edgeKey = `${flow.sourceRef}=>${flow.targetRef}`;
+    if (seenTransitions.has(edgeKey)) {
+      continue;
+    }
+    seenTransitions.add(edgeKey);
+
+    transitions.push({
+      sourceActivityId: flow.sourceRef,
+      targetActivityId: flow.targetRef,
+    });
+    outgoingByActivity[flow.sourceRef].push(flow.targetRef);
+    incomingByActivity[flow.targetRef] += 1;
+  }
+
+  transitions.sort((left, right) => {
+    const sourceCompare = left.sourceActivityId.localeCompare(right.sourceActivityId);
+    if (sourceCompare !== 0) {
+      return sourceCompare;
+    }
+    return left.targetActivityId.localeCompare(right.targetActivityId);
+  });
+
+  for (const activityId of activityIds) {
+    outgoingByActivity[activityId] = toUniqueSortedStrings(outgoingByActivity[activityId]);
+  }
+
+  const explicitStartActivities = toUniqueSortedStrings(configuredStartActivities)
+    .filter((activityId) => activitySet.has(activityId));
+  const inferredStartActivities = activityIds
+    .filter((activityId) => incomingByActivity[activityId] === 0)
+    .sort((left, right) => left.localeCompare(right));
+  const effectiveStartActivities = explicitStartActivities.length > 0
+    ? explicitStartActivities
+    : inferredStartActivities;
+
+  return {
+    transitions,
+    outgoingByActivity,
+    incomingByActivity,
+    configuredStartActivities: explicitStartActivities,
+    inferredStartActivities,
+    effectiveStartActivities,
+  };
+}
+
 function normalizeActivityContract(activityId, rawActivity = {}) {
   const source = rawActivity && typeof rawActivity === "object" && !Array.isArray(rawActivity)
     ? rawActivity
@@ -130,11 +221,15 @@ function buildRuntimeSummary(contract) {
   const activities = Array.isArray(contract.activities) ? contract.activities : [];
   const manualActivities = activities.filter((entry) => entry.activityType === "MANUAL");
   const automaticActivities = activities.filter((entry) => entry.activityType === "AUTOMATIC");
+  const transitions = Array.isArray(contract.flow?.transitions) ? contract.flow.transitions : [];
+  const startActivities = Array.isArray(contract.start?.startActivities) ? contract.start.startActivities : [];
 
   return {
     activityCount: activities.length,
     manualActivityCount: manualActivities.length,
     automaticActivityCount: automaticActivities.length,
+    transitionCount: transitions.length,
+    startActivityCount: startActivities.length,
     manualActivityIds: manualActivities.map((entry) => entry.activityId),
     automaticActivityIds: automaticActivities.map((entry) => entry.activityId),
     startableRoleCount: Array.isArray(contract.start?.startableByRoles)
@@ -163,6 +258,11 @@ function buildRuntimeContract({ model, version }) {
   const activityIds = Object.keys(rawActivities).sort((left, right) => left.localeCompare(right));
   const activities = activityIds.map((activityId) =>
     normalizeActivityContract(activityId, rawActivities[activityId]));
+  const flow = buildRuntimeFlow({
+    bpmnXml: version?.bpmnXml || "",
+    activityIds,
+    configuredStartActivities: startSource.startActivities,
+  });
 
   const contract = {
     schemaVersion: 1,
@@ -174,13 +274,20 @@ function buildRuntimeContract({ model, version }) {
     deployedAt: version.deployedAt || null,
     start: {
       startableByRoles: toUniqueSortedStrings(startSource.startableByRoles),
-      startActivities: toUniqueSortedStrings(startSource.startActivities),
+      startActivities: flow.effectiveStartActivities,
+      configuredStartActivities: flow.configuredStartActivities,
+      inferredStartActivities: flow.inferredStartActivities,
       allowAutoStartWhenNoManualEntry: Boolean(startSource.allowAutoStartWhenNoManualEntry),
     },
     monitors: {
       monitorRoles: toUniqueSortedStrings(monitorSource.monitorRoles),
     },
     activities,
+    flow: {
+      transitions: flow.transitions,
+      outgoingByActivity: flow.outgoingByActivity,
+      incomingByActivity: flow.incomingByActivity,
+    },
   };
 
   contract.summary = buildRuntimeSummary(contract);

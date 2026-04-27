@@ -14,7 +14,10 @@ const {
   validateProcessModelVersionSpecification,
   saveProcessModelVersionSpecification,
 } = require("../lib/process-modeling/catalog");
-const { deployProcessModelVersion } = require("../lib/process-modeling/deployment");
+const {
+  deployProcessModelVersion,
+  undeployProcessModelVersion,
+} = require("../lib/process-modeling/deployment");
 const {
   loadStudioHistory,
   toPublicHistory,
@@ -36,6 +39,7 @@ function createProcessModelService(dependencies = {}) {
     compareProcessModelVersions,
     transitionProcessModelVersion,
     deployProcessModelVersion,
+    undeployProcessModelVersion,
     readProcessModelVersion,
     readProcessModelVersionSpecification,
     readProcessModelVersionRuntimeContract,
@@ -250,6 +254,26 @@ function createProcessModelService(dependencies = {}) {
     };
   }
 
+  function undeployModelVersion(modelKey, versionNumber) {
+    const config = requireWorkspaceConfig();
+    requireProcessModelingEnabled(config);
+
+    const normalizedVersion = normalizeVersionNumber(versionNumber, "versionNumber");
+    const result = deps.undeployProcessModelVersion({
+      rootDir: deps.rootDir,
+      workspaceConfig: config,
+      modelKey,
+      versionNumber: normalizedVersion,
+    });
+
+    return {
+      message: "Process version undeployed and managed runtime artifacts synchronized.",
+      model: result.model,
+      version: result.version,
+      undeployment: result.undeployment,
+    };
+  }
+
   function readStudioHistory(modelKey) {
     const config = requireWorkspaceConfig();
     requireProcessModelingEnabled(config);
@@ -310,6 +334,7 @@ function createProcessModelService(dependencies = {}) {
     validateModelVersionSpecification,
     saveModelVersionSpecification,
     deployModelVersion,
+    undeployModelVersion,
     readStudioHistory,
     createStudioSnapshot,
     undoStudio,

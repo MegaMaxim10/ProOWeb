@@ -380,6 +380,20 @@
               <p id="process-model-deploy-feedback" class="feedback" aria-live="polite"></p>
             </form>
 
+            <form id="process-model-undeploy-form" class="wizard-form process-card" novalidate>
+              <h4>Undeploy version</h4>
+              <label>
+                Model
+                <select id="process-undeploy-model" name="modelKey"></select>
+              </label>
+              <label>
+                Version
+                <select id="process-undeploy-version" name="versionNumber"></select>
+              </label>
+              <button type="submit">Undeploy and clean managed artifacts</button>
+              <p id="process-model-undeploy-feedback" class="feedback" aria-live="polite"></p>
+            </form>
+
             <form id="process-model-runtime-contract-form" class="wizard-form process-card" novalidate>
               <h4>Preview runtime contract</h4>
               <label>

@@ -222,6 +222,25 @@ function createAppRouter({
       }
 
       if (
+        method === "POST"
+        && pathSegments.length === 6
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "versions"
+        && pathSegments[5] === "undeploy"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        const versionNumber = decodeURIComponent(pathSegments[4]);
+        processModelController.handleUndeployProcessModelVersion(
+          request,
+          response,
+          modelKey,
+          versionNumber,
+        );
+        return;
+      }
+
+      if (
         method === "GET"
         && pathSegments.length === 4
         && pathSegments[0] === "api"
