@@ -26,20 +26,67 @@ function hashContent(content) {
   return crypto.createHash("sha256").update(content).digest("hex");
 }
 
-function makeWriter(rootDir, registry) {
+const DEFAULT_BASE_PACKAGE = "com.prooweb.generated";
+const DEFAULT_BASE_PACKAGE_PATH = "com/prooweb/generated";
+const DEFAULT_BASE_PACKAGE_PATH_PATTERN = /com[\\/]+prooweb[\\/]+generated/g;
+
+function normalizeBasePackage(value) {
+  const normalized = String(value || DEFAULT_BASE_PACKAGE).trim().toLowerCase();
+  if (!/^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)+$/.test(normalized)) {
+    return DEFAULT_BASE_PACKAGE;
+  }
+
+  return normalized;
+}
+
+function createPackageTransform(config) {
+  const basePackage = normalizeBasePackage(config?.project?.basePackage);
+  const basePackagePath = basePackage.replace(/\./g, "/");
+
+  return {
+    basePackage,
+    basePackagePath,
+    enabled: basePackage !== DEFAULT_BASE_PACKAGE,
+  };
+}
+
+function applyPackageTransform(targetPath, content, packageTransform) {
+  if (!packageTransform?.enabled) {
+    return {
+      targetPath,
+      content,
+    };
+  }
+
+  const packagePathForPlatform = packageTransform.basePackagePath.split("/").join(path.sep);
+  const transformedPath = targetPath.replace(DEFAULT_BASE_PACKAGE_PATH_PATTERN, packagePathForPlatform);
+  const transformedContent = typeof content === "string"
+    ? content.split(DEFAULT_BASE_PACKAGE).join(packageTransform.basePackage)
+    : content;
+
+  return {
+    targetPath: transformedPath,
+    content: transformedContent,
+  };
+}
+
+function makeWriter(rootDir, registry, options = {}) {
   const resolvedRoot = path.resolve(rootDir);
+  const packageTransform = options.packageTransform || null;
 
   return function writeManagedFile(targetPath, content, metadata = {}) {
-    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-    fs.writeFileSync(targetPath, content, "utf8");
+    const transformed = applyPackageTransform(targetPath, content, packageTransform);
 
-    const relativePath = toPosixPath(path.relative(resolvedRoot, targetPath));
+    fs.mkdirSync(path.dirname(transformed.targetPath), { recursive: true });
+    fs.writeFileSync(transformed.targetPath, transformed.content, "utf8");
+
+    const relativePath = toPosixPath(path.relative(resolvedRoot, transformed.targetPath));
     const owners = Array.isArray(metadata.owners)
       ? Array.from(new Set(metadata.owners.map((owner) => String(owner).trim()).filter(Boolean)))
       : [];
     registry.push({
       path: relativePath,
-      sha256: hashContent(content),
+      sha256: hashContent(transformed.content),
       owners,
       category: metadata.category || null,
     });
@@ -102,12 +149,14 @@ const {
   buildGatewaySystemQueryControllerJava,
   buildGatewayIdentityAdminControllerJava,
   buildGatewayAuthenticationFlowControllerJava,
+  buildGatewayExternalAuthenticationControllerJava,
   buildGatewaySecurityConfigJava,
   buildGatewayPbkdf2WorkspacePasswordEncoderJava,
   buildTestSupportMarkerJava,
   buildSystemApplicationUtJava,
   buildSystemInfrastructureItJava,
   buildAuthenticationFlowsItJava,
+  buildExternalIamAuthenticationItJava,
   buildIdentityDomainMarkerJava,
   buildIdentityApplicationMarkerJava,
   buildIdentityInfrastructureMarkerJava,
@@ -116,6 +165,7 @@ const {
   buildIdentityUserAccountModelJava,
   buildIdentityUserCredentialsModelJava,
   buildIdentityAuthenticationFlowResultJava,
+  buildIdentityExternalAuthenticationResultJava,
   buildIdentityCreateUserCommandJava,
   buildIdentityCreateRoleCommandJava,
   buildIdentityLoadUsersPortJava,
@@ -125,6 +175,7 @@ const {
   buildIdentityCreateRolePortJava,
   buildIdentityLoadUserCredentialsPortJava,
   buildIdentityRunAuthenticationFlowPortJava,
+  buildIdentityAuthenticateExternalIdentityPortJava,
   buildIdentityReadUsersUseCaseJava,
   buildIdentityCreateUserUseCaseJava,
   buildIdentityAssignRoleToUserUseCaseJava,
@@ -132,6 +183,7 @@ const {
   buildIdentityCreateRoleUseCaseJava,
   buildIdentityReadUserCredentialsUseCaseJava,
   buildIdentityRunAuthenticationFlowUseCaseJava,
+  buildIdentityAuthenticateExternalIdentityUseCaseJava,
   buildIdentityReadUsersServiceJava,
   buildIdentityCreateUserServiceJava,
   buildIdentityAssignRoleToUserServiceJava,
@@ -139,8 +191,10 @@ const {
   buildIdentityCreateRoleServiceJava,
   buildIdentityReadUserCredentialsServiceJava,
   buildIdentityAuthenticationFlowServiceJava,
+  buildIdentityExternalAuthenticationServiceJava,
   buildIdentityModuleConfigJava,
   buildIdentityBootstrapPropertiesJava,
+  buildIdentityExternalIamPropertiesJava,
   buildIdentityBootstrapSeederJava,
   buildIdentityRoleEntityJava,
   buildIdentityUserAccountEntityJava,
@@ -148,6 +202,7 @@ const {
   buildIdentityUserJpaRepositoryJava,
   buildIdentityJpaIdentityRepositoryAdapterJava,
   buildIdentityJpaAuthenticationFlowAdapterJava,
+  buildIdentityHs256ExternalIamAuthenticationAdapterJava,
   buildFrontendPackageJson,
   buildFrontendIndexHtml,
   buildFrontendMainJsx,
@@ -213,6 +268,7 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
   const swaggerEnabled = config.backendOptions.swaggerUi.enabled;
   const identityEnabled = generationPlan.isEnabled("identity-rbac");
   const authEnabled = generationPlan.isEnabled("auth-flows");
+  const externalIamEnabled = generationPlan.isEnabled("external-iam-auth");
 
   writeFiles(
     backendRoot,
@@ -393,6 +449,15 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
                     relativePath: "gateway/src/main/java/com/prooweb/generated/gateway/api/AuthenticationFlowController.java",
                     content: buildGatewayAuthenticationFlowControllerJava(),
                   },
+                  ...(externalIamEnabled
+                    ? [
+                        {
+                          relativePath:
+                            "gateway/src/main/java/com/prooweb/generated/gateway/api/ExternalAuthenticationController.java",
+                          content: buildGatewayExternalAuthenticationControllerJava(),
+                        },
+                      ]
+                    : []),
                 ]
               : []),
             {
@@ -442,6 +507,20 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       buildAuthenticationFlowsItJava(),
       {
         owners: ["auth-flows"],
+        category: "backend-tests",
+      },
+    );
+  }
+
+  if (externalIamEnabled) {
+    writeManagedFile(
+      path.join(
+        backendRoot,
+        "tests/system-infrastructure-it/src/test/java/com/prooweb/generated/tests/system/ExternalIamAuthenticationIT.java",
+      ),
+      buildExternalIamAuthenticationItJava(),
+      {
+        owners: ["external-iam-auth"],
         category: "backend-tests",
       },
     );
@@ -595,7 +674,7 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
         {
           relativePath:
             "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/config/IdentityModuleConfig.java",
-          content: buildIdentityModuleConfigJava({ authEnabled }),
+          content: buildIdentityModuleConfigJava({ authEnabled, externalIamEnabled }),
         },
         {
           relativePath:
@@ -677,11 +756,54 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
         },
       );
     }
+
+    if (externalIamEnabled) {
+      writeFiles(
+        backendRoot,
+        [
+          {
+            relativePath:
+              "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/model/ExternalAuthenticationResult.java",
+            content: buildIdentityExternalAuthenticationResultJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-domain/src/main/java/com/prooweb/generated/identity/domain/port/out/AuthenticateExternalIdentityPort.java",
+            content: buildIdentityAuthenticateExternalIdentityPortJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/port/in/AuthenticateExternalIdentityUseCase.java",
+            content: buildIdentityAuthenticateExternalIdentityUseCaseJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-application/src/main/java/com/prooweb/generated/identity/application/service/ExternalAuthenticationService.java",
+            content: buildIdentityExternalAuthenticationServiceJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/config/ExternalIamProperties.java",
+            content: buildIdentityExternalIamPropertiesJava(),
+          },
+          {
+            relativePath:
+              "identity/identity-infrastructure/src/main/java/com/prooweb/generated/identity/infrastructure/adapter/out/iam/Hs256ExternalIamAuthenticationAdapter.java",
+            content: buildIdentityHs256ExternalIamAuthenticationAdapterJava(),
+          },
+        ],
+        writeManagedFile,
+        {
+          owners: ["external-iam-auth"],
+          category: "backend",
+        },
+      );
+    }
   }
 
   writeManagedFile(
     path.join(backendRoot, "prooweb-application/src/main/resources/application.yml"),
-    buildBackendApplicationYaml(config, { identityEnabled, authEnabled }),
+    buildBackendApplicationYaml(config, { identityEnabled, authEnabled, externalIamEnabled }),
     {
       owners: ["backend-platform"],
       category: "backend",
@@ -703,6 +825,11 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
 function generateFrontendScaffold(frontendRoot, config, writeManagedFile, generationPlan) {
   const identityEnabled = generationPlan.isEnabled("identity-rbac");
   const authEnabled = generationPlan.isEnabled("auth-flows");
+  const externalIamEnabled = generationPlan.isEnabled("external-iam-auth");
+  const defaultExternalIamProviderId = Array.isArray(config?.backendOptions?.externalIam?.providers)
+    && config.backendOptions.externalIam.providers.length > 0
+    ? config.backendOptions.externalIam.providers[0].id
+    : "corporate-oidc";
   const metadata = {
     owners: ["frontend-web-react"],
     category: "frontend",
@@ -839,7 +966,10 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
     );
     writeManagedFile(
       path.join(frontendRoot, "src/modules/auth/ui/AuthenticationWorkbench.jsx"),
-      buildFrontendAuthenticationWorkbenchJsx(),
+      buildFrontendAuthenticationWorkbenchJsx({
+        externalIamEnabled,
+        externalIamProviderId: defaultExternalIamProviderId,
+      }),
       authMetadata,
     );
   }
@@ -953,7 +1083,8 @@ function generateWorkspace(rootDir, config, options = {}) {
   const generatedRoot = effectiveConfig.managedBy?.generatedRoot || "root";
   const projectRoot = resolveProjectRoot(rootDir, generatedRoot);
   const managedFiles = [];
-  const writeManagedFile = makeWriter(rootDir, managedFiles);
+  const packageTransform = createPackageTransform(effectiveConfig);
+  const writeManagedFile = makeWriter(rootDir, managedFiles, { packageTransform });
 
   fs.mkdirSync(projectRoot, { recursive: true });
 

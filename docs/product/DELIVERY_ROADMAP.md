@@ -31,6 +31,7 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 ## Phase 6 - External IAM (Authentication Only)
 - Add configurable external IdP support (OIDC-first) for authentication.
 - Keep RBAC and permission ownership internal to platform.
+- Add configurable backend base package to avoid hardcoded generated namespaces across projects.
 - Exit criteria: external login works while authorization remains internal.
 
 ## Phase 7 - Session and Device Security

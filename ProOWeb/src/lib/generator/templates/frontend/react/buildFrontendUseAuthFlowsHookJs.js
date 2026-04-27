@@ -64,6 +64,9 @@ export function useAuthFlows() {
     setupTotpMfa() {
       return run(() => authAdapter.setupTotpMfa({ basicAuth: basicAuthPayload }));
     },
+    externalOidcLogin(payload) {
+      return run(() => authAdapter.externalOidcLogin(payload));
+    },
   };
 }
 `;

@@ -3,6 +3,27 @@ const { escapeYamlDoubleQuotes } = require("../../_shared/escape");
 function buildBackendApplicationYaml(config, options = {}) {
   const swaggerEnabled = config.backendOptions.swaggerUi.enabled;
   const swaggerProfiles = config.backendOptions.swaggerUi.profiles.join(",");
+  const externalIamConfig = config.backendOptions?.externalIam || {};
+  const externalIamEnabled = Boolean(options.externalIamEnabled && externalIamConfig.enabled);
+  const externalIamProviders = Array.isArray(externalIamConfig.providers)
+    ? externalIamConfig.providers
+    : [];
+  const externalIamProvidersYaml = externalIamProviders.length > 0
+    ? externalIamProviders.map((provider) => `        - id: "${escapeYamlDoubleQuotes(provider.id || "default-oidc")}"
+          issuer-uri: "${escapeYamlDoubleQuotes(provider.issuerUri || "")}"
+          client-id: "${escapeYamlDoubleQuotes(provider.clientId || "")}"
+          client-secret: "${escapeYamlDoubleQuotes(provider.clientSecret || "")}"
+          shared-secret: "${escapeYamlDoubleQuotes(provider.sharedSecret || "")}"
+          username-claim: "${escapeYamlDoubleQuotes(provider.usernameClaim || "preferred_username")}"
+          email-claim: "${escapeYamlDoubleQuotes(provider.emailClaim || "email")}"`).join("\n")
+    : "        []";
+  const externalIamSection = options.externalIamEnabled
+    ? `
+    external-iam:
+      enabled: ${externalIamEnabled}
+      providers:
+${externalIamProvidersYaml}`
+    : "";
   const authSection = options.authEnabled
     ? `
   auth:
@@ -29,7 +50,7 @@ function buildBackendApplicationYaml(config, options = {}) {
           - "IDENTITY_USER_CREATE"
           - "IDENTITY_ROLE_READ"
           - "IDENTITY_ROLE_CREATE"
-          - "IDENTITY_ROLE_ASSIGN"`
+          - "IDENTITY_ROLE_ASSIGN"${externalIamSection}`
     : "";
 
   return `server:

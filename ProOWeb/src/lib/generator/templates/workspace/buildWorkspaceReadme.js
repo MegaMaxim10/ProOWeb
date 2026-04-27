@@ -11,6 +11,7 @@ This workspace was generated and managed by ProOWeb.
 ## Project
 - Title: ${config.project.title}
 - Slug: ${config.project.slug}
+- Base package: ${config.project.basePackage || "com.prooweb.generated"}
 - Generated root: ${displayedRoot}
 
 ## Stack
@@ -32,6 +33,10 @@ This workspace was generated and managed by ProOWeb.
 ## Backend options
 - Swagger UI: ${config.backendOptions.swaggerUi.enabled ? "enabled" : "disabled"}
 - Swagger profiles: ${config.backendOptions.swaggerUi.profiles.join(", ") || "none"}
+- External IAM auth: ${config.backendOptions.externalIam?.enabled ? "enabled" : "disabled"}
+- External IAM providers: ${Array.isArray(config.backendOptions.externalIam?.providers) && config.backendOptions.externalIam.providers.length > 0
+    ? config.backendOptions.externalIam.providers.map((provider) => provider.id).join(", ")
+    : "none"}
 
 ## Active feature packs
 ${activeFeaturePacks.length > 0 ? activeFeaturePacks.map((packId) => `- ${packId}`).join("\n") : "- none"}

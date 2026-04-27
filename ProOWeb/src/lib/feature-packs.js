@@ -32,6 +32,14 @@ const FEATURE_PACK_DEFINITIONS = Object.freeze([
     description: "Generate account lifecycle auth flows (register, activate, login, reset, OTP/TOTP MFA).",
   },
   {
+    id: "external-iam-auth",
+    category: "application",
+    defaultEnabled: false,
+    supportedModes: ["full"],
+    dependencies: ["auth-flows", "identity-rbac", "frontend-web-react"],
+    description: "Generate external IAM authentication (OIDC-first) while keeping RBAC internal.",
+  },
+  {
     id: "mobile-placeholder",
     category: "application",
     defaultEnabled: true,

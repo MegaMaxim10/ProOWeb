@@ -48,6 +48,7 @@ The product position is intentionally between:
 - ProOWeb editor code is isolated under `ProOWeb/`.
 - Generated project code lives at repository root (`src/`, `deployment/`, root scripts).
 - Every editor action that changes the target application must result in explicit source code generation.
+- Generated backend package namespace is project-specific (`basePackage`) and cannot remain globally hardcoded.
 
 ## 6. Source Ownership Contract
 - Generated files are tracked in `.prooweb-managed.json`.

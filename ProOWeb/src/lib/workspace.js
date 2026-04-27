@@ -7,6 +7,8 @@ const ROOT_DIR = path.resolve(__dirname, "../../..");
 const PROOWEB_DIR = path.join(ROOT_DIR, ".prooweb");
 const WORKSPACE_FILE = path.join(PROOWEB_DIR, "workspace.json");
 const GENERATED_ROOT_DIRNAME = "root";
+const DEFAULT_BASE_PACKAGE = "com.prooweb.generated";
+const EXTERNAL_IAM_FEATURE_PACK_ID = "external-iam-auth";
 
 const SUPPORTED_STACK = {
   backendTech: ["springboot"],
@@ -56,6 +58,107 @@ function normalizeStringList(value) {
   }
 
   return [];
+}
+
+function normalizeJavaPackage(value) {
+  const normalized = normalizeString(value || DEFAULT_BASE_PACKAGE).toLowerCase();
+  if (!/^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)+$/.test(normalized)) {
+    throw new Error(
+      "Base package Java invalide. Exemple attendu: com.example.myapp",
+    );
+  }
+
+  return normalized;
+}
+
+function safeNormalizeJavaPackage(value) {
+  try {
+    return normalizeJavaPackage(value || DEFAULT_BASE_PACKAGE);
+  } catch (_) {
+    return DEFAULT_BASE_PACKAGE;
+  }
+}
+
+function normalizeExternalIamProvider(rawProvider = {}, options = {}) {
+  const providerId = normalizeString(rawProvider.id || rawProvider.providerId)
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "default-oidc";
+  const provider = {
+    id: providerId,
+    issuerUri: normalizeString(rawProvider.issuerUri),
+    clientId: normalizeString(rawProvider.clientId),
+    clientSecret: normalizeString(rawProvider.clientSecret),
+    sharedSecret: normalizeString(rawProvider.sharedSecret),
+    usernameClaim: normalizeString(rawProvider.usernameClaim) || "preferred_username",
+    emailClaim: normalizeString(rawProvider.emailClaim) || "email",
+  };
+
+  if (options.strict) {
+    assertRequired("externalIam.provider.id", provider.id);
+    assertRequired("externalIam.provider.issuerUri", provider.issuerUri);
+    assertRequired("externalIam.provider.clientId", provider.clientId);
+
+    if (!/^https?:\/\/.+/i.test(provider.issuerUri)) {
+      throw new Error("Issuer URI externe invalide. Exemple attendu: https://issuer.example.com");
+    }
+
+    if (!provider.clientSecret && !provider.sharedSecret) {
+      throw new Error(
+        "Configurer au moins un secret externe IAM (client secret ou shared secret).",
+      );
+    }
+  }
+
+  return provider;
+}
+
+function normalizeExternalIamProviders(value, options = {}) {
+  const providers = Array.isArray(value) ? value : [];
+  const normalizedProviders = [];
+  const usedIds = new Set();
+
+  for (const rawProvider of providers) {
+    const normalizedProvider = normalizeExternalIamProvider(rawProvider, options);
+    if (usedIds.has(normalizedProvider.id)) {
+      continue;
+    }
+
+    usedIds.add(normalizedProvider.id);
+    normalizedProviders.push(normalizedProvider);
+  }
+
+  return normalizedProviders;
+}
+
+function mergeExternalIamProviderPayload(payload) {
+  return [
+    {
+      id: payload?.externalIamProviderId,
+      issuerUri: payload?.externalIamIssuerUri,
+      clientId: payload?.externalIamClientId,
+      clientSecret: payload?.externalIamClientSecret,
+      sharedSecret: payload?.externalIamSharedSecret,
+      usernameClaim: payload?.externalIamUsernameClaim,
+      emailClaim: payload?.externalIamEmailClaim,
+    },
+  ];
+}
+
+function withExternalIamFeaturePack(featurePacks, externalIamEnabled) {
+  const enabled = Array.isArray(featurePacks?.enabled) ? featurePacks.enabled : [];
+  const enabledSet = new Set(enabled);
+
+  if (externalIamEnabled) {
+    enabledSet.add(EXTERNAL_IAM_FEATURE_PACK_ID);
+  } else {
+    enabledSet.delete(EXTERNAL_IAM_FEATURE_PACK_ID);
+  }
+
+  return normalizeFeaturePacks({
+    ...(featurePacks || {}),
+    enabled: Array.from(enabledSet),
+  });
 }
 
 function assertChoice(fieldName, value) {
@@ -146,18 +249,27 @@ function readWorkspaceConfig() {
   if (!Object.prototype.hasOwnProperty.call(parsed.project, "gitRepositoryUrl")) {
     parsed.project.gitRepositoryUrl = null;
   }
+  parsed.project.basePackage = safeNormalizeJavaPackage(parsed.project.basePackage);
 
   if (!parsed.backendOptions) {
     parsed.backendOptions = {};
   }
 
   const swaggerUi = parsed.backendOptions.swaggerUi || {};
+  const externalIam = parsed.backendOptions.externalIam || {};
   parsed.backendOptions.swaggerUi = {
     enabled: Boolean(swaggerUi.enabled),
     profiles: normalizeStringList(swaggerUi.profiles).map((value) => value.toLowerCase()),
   };
+  parsed.backendOptions.externalIam = {
+    enabled: Boolean(externalIam.enabled),
+    providers: normalizeExternalIamProviders(externalIam.providers),
+  };
 
-  parsed.featurePacks = normalizeFeaturePacks(parsed.featurePacks);
+  parsed.featurePacks = withExternalIamFeaturePack(
+    normalizeFeaturePacks(parsed.featurePacks),
+    parsed.backendOptions.externalIam.enabled,
+  );
   parsed.managedBy = normalizeManagedBy(parsed);
   return parsed;
 }
@@ -222,8 +334,26 @@ function toPublicWorkspaceConfig(config) {
   }
 
   const { superAdmin, ...rest } = config;
+  const backendOptions = {
+    ...(rest.backendOptions || {}),
+  };
+  const externalIam = backendOptions.externalIam || {};
+  backendOptions.externalIam = {
+    enabled: Boolean(externalIam.enabled),
+    providers: normalizeExternalIamProviders(externalIam.providers).map((provider) => ({
+      id: provider.id,
+      issuerUri: provider.issuerUri,
+      clientId: provider.clientId,
+      usernameClaim: provider.usernameClaim,
+      emailClaim: provider.emailClaim,
+      clientSecretConfigured: Boolean(provider.clientSecret),
+      sharedSecretConfigured: Boolean(provider.sharedSecret),
+    })),
+  };
+
   return {
     ...rest,
+    backendOptions,
     superAdmin: {
       name: superAdmin.name,
       email: superAdmin.email,
@@ -234,6 +364,7 @@ function toPublicWorkspaceConfig(config) {
 
 function buildWorkspaceConfig(payload) {
   const projectTitle = normalizeString(payload.projectTitle);
+  const basePackage = normalizeJavaPackage(payload.basePackage || DEFAULT_BASE_PACKAGE);
   const backendTech = normalizeString(payload.backendTech).toLowerCase();
   const frontendWebTech = normalizeString(payload.frontendWebTech).toLowerCase();
   const frontendMobileTech = normalizeString(payload.frontendMobileTech || "none").toLowerCase();
@@ -247,6 +378,15 @@ function buildWorkspaceConfig(payload) {
 
   const swaggerUiEnabled = normalizeBool(payload.swaggerUiEnabled);
   const swaggerProfiles = normalizeStringList(payload.swaggerProfiles).map((entry) => entry.toLowerCase());
+  const externalIamEnabled = normalizeBool(payload.externalIamEnabled);
+  const externalIamProviders = externalIamEnabled
+    ? normalizeExternalIamProviders(
+      Array.isArray(payload?.externalIamProviders)
+        ? payload.externalIamProviders
+        : mergeExternalIamProviderPayload(payload),
+      { strict: true },
+    )
+    : [];
   const featurePacksEnabled = normalizeStringList(payload.featurePacksEnabled).map((entry) => entry.toLowerCase());
   const featurePackConfigs = payload?.featurePackConfigs;
 
@@ -286,14 +426,17 @@ function buildWorkspaceConfig(payload) {
   }
 
   const uniqueSwaggerProfiles = Array.from(new Set(swaggerUiEnabled ? swaggerProfiles : []));
-  const featurePacks = normalizeFeaturePacks(
-    payload?.featurePacks ||
-      (featurePacksEnabled.length > 0
-        ? {
-            enabled: featurePacksEnabled,
-            configs: featurePackConfigs,
-          }
-        : null),
+  const featurePacks = withExternalIamFeaturePack(
+    normalizeFeaturePacks(
+      payload?.featurePacks ||
+        (featurePacksEnabled.length > 0
+          ? {
+              enabled: featurePacksEnabled,
+              configs: featurePackConfigs,
+            }
+          : null),
+    ),
+    externalIamEnabled,
   );
 
   const { hash, salt } = hashPassword(superAdminPassword);
@@ -305,6 +448,7 @@ function buildWorkspaceConfig(payload) {
       title: projectTitle,
       slug: normalizeSlug(projectTitle),
       gitRepositoryUrl,
+      basePackage,
     },
     stack: {
       backendTech,
@@ -316,6 +460,10 @@ function buildWorkspaceConfig(payload) {
       swaggerUi: {
         enabled: swaggerUiEnabled,
         profiles: uniqueSwaggerProfiles,
+      },
+      externalIam: {
+        enabled: externalIamEnabled,
+        providers: externalIamProviders,
       },
     },
     featurePacks,
@@ -338,6 +486,38 @@ function buildWorkspaceConfig(payload) {
 
 function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
   const safePayload = payload && typeof payload === "object" ? payload : {};
+  const currentBasePackage = currentConfig?.project?.basePackage || DEFAULT_BASE_PACKAGE;
+  const hasBasePackageOverride = Object.prototype.hasOwnProperty.call(safePayload, "basePackage");
+  const basePackage = hasBasePackageOverride
+    ? normalizeJavaPackage(safePayload.basePackage || DEFAULT_BASE_PACKAGE)
+    : safeNormalizeJavaPackage(currentBasePackage);
+
+  const hasExternalIamEnabledOverride = Object.prototype.hasOwnProperty.call(safePayload, "externalIamEnabled");
+  const externalIamEnabled = hasExternalIamEnabledOverride
+    ? normalizeBool(safePayload.externalIamEnabled)
+    : Boolean(currentConfig?.backendOptions?.externalIam?.enabled);
+  const hasExternalIamProviderOverride = Array.isArray(safePayload.externalIamProviders)
+    || Object.prototype.hasOwnProperty.call(safePayload, "externalIamProviderId")
+    || Object.prototype.hasOwnProperty.call(safePayload, "externalIamIssuerUri")
+    || Object.prototype.hasOwnProperty.call(safePayload, "externalIamClientId")
+    || Object.prototype.hasOwnProperty.call(safePayload, "externalIamClientSecret")
+    || Object.prototype.hasOwnProperty.call(safePayload, "externalIamSharedSecret")
+    || Object.prototype.hasOwnProperty.call(safePayload, "externalIamUsernameClaim")
+    || Object.prototype.hasOwnProperty.call(safePayload, "externalIamEmailClaim");
+  const externalIamProviders = externalIamEnabled
+    ? (hasExternalIamProviderOverride
+      ? normalizeExternalIamProviders(
+        Array.isArray(safePayload.externalIamProviders)
+          ? safePayload.externalIamProviders
+          : mergeExternalIamProviderPayload(safePayload),
+        { strict: true },
+      )
+      : normalizeExternalIamProviders(currentConfig?.backendOptions?.externalIam?.providers || []))
+    : [];
+  if (externalIamEnabled && externalIamProviders.length === 0) {
+    throw new Error("External IAM active: configurer au moins un provider.");
+  }
+
   const featurePacksEnabled = normalizeStringList(safePayload.featurePacksEnabled).map((entry) => entry.toLowerCase());
   const rawFeaturePacks =
     safePayload.featurePacks ||
@@ -348,9 +528,25 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
         }
       : currentConfig.featurePacks);
 
+  const featurePacks = withExternalIamFeaturePack(
+    normalizeFeaturePacks(rawFeaturePacks),
+    externalIamEnabled,
+  );
+
   return {
     ...currentConfig,
-    featurePacks: normalizeFeaturePacks(rawFeaturePacks),
+    project: {
+      ...currentConfig.project,
+      basePackage,
+    },
+    backendOptions: {
+      ...(currentConfig.backendOptions || {}),
+      externalIam: {
+        enabled: externalIamEnabled,
+        providers: externalIamProviders,
+      },
+    },
+    featurePacks,
   };
 }
 
@@ -360,7 +556,10 @@ function markWorkspaceMigrated(config) {
 
   return {
     ...config,
-    featurePacks: normalizeFeaturePacks(config.featurePacks),
+    featurePacks: withExternalIamFeaturePack(
+      normalizeFeaturePacks(config.featurePacks),
+      Boolean(config?.backendOptions?.externalIam?.enabled),
+    ),
     managedBy: {
       ...managedBy,
       editorVersion,

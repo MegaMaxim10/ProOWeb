@@ -23,12 +23,19 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
     "Username: " + workspace.superAdmin.username;
 
   const swaggerConfig = workspace.backendOptions?.swaggerUi;
+  const externalIamConfig = workspace.backendOptions?.externalIam;
+  const externalProviderIds = Array.isArray(externalIamConfig?.providers)
+    ? externalIamConfig.providers.map((provider) => provider.id).filter(Boolean)
+    : [];
   const projectOptions = documentRef.getElementById("project-options");
   projectOptions.innerHTML =
     "<strong>Options projet:</strong><br />" +
+    "Base package: " + (workspace.project.basePackage || "com.prooweb.generated") + "<br />" +
     "Git remote: " + (workspace.project.gitRepositoryUrl || "(aucun, .git supprime)") + "<br />" +
     "Swagger UI: " + (swaggerConfig?.enabled ? "active" : "desactive") + "<br />" +
-    "Profils Swagger: " + (swaggerConfig?.profiles?.join(", ") || "aucun");
+    "Profils Swagger: " + (swaggerConfig?.profiles?.join(", ") || "aucun") + "<br />" +
+    "External IAM: " + (externalIamConfig?.enabled ? "active" : "desactive") + "<br />" +
+    "Providers IAM: " + (externalProviderIds.join(", ") || "aucun");
 
   const managementLine = documentRef.getElementById("management-line");
   managementLine.textContent =

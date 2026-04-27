@@ -60,6 +60,9 @@ export function createHttpAuthFlowsAdapter({ baseUrl = "" } = {}) {
     setupTotpMfa(options = {}) {
       return postJson(baseUrl + "/api/account/mfa/totp/setup", {}, options);
     },
+    externalOidcLogin(payload, options = {}) {
+      return postJson(baseUrl + "/api/auth/external/oidc/login", payload, options);
+    },
   };
 }
 `;

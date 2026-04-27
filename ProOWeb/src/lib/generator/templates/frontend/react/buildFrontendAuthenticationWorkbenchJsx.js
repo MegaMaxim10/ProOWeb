@@ -1,4 +1,27 @@
-function buildFrontendAuthenticationWorkbenchJsx() {
+function buildFrontendAuthenticationWorkbenchJsx(options = {}) {
+  const externalIamEnabled = Boolean(options.externalIamEnabled);
+  const defaultProviderId = options.externalIamProviderId || "corporate-oidc";
+  const externalSection = externalIamEnabled
+    ? `
+        <form className="auth-box auth-form" onSubmit={onExternalLogin}>
+          <h3>8. External IAM Login (OIDC)</h3>
+          <input
+            value={externalProviderId}
+            onChange={(event) => setExternalProviderId(event.target.value)}
+            placeholder="Provider ID"
+            required
+          />
+          <textarea
+            value={externalIdToken}
+            onChange={(event) => setExternalIdToken(event.target.value)}
+            placeholder="OIDC ID token (JWT)"
+            rows={4}
+            required
+          />
+          <button type="submit" disabled={loading}>Authenticate with external IAM</button>
+        </form>`
+    : "";
+
   return `import { useState } from "react";
 import { useAuthFlows } from "./useAuthFlows";
 
@@ -16,6 +39,7 @@ export function AuthenticationWorkbench() {
     confirmPasswordReset,
     setupOtpMfa,
     setupTotpMfa,
+    externalOidcLogin,
   } = useAuthFlows();
 
   const [displayName, setDisplayName] = useState("Alice Tester");
@@ -27,6 +51,8 @@ export function AuthenticationWorkbench() {
   const [resetPrincipal, setResetPrincipal] = useState("alice");
   const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("NewPassword123!");
+  const [externalProviderId, setExternalProviderId] = useState(${JSON.stringify(defaultProviderId)});
+  const [externalIdToken, setExternalIdToken] = useState("");
 
   async function onRegister(event) {
     event.preventDefault();
@@ -77,6 +103,14 @@ export function AuthenticationWorkbench() {
   async function onSetupTotp(event) {
     event.preventDefault();
     await setupTotpMfa();
+  }
+
+  async function onExternalLogin(event) {
+    event.preventDefault();
+    await externalOidcLogin({
+      providerId: externalProviderId,
+      idToken: externalIdToken,
+    });
   }
 
   return (
@@ -159,6 +193,7 @@ export function AuthenticationWorkbench() {
           />
           <button type="submit" disabled={loading}>Configure TOTP</button>
         </form>
+${externalSection}
       </div>
 
       {error ? <p className="error">{error}</p> : null}

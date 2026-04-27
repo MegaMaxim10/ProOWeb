@@ -32,6 +32,20 @@
           </label>
 
           <label>
+            Base package Java (backend)
+            <input
+              type="text"
+              name="basePackage"
+              required
+              value="com.prooweb.generated"
+              placeholder="Ex: com.acme.procurement"
+            />
+            <small>
+              Utilise pour les packages Java et le <code>groupId</code> Maven des sources generees.
+            </small>
+          </label>
+
+          <label>
             Lien du depot Git (optionnel)
             <input
               type="text"
@@ -62,6 +76,47 @@
               <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="dev" /> dev</label>
               <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="demo" /> demo</label>
               <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="test" /> test</label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>External IAM (Authentication only)</legend>
+            <label class="inline-row">
+              <input id="external-iam-toggle" type="checkbox" name="externalIamEnabled" />
+              Activer l'authentification IAM externe (OIDC)
+            </label>
+            <p class="fieldset-hint">
+              Les roles et permissions restent geres par la plateforme (RBAC interne).
+            </p>
+            <div id="external-iam-config">
+              <label>
+                Provider ID
+                <input type="text" name="externalIamProviderId" value="corporate-oidc" />
+              </label>
+              <label>
+                Issuer URI
+                <input type="url" name="externalIamIssuerUri" value="https://issuer.example.com" />
+              </label>
+              <label>
+                Client ID
+                <input type="text" name="externalIamClientId" value="prooweb-client" />
+              </label>
+              <label>
+                Client Secret (optional)
+                <input type="password" name="externalIamClientSecret" />
+              </label>
+              <label>
+                Shared Secret HS256 (optional)
+                <input type="password" name="externalIamSharedSecret" />
+              </label>
+              <label>
+                Username claim
+                <input type="text" name="externalIamUsernameClaim" value="preferred_username" />
+              </label>
+              <label>
+                Email claim
+                <input type="text" name="externalIamEmailClaim" value="email" />
+              </label>
             </div>
           </fieldset>
 

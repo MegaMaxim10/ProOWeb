@@ -1,6 +1,7 @@
 import { setFeedback } from "../shared/feedback.js";
 import { fetchWorkspaceStatus, initializeWorkspace } from "./api.js";
 import { extractWizardFormPayload } from "./form-payload.js";
+import { wireExternalIamControls } from "./external-iam-controls.js";
 import { wireSwaggerControls } from "./swagger-controls.js";
 
 export async function bootstrapWizardPage({ documentRef = document, windowRef = window } = {}) {
@@ -16,6 +17,7 @@ export async function bootstrapWizardPage({ documentRef = document, windowRef = 
   const submitButton = documentRef.getElementById("submit-button");
 
   wireSwaggerControls(form);
+  wireExternalIamControls(form);
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();

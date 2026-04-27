@@ -5,6 +5,13 @@ import com.prooweb.generated.identity.application.port.in.RunAuthenticationFlowU
 import com.prooweb.generated.identity.application.service.AuthenticationFlowService;
 import com.prooweb.generated.identity.domain.port.out.RunAuthenticationFlowPort;`
     : "";
+  const externalIamImports = options.externalIamEnabled
+    ? `
+import com.prooweb.generated.identity.application.port.in.AuthenticateExternalIdentityUseCase;
+import com.prooweb.generated.identity.application.service.ExternalAuthenticationService;
+import com.prooweb.generated.identity.domain.port.out.AuthenticateExternalIdentityPort;
+import com.prooweb.generated.identity.infrastructure.config.ExternalIamProperties;`
+    : "";
   const authBean = options.authEnabled
     ? `
   @Bean
@@ -12,6 +19,18 @@ import com.prooweb.generated.identity.domain.port.out.RunAuthenticationFlowPort;
     return new AuthenticationFlowService(runAuthenticationFlowPort);
   }`
     : "";
+  const externalIamBean = options.externalIamEnabled
+    ? `
+  @Bean
+  AuthenticateExternalIdentityUseCase authenticateExternalIdentityUseCase(
+    AuthenticateExternalIdentityPort authenticateExternalIdentityPort
+  ) {
+    return new ExternalAuthenticationService(authenticateExternalIdentityPort);
+  }`
+    : "";
+  const configurationPropertiesClasses = options.externalIamEnabled
+    ? "{IdentityBootstrapProperties.class, ExternalIamProperties.class}"
+    : "IdentityBootstrapProperties.class";
 
   return `package com.prooweb.generated.identity.infrastructure.config;
 
@@ -41,9 +60,10 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 ${authImports}
+${externalIamImports}
 
 @Configuration
-@EnableConfigurationProperties(IdentityBootstrapProperties.class)
+@EnableConfigurationProperties(${configurationPropertiesClasses})
 public class IdentityModuleConfig {
   @Bean
   ReadIdentityUsersUseCase readIdentityUsersUseCase(LoadUsersPort loadUsersPort) {
@@ -75,7 +95,7 @@ public class IdentityModuleConfig {
     LoadUserCredentialsPort loadUserCredentialsPort
   ) {
     return new ReadIdentityUserCredentialsService(loadUserCredentialsPort);
-  }${authBean}
+  }${authBean}${externalIamBean}
 
   @Bean
   IdentityBootstrapSeeder identityBootstrapSeeder(

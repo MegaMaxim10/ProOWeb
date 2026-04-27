@@ -17,3 +17,4 @@ This folder contains the Step 1 documentation baseline in English.
 - `ADR-0003`: Generated source ownership and smart migration contract.
 - `ADR-0004`: Feature-pack driven generation and reconfiguration.
 - `ADR-0005`: Authentication flows delivered through a dedicated feature pack.
+- `ADR-0006`: External IAM auth pack and configurable backend base package.

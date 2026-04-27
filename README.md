@@ -12,7 +12,7 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
 - Runs the Node.js editor on `http://localhost:1755` via `npm run prooweb`.
 - Shows a wizard when the workspace is not initialized.
 - Captures base project settings, super-admin account details, Git repository policy,
-  and backend Swagger UI options.
+  backend Swagger UI options, backend base package, and external IAM auth configuration.
 - Generates the target project at repository root:
   - `src/backend/springboot` with strict Njangui-inspired modular structure:
     - `gateway`,
@@ -29,6 +29,7 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
 - Applies feature-pack driven generation with dependency validation and ownership metadata.
 - Exposes smart migration (`POST /api/migrate`) with conflict strategy,
   automatic backup, and detailed report.
+- Supports Step 6 external IAM authentication (OIDC-first, auth-only) while RBAC stays internal.
 
 ## Wizard Git Policy
 
@@ -47,6 +48,18 @@ When enabled, ProOWeb:
 - includes `springdoc-openapi-starter-webmvc-ui`,
 - keeps Swagger disabled by default,
 - enables Swagger in selected profiles through `application-<profile>.yml`.
+
+## Base Package Policy
+
+The wizard captures a backend `basePackage` (for example `com.acme.procurement`).
+ProOWeb applies it across generated Java source paths and Maven `groupId` references so each project has its own package namespace.
+
+## External IAM Policy (Step 6)
+
+- External IAM support is generated through the `external-iam-auth` feature pack.
+- The generated endpoint is `POST /api/auth/external/oidc/login`.
+- Authentication can use configured provider settings from the wizard (`issuer`, `client`, claim mapping, secrets).
+- Authorization remains internal: external users must match an active local account to be authenticated.
 
 ## Smart Migration
 
