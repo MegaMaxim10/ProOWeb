@@ -56,6 +56,10 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 ## Phase 10 - Wizard v2 and Reconfiguration Lifecycle
 - Wizard captures preferences for all baseline capability packs.
 - Reconfiguration regenerates, updates, or removes impacted code with migration reports.
+- Implementation baseline:
+  - `POST /api/reconfigure` endpoint,
+  - dashboard reconfiguration form prefilled from workspace config,
+  - smart migration report rendering with feature-pack delta and per-file actions.
 - Exit criteria: capability changes are safe and traceable.
 
 ## Phase 11 - Process Modeling and Version Management

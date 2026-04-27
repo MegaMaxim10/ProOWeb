@@ -35,5 +35,6 @@ export function extractWizardFormPayload(form) {
     liquibaseEnabled: formData.get("liquibaseEnabled") === "on",
     liquibaseChangelogPath: formData.get("liquibaseChangelogPath") || "",
     liquibaseContexts: formData.get("liquibaseContexts") || "",
+    featurePacksEnabled: formData.getAll("featurePacksEnabled"),
   };
 }

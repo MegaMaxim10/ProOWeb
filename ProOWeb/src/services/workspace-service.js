@@ -18,6 +18,10 @@ function resolveMigrationMode(payload) {
   return payload?.mode === "full" ? "full" : "infra";
 }
 
+function resolveReconfigurationMode(payload) {
+  return payload?.mode === "infra" ? "infra" : "full";
+}
+
 function createWorkspaceService(dependencies = {}) {
   const deps = {
     rootDir: ROOT_DIR,
@@ -93,14 +97,43 @@ function createWorkspaceService(dependencies = {}) {
     };
   }
 
+  function reconfigureWorkspace(payload) {
+    if (!deps.isWorkspaceInitialized()) {
+      throw createServiceError(409, "Workspace non initialise.");
+    }
+
+    const mode = resolveReconfigurationMode(payload);
+    const currentConfig = deps.readWorkspaceConfig();
+    const targetConfig = deps.buildWorkspaceMigrationTargetConfig(currentConfig, payload);
+    const migratedConfig = deps.markWorkspaceMigrated(targetConfig);
+
+    const migrationReport = deps.runSmartMigration({
+      rootDir: deps.rootDir,
+      currentConfig,
+      targetConfig: migratedConfig,
+      mode,
+    });
+
+    deps.writeWorkspaceConfig(migratedConfig);
+
+    return {
+      message: "Reconfiguration appliquee avec succes.",
+      workspace: deps.toPublicWorkspaceConfig(migratedConfig),
+      management: deps.getManagementStatus(migratedConfig),
+      migration: migrationReport,
+    };
+  }
+
   return {
     getWorkspaceStatus,
     initializeWorkspace,
     migrateWorkspace,
+    reconfigureWorkspace,
   };
 }
 
 module.exports = {
   createWorkspaceService,
   resolveMigrationMode,
+  resolveReconfigurationMode,
 };

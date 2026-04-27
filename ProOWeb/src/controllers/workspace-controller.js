@@ -44,10 +44,31 @@ function createWorkspaceController({ workspaceService, readJsonBody, sendJson })
     }
   }
 
+  async function handleReconfigureWorkspace(request, response) {
+    let payload;
+    try {
+      payload = await readJsonBody(request);
+    } catch (error) {
+      sendJson(response, 400, { error: error.message });
+      return;
+    }
+
+    try {
+      const result = workspaceService.reconfigureWorkspace(payload);
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, {
+        error: error.message || "Erreur de reconfiguration.",
+      });
+    }
+  }
+
   return {
     handleInitializeWorkspace,
     handleStatus,
     handleMigrateWorkspace,
+    handleReconfigureWorkspace,
   };
 }
 

@@ -22,6 +22,7 @@ The product position is intentionally between:
 ## 4. Scope for the Current Program
 ### 4.1 In Scope
 - Web editor runtime and guided workspace wizard.
+- Post-initialization reconfiguration workflow with managed regeneration reports.
 - Configurable generation of backend/frontend baseline.
 - Strict modular backend architecture.
 - Managed file manifest, migration engine, and conflict strategy.

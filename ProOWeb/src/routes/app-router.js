@@ -26,6 +26,11 @@ function createAppRouter({
       return;
     }
 
+    if (method === "POST" && url.pathname === "/api/reconfigure") {
+      workspaceController.handleReconfigureWorkspace(request, response);
+      return;
+    }
+
     if (method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
       const fileName = isWorkspaceInitialized() ? "dashboard.html" : "wizard.html";
       publicFileHandler.sendFile(response, path.join(publicFileHandler.resolvedPublicDir, fileName));

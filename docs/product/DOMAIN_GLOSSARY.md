@@ -51,6 +51,7 @@
 
 ## R
 - RBAC: role-based access control model used for authorization.
+- Reconfiguration: post-initialization workflow that updates generation preferences and applies managed regeneration with a migration report.
 
 ## S
 - Shared Data Model: data persisted and shared across multiple process definitions and instances.

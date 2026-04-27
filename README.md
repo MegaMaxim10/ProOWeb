@@ -34,6 +34,7 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
 - Supports Step 7 session/device security baseline (session observation, risk detection, revocation APIs).
 - Supports Step 8 organization hierarchy baseline (units, supervisors, members, hierarchy-aware assignment resolution).
 - Supports Step 9 notification workflows + Liquibase baseline (template-driven notification dispatch/audit, managed changelog generation).
+- Supports Step 10 dashboard-driven reconfiguration lifecycle with full smart-migration reporting (`POST /api/reconfigure`).
 
 ## Wizard Git Policy
 
@@ -127,6 +128,15 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - counters (`created`, `updated`, `unchanged`, `conflictsResolved`, `collisionsResolved`, `backupsCreated`),
   - per-file details,
   - backup root path.
+
+## Reconfiguration Lifecycle (Step 10)
+
+- `POST /api/reconfigure` applies configuration changes captured from dashboard forms.
+- Default mode is `full` (application + infrastructure regeneration); `infra` mode is still available.
+- Reconfiguration returns the same detailed migration report shape as smart migration, including:
+  - feature-pack delta (`added`, `removed`, `unchanged`),
+  - per-file actions (`created`, `updated`, `conflictsResolved`, `collisionsResolved`, `staleManagedFiles`),
+  - backup traceability.
 
 ## Usage
 

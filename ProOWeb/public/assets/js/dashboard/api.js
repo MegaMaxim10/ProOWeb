@@ -10,3 +10,10 @@ export function runWorkspaceMigration() {
     body: { reason: "dashboard-action" },
   });
 }
+
+export function runWorkspaceReconfiguration(payload) {
+  return requestJson("/api/reconfigure", {
+    method: "POST",
+    body: payload,
+  });
+}

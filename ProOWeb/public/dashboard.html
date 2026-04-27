@@ -14,6 +14,7 @@
         <nav>
           <a href="#overview">Vue generale</a>
           <a href="#management">Gestion projet manage</a>
+          <a href="#reconfigure">Reconfiguration</a>
           <a href="#org-model">Modele organisationnel</a>
           <a href="#process-model">Flux BPMN</a>
           <a href="#data-model">Modele de donnees</a>
@@ -36,6 +37,160 @@
           <p id="management-line" class="muted">Chargement...</p>
           <button id="migrate-button" type="button" class="hidden">Migrer vers la version editeur courante</button>
           <p id="migrate-feedback" class="feedback" aria-live="polite"></p>
+        </section>
+
+        <section id="reconfigure" class="panel">
+          <h3>Step 10 - Reconfiguration lifecycle</h3>
+          <p class="muted">
+            Modifiez les preferences du projet puis appliquez une regeneration geree avec rapport detaille.
+          </p>
+
+          <form id="reconfigure-form" class="wizard-form" novalidate>
+            <label>
+              Base package Java (backend)
+              <input type="text" name="basePackage" required />
+            </label>
+
+            <label>
+              Migration mode
+              <select name="mode">
+                <option value="full">full (application + infra)</option>
+                <option value="infra">infra only</option>
+              </select>
+            </label>
+
+            <fieldset>
+              <legend>Swagger UI backend</legend>
+              <label class="inline-row">
+                <input id="swagger-toggle" type="checkbox" name="swaggerUiEnabled" />
+                Activer Swagger UI
+              </label>
+              <div id="swagger-profiles" class="checkbox-grid">
+                <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="dev" /> dev</label>
+                <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="demo" /> demo</label>
+                <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="test" /> test</label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>External IAM (Authentication only)</legend>
+              <label class="inline-row">
+                <input id="external-iam-toggle" type="checkbox" name="externalIamEnabled" />
+                Activer l'authentification IAM externe
+              </label>
+              <div id="external-iam-config">
+                <label>
+                  Provider ID
+                  <input type="text" name="externalIamProviderId" />
+                </label>
+                <label>
+                  Issuer URI
+                  <input type="url" name="externalIamIssuerUri" />
+                </label>
+                <label>
+                  Client ID
+                  <input type="text" name="externalIamClientId" />
+                </label>
+                <label>
+                  Client Secret (optional)
+                  <input type="password" name="externalIamClientSecret" />
+                </label>
+                <label>
+                  Shared Secret HS256 (optional)
+                  <input type="password" name="externalIamSharedSecret" />
+                </label>
+                <label>
+                  Username claim
+                  <input type="text" name="externalIamUsernameClaim" />
+                </label>
+                <label>
+                  Email claim
+                  <input type="text" name="externalIamEmailClaim" />
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Session & Device Security</legend>
+              <label class="inline-row">
+                <input id="session-security-toggle" type="checkbox" name="sessionSecurityEnabled" />
+                Activer l'observation des sessions et devices
+              </label>
+              <div id="session-security-config">
+                <label>
+                  Suspicious window (minutes)
+                  <input type="number" min="1" max="1440" name="sessionSecurityWindowMinutes" />
+                </label>
+                <label>
+                  Max distinct devices in window
+                  <input type="number" min="1" max="64" name="sessionSecurityMaxDistinctDevices" />
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Organization Hierarchy</legend>
+              <label class="inline-row">
+                <input id="organization-hierarchy-toggle" type="checkbox" name="organizationHierarchyEnabled" />
+                Activer le module d'organigramme organisationnel
+              </label>
+              <div id="organization-hierarchy-config">
+                <label>
+                  Default assignment strategy
+                  <select name="organizationDefaultAssignmentStrategy">
+                    <option value="SUPERVISOR_THEN_ANCESTORS">SUPERVISOR_THEN_ANCESTORS</option>
+                    <option value="SUPERVISOR_ONLY">SUPERVISOR_ONLY</option>
+                    <option value="UNIT_MEMBERS">UNIT_MEMBERS</option>
+                  </select>
+                </label>
+                <label>
+                  Max traversal depth
+                  <input type="number" min="1" max="16" name="organizationMaxTraversalDepth" />
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Notification Workflows</legend>
+              <label class="inline-row">
+                <input id="notifications-toggle" type="checkbox" name="notificationsEnabled" />
+                Activer les notifications email + audit trail
+              </label>
+              <div id="notifications-config">
+                <label>
+                  Sender address
+                  <input type="email" name="notificationsSenderAddress" />
+                </label>
+                <label class="inline-row">
+                  <input type="checkbox" name="notificationsAuditEnabled" />
+                  Activer le canal d'audit des notifications
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Database Migrations (Liquibase)</legend>
+              <label class="inline-row">
+                <input id="liquibase-toggle" type="checkbox" name="liquibaseEnabled" />
+                Activer la baseline Liquibase
+              </label>
+              <div id="liquibase-config">
+                <label>
+                  Changelog path
+                  <input type="text" name="liquibaseChangelogPath" />
+                </label>
+                <label>
+                  Liquibase contexts
+                  <input type="text" name="liquibaseContexts" />
+                </label>
+              </div>
+            </fieldset>
+
+            <button id="reconfigure-button" type="submit">Apply reconfiguration</button>
+            <p id="reconfigure-feedback" class="feedback" aria-live="polite"></p>
+          </form>
+
+          <pre id="reconfigure-report" class="tree-view"></pre>
         </section>
 
         <section id="process-model" class="panel">

@@ -775,6 +775,32 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
   const basePackage = hasBasePackageOverride
     ? normalizeJavaPackage(safePayload.basePackage || DEFAULT_BASE_PACKAGE)
     : safeNormalizeJavaPackage(currentBasePackage);
+  const hasSwaggerEnabledOverride = Object.prototype.hasOwnProperty.call(safePayload, "swaggerUiEnabled");
+  const currentSwaggerUi = currentConfig?.backendOptions?.swaggerUi || {};
+  const swaggerUiEnabled = hasSwaggerEnabledOverride
+    ? normalizeBool(safePayload.swaggerUiEnabled)
+    : Boolean(currentSwaggerUi.enabled);
+  const hasSwaggerProfilesOverride = Object.prototype.hasOwnProperty.call(safePayload, "swaggerProfiles");
+  const swaggerProfiles = (hasSwaggerProfilesOverride
+    ? normalizeStringList(safePayload.swaggerProfiles)
+    : normalizeStringList(currentSwaggerUi.profiles))
+    .map((entry) => entry.toLowerCase());
+
+  if (swaggerUiEnabled) {
+    if (swaggerProfiles.length === 0) {
+      throw new Error("Swagger UI est active: selectionner au moins un profil (dev/demo/test).");
+    }
+
+    for (const profile of swaggerProfiles) {
+      if (!SWAGGER_ALLOWED_PROFILES.includes(profile)) {
+        throw new Error(
+          `Profil Swagger invalide: ${profile}. Profils autorises: ${SWAGGER_ALLOWED_PROFILES.join(", ")}.`,
+        );
+      }
+    }
+  }
+
+  const uniqueSwaggerProfiles = Array.from(new Set(swaggerUiEnabled ? swaggerProfiles : []));
 
   const hasExternalIamEnabledOverride = Object.prototype.hasOwnProperty.call(safePayload, "externalIamEnabled");
   const externalIamEnabled = hasExternalIamEnabledOverride
@@ -947,6 +973,10 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
     },
     backendOptions: {
       ...(currentConfig.backendOptions || {}),
+      swaggerUi: {
+        enabled: swaggerUiEnabled,
+        profiles: uniqueSwaggerProfiles,
+      },
       externalIam: {
         enabled: externalIamEnabled,
         providers: externalIamProviders,
