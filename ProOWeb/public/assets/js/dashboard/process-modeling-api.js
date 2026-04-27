@@ -22,6 +22,32 @@ export function fetchProcessModelVersion(modelKey, versionNumber) {
   return requestJson(`/api/process-models/${encodeURIComponent(modelKey)}/versions/${encodeURIComponent(versionNumber)}`);
 }
 
+export function fetchProcessModelSpecification(modelKey, versionNumber) {
+  return requestJson(
+    `/api/process-models/${encodeURIComponent(modelKey)}/versions/${encodeURIComponent(versionNumber)}/specification`,
+  );
+}
+
+export function validateProcessModelSpecification(modelKey, versionNumber, payload) {
+  return requestJson(
+    `/api/process-models/${encodeURIComponent(modelKey)}/versions/${encodeURIComponent(versionNumber)}/specification/validate`,
+    {
+      method: "POST",
+      body: payload,
+    },
+  );
+}
+
+export function saveProcessModelSpecification(modelKey, versionNumber, payload) {
+  return requestJson(
+    `/api/process-models/${encodeURIComponent(modelKey)}/versions/${encodeURIComponent(versionNumber)}/specification`,
+    {
+      method: "PUT",
+      body: payload,
+    },
+  );
+}
+
 export function compareProcessModelVersions(modelKey, sourceVersion, targetVersion) {
   const query = new URLSearchParams({
     sourceVersion: String(sourceVersion),

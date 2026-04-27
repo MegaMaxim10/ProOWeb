@@ -152,6 +152,9 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `POST /api/process-models`
   - `POST /api/process-models/{modelKey}/versions`
   - `GET /api/process-models/{modelKey}/versions/{version}`
+  - `GET /api/process-models/{modelKey}/versions/{version}/specification`
+  - `POST /api/process-models/{modelKey}/versions/{version}/specification/validate`
+  - `PUT /api/process-models/{modelKey}/versions/{version}/specification`
   - `GET /api/process-models/{modelKey}/diff?sourceVersion=...&targetVersion=...`
   - `POST /api/process-models/{modelKey}/versions/{version}/transition`
   - `POST /api/process-models/{modelKey}/versions/{version}/deploy`
@@ -167,6 +170,10 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - version-aware load action to fetch a selected model version directly into studio,
   - persisted undo/redo snapshots per model in `.prooweb/process-models/history/*.json`,
   - bidirectional sync between graphical canvas and XML editor.
+- Process specification studio (`spec-v1`) adds:
+  - version-linked JSON specification editing with Monaco,
+  - strict validation against BPMN activity ids and assignment/visibility policy schema,
+  - normalized persisted contract per process version for code generation.
 - Deployment generates process-specific source artifacts into backend/frontend trees and tracks them in:
   - `.prooweb/process-models/managed-files.json`
 - If a managed generated file was manually modified, deployment creates backup before overwrite:

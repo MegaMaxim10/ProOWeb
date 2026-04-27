@@ -259,6 +259,28 @@
             <p id="process-bpmn-feedback" class="feedback" aria-live="polite"></p>
           </div>
 
+          <div class="process-studio panel">
+            <h4>Process Specification Studio (spec-v1 JSON)</h4>
+            <p class="muted">
+              Edit, validate, and save versioned process behavior rules linked to BPMN activities.
+            </p>
+            <div class="process-studio-toolbar">
+              <label class="studio-select">
+                Model
+                <select id="process-spec-model"></select>
+              </label>
+              <label class="studio-select">
+                Version
+                <select id="process-spec-version"></select>
+              </label>
+              <button id="process-spec-load" type="button">Load specification</button>
+              <button id="process-spec-validate" type="button">Validate specification</button>
+              <button id="process-spec-save" type="button">Save specification</button>
+            </div>
+            <div id="process-spec-editor" class="process-spec-editor"></div>
+            <p id="process-spec-feedback" class="feedback" aria-live="polite"></p>
+          </div>
+
           <div class="process-grid">
             <form id="process-model-create-form" class="wizard-form process-card" novalidate>
               <h4>Create process model</h4>

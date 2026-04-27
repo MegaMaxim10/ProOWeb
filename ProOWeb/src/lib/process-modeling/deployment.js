@@ -232,6 +232,8 @@ function buildVersionMetadata(model, version) {
       createdAt: version.createdAt,
       updatedAt: version.updatedAt,
       deployedAt: version.deployedAt || null,
+      specificationSchemaVersion: version?.specification?.schemaVersion || null,
+      specification: version?.specification || null,
     },
     null,
     2,

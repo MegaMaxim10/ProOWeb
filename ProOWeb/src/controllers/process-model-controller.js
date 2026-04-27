@@ -57,6 +57,60 @@ function createProcessModelController({ processModelService, readJsonBody, sendJ
     }
   }
 
+  function handleReadProcessModelVersionSpecification(_request, response, modelKey, versionNumber) {
+    try {
+      const result = processModelService.readModelVersionSpecification(modelKey, versionNumber);
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, { error: error.message || "Failed to read process specification." });
+    }
+  }
+
+  async function handleValidateProcessModelVersionSpecification(request, response, modelKey, versionNumber) {
+    let payload = {};
+    try {
+      payload = await readJsonBody(request).catch(() => ({}));
+    } catch (error) {
+      sendJson(response, 400, { error: error.message });
+      return;
+    }
+
+    try {
+      const result = processModelService.validateModelVersionSpecification(
+        modelKey,
+        versionNumber,
+        payload,
+      );
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, { error: error.message || "Failed to validate process specification." });
+    }
+  }
+
+  async function handleSaveProcessModelVersionSpecification(request, response, modelKey, versionNumber) {
+    let payload;
+    try {
+      payload = await readJsonBody(request);
+    } catch (error) {
+      sendJson(response, 400, { error: error.message });
+      return;
+    }
+
+    try {
+      const result = processModelService.saveModelVersionSpecification(
+        modelKey,
+        versionNumber,
+        payload,
+      );
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, { error: error.message || "Failed to save process specification." });
+    }
+  }
+
   function handleCompareProcessModelVersions(_request, response, modelKey, query) {
     try {
       const sourceVersion = query.get("sourceVersion");
@@ -151,6 +205,9 @@ function createProcessModelController({ processModelService, readJsonBody, sendJ
     handleCreateProcessModel,
     handleCreateProcessModelVersion,
     handleReadProcessModelVersion,
+    handleReadProcessModelVersionSpecification,
+    handleValidateProcessModelVersionSpecification,
+    handleSaveProcessModelVersionSpecification,
     handleCompareProcessModelVersions,
     handleTransitionProcessModelVersion,
     handleDeployProcessModelVersion,

@@ -8,6 +8,9 @@ const {
   transitionProcessModelVersion,
   normalizeVersionNumber,
   readProcessModelVersion,
+  readProcessModelVersionSpecification,
+  validateProcessModelVersionSpecification,
+  saveProcessModelVersionSpecification,
 } = require("../lib/process-modeling/catalog");
 const { deployProcessModelVersion } = require("../lib/process-modeling/deployment");
 const {
@@ -32,6 +35,9 @@ function createProcessModelService(dependencies = {}) {
     transitionProcessModelVersion,
     deployProcessModelVersion,
     readProcessModelVersion,
+    readProcessModelVersionSpecification,
+    validateProcessModelVersionSpecification,
+    saveProcessModelVersionSpecification,
     loadStudioHistory,
     toPublicHistory,
     pushStudioSnapshot,
@@ -157,6 +163,45 @@ function createProcessModelService(dependencies = {}) {
     };
   }
 
+  function readModelVersionSpecification(modelKey, versionNumber) {
+    const config = requireWorkspaceConfig();
+    requireProcessModelingEnabled(config);
+
+    const normalizedVersion = normalizeVersionNumber(versionNumber, "versionNumber");
+    return deps.readProcessModelVersionSpecification(deps.rootDir, modelKey, normalizedVersion);
+  }
+
+  function validateModelVersionSpecification(modelKey, versionNumber, payload = {}) {
+    const config = requireWorkspaceConfig();
+    requireProcessModelingEnabled(config);
+
+    const normalizedVersion = normalizeVersionNumber(versionNumber, "versionNumber");
+    return deps.validateProcessModelVersionSpecification(
+      deps.rootDir,
+      modelKey,
+      normalizedVersion,
+      payload,
+    );
+  }
+
+  function saveModelVersionSpecification(modelKey, versionNumber, payload = {}) {
+    const config = requireWorkspaceConfig();
+    requireProcessModelingEnabled(config);
+
+    const normalizedVersion = normalizeVersionNumber(versionNumber, "versionNumber");
+    const result = deps.saveProcessModelVersionSpecification(
+      deps.rootDir,
+      modelKey,
+      normalizedVersion,
+      payload,
+    );
+
+    return {
+      message: "Process specification saved.",
+      ...result,
+    };
+  }
+
   function deployModelVersion(modelKey, versionNumber) {
     const config = requireWorkspaceConfig();
     requireProcessModelingEnabled(config);
@@ -231,6 +276,9 @@ function createProcessModelService(dependencies = {}) {
     compareModelVersions,
     readModelVersion,
     transitionModelVersion,
+    readModelVersionSpecification,
+    validateModelVersionSpecification,
+    saveModelVersionSpecification,
     deployModelVersion,
     readStudioHistory,
     createStudioSnapshot,

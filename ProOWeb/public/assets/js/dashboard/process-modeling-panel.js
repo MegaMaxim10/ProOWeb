@@ -4,6 +4,9 @@ import {
   createProcessModel,
   createProcessModelVersion,
   fetchProcessModelVersion,
+  fetchProcessModelSpecification,
+  validateProcessModelSpecification,
+  saveProcessModelSpecification,
   createProcessModelSnapshot,
   undoProcessModelSnapshot,
   redoProcessModelSnapshot,
@@ -12,6 +15,7 @@ import {
   deployProcessModelVersion,
 } from "./process-modeling-api.js";
 import { initializeBpmnStudio } from "./bpmn-studio.js";
+import { initializeSpecificationStudio } from "./specification-studio.js";
 
 function byVersionNumber(left, right) {
   return Number(left?.versionNumber || 0) - Number(right?.versionNumber || 0);
@@ -138,6 +142,42 @@ function renderDeploymentReport(deployment) {
   return JSON.stringify(report, null, 2);
 }
 
+function renderSpecificationReport(action, payload) {
+  const summary = payload?.summary || {};
+  const validation = payload?.validation || {};
+  const errors = Array.isArray(validation.errors) ? validation.errors : [];
+  const warnings = Array.isArray(validation.warnings) ? validation.warnings : [];
+
+  const lines = [
+    `Action: specification/${action}`,
+    `Model: ${payload?.model?.modelKey || "-"}`,
+    `Version: ${payload?.version?.versionNumber || "-"}`,
+    `Schema version: ${summary.schemaVersion || payload?.specification?.schemaVersion || "-"}`,
+    `Activities: ${summary.activityCount ?? "-"}`,
+    `Manual activities: ${summary.manualActivityCount ?? "-"}`,
+    `Automatic activities: ${summary.automaticActivityCount ?? "-"}`,
+    `Validation: ${validation.valid ? "valid" : "invalid"}`,
+    `Errors: ${errors.length}`,
+    `Warnings: ${warnings.length}`,
+  ];
+
+  if (errors.length > 0) {
+    lines.push("", "[Errors]");
+    for (const issue of errors) {
+      lines.push(`- ${issue.path || "-"}: ${issue.message || "-"}`);
+    }
+  }
+
+  if (warnings.length > 0) {
+    lines.push("", "[Warnings]");
+    for (const issue of warnings) {
+      lines.push(`- ${issue.path || "-"}: ${issue.message || "-"}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
 function bindVersionSync({
   modelSelector,
   versionSelector,
@@ -223,6 +263,17 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
       redoProcessModelSnapshot,
     },
   });
+  const specificationStudio = await initializeSpecificationStudio({
+    documentRef,
+    api: {
+      fetchProcessModelSpecification,
+      validateProcessModelSpecification,
+      saveProcessModelSpecification,
+    },
+    onReport(action, payload) {
+      reportView.textContent = renderSpecificationReport(action, payload);
+    },
+  });
 
   let models = [];
   const modelSelectors = [
@@ -264,6 +315,9 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
     renderCatalog(catalogView, models);
     if (typeof bpmnStudio?.setCatalog === "function") {
       bpmnStudio.setCatalog(models);
+    }
+    if (typeof specificationStudio?.setCatalog === "function") {
+      specificationStudio.setCatalog(models);
     }
   }
 

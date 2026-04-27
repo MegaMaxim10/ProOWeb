@@ -134,3 +134,11 @@
 .process-bpmn-editor {
   height: 360px;
 }
+
+.process-spec-editor {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
+  min-height: 320px;
+  height: 320px;
+}

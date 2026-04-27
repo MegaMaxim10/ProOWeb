@@ -1,5 +1,10 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const {
+  validateProcessSpecificationV1,
+  normalizeProcessSpecificationV1,
+  summarizeProcessSpecificationV1,
+} = require("./spec-v1");
 
 const PROCESS_STATUSES = Object.freeze(["DRAFT", "VALIDATED", "DEPLOYED", "RETIRED"]);
 
@@ -67,6 +72,24 @@ function toIsoNow() {
   return new Date().toISOString();
 }
 
+function asObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
+function resolveVersionSpecification(rawSpecification, bpmnXml) {
+  const source = asObject(rawSpecification) || {};
+  const validation = validateProcessSpecificationV1(source, {
+    bpmnXml: String(bpmnXml || ""),
+    strict: true,
+  });
+
+  return {
+    specification: validation.normalizedSpecification,
+    validation,
+    summary: summarizeProcessSpecificationV1(validation.normalizedSpecification),
+  };
+}
+
 function getCatalogPaths(rootDir) {
   const catalogRoot = path.join(rootDir, ".prooweb", "process-models");
   const modelsRoot = path.join(catalogRoot, "models");
@@ -97,6 +120,8 @@ function normalizeVersion(rawVersion = {}) {
     throw createCatalogError(400, "Each process version must contain BPMN XML.");
   }
 
+  const specificationSnapshot = resolveVersionSpecification(rawVersion.specification, bpmnXml);
+
   return {
     versionNumber,
     status,
@@ -106,6 +131,7 @@ function normalizeVersion(rawVersion = {}) {
     updatedAt: rawVersion.updatedAt || rawVersion.createdAt || toIsoNow(),
     deployedAt: rawVersion.deployedAt || null,
     retiredAt: rawVersion.retiredAt || null,
+    specification: specificationSnapshot.specification,
     deployment: rawVersion.deployment && typeof rawVersion.deployment === "object"
       ? rawVersion.deployment
       : null,
@@ -193,7 +219,10 @@ function listProcessModels(rootDir) {
 
 function toPublicVersion(version, options = {}) {
   const includeBpmn = Boolean(options.includeBpmn);
+  const includeSpecification = Boolean(options.includeSpecification);
   const lineCount = splitLines(version.bpmnXml).length;
+  const specificationSnapshot = resolveVersionSpecification(version.specification, version.bpmnXml);
+  const validation = specificationSnapshot.validation;
 
   return {
     versionNumber: version.versionNumber,
@@ -204,7 +233,15 @@ function toPublicVersion(version, options = {}) {
     deployedAt: version.deployedAt,
     retiredAt: version.retiredAt,
     bpmnLineCount: lineCount,
+    specificationSchemaVersion: specificationSnapshot.summary.schemaVersion,
+    specificationSummary: specificationSnapshot.summary,
+    specificationValidation: {
+      valid: validation.valid,
+      errorCount: validation.errors.length,
+      warningCount: validation.warnings.length,
+    },
     ...(includeBpmn ? { bpmnXml: version.bpmnXml } : {}),
+    ...(includeSpecification ? { specification: specificationSnapshot.specification } : {}),
   };
 }
 
@@ -224,8 +261,9 @@ function toPublicModel(model, options = {}) {
   };
 }
 
-function createInitialVersion({ bpmnXml, summary }) {
+function createInitialVersion({ bpmnXml, summary, specification }) {
   const now = toIsoNow();
+  const specificationSnapshot = resolveVersionSpecification(specification, bpmnXml);
   return {
     versionNumber: 1,
     status: "DRAFT",
@@ -235,6 +273,7 @@ function createInitialVersion({ bpmnXml, summary }) {
     updatedAt: now,
     deployedAt: null,
     retiredAt: null,
+    specification: specificationSnapshot.specification,
     deployment: null,
   };
 }
@@ -263,12 +302,12 @@ function createProcessModel(rootDir, payload = {}) {
   const saved = saveProcessModel(rootDir, {
     schemaVersion: 1,
     modelKey,
-    title,
-    description,
-    createdAt: now,
-    updatedAt: now,
-    versions: [createInitialVersion({ bpmnXml, summary })],
-  });
+      title,
+      description,
+      createdAt: now,
+      updatedAt: now,
+      versions: [createInitialVersion({ bpmnXml, summary, specification: payload.specification })],
+    });
 
   return toPublicModel(saved);
 }
@@ -301,6 +340,7 @@ function createProcessModelVersion(rootDir, modelKey, payload = {}, options = {}
     0,
   ) + 1;
 
+  const specificationSnapshot = resolveVersionSpecification(payload.specification, bpmnXml);
   const now = toIsoNow();
   model.versions.push({
     versionNumber: nextVersion,
@@ -311,6 +351,7 @@ function createProcessModelVersion(rootDir, modelKey, payload = {}, options = {}
     updatedAt: now,
     deployedAt: null,
     retiredAt: null,
+    specification: specificationSnapshot.specification,
     deployment: null,
   });
   model.updatedAt = now;
@@ -442,6 +483,129 @@ function readProcessModelVersion(rootDir, modelKey, versionNumber) {
   };
 }
 
+function parseSpecificationPayload(payload) {
+  const source = asObject(payload);
+  if (!source) {
+    return {};
+  }
+
+  if (asObject(source.specification)) {
+    return source.specification;
+  }
+
+  return source;
+}
+
+function readProcessModelVersionSpecification(rootDir, modelKey, versionNumber) {
+  const normalizedKey = normalizeModelKey(modelKey);
+  const model = loadProcessModel(rootDir, normalizedKey);
+  if (!model) {
+    throw createCatalogError(404, `Model '${normalizedKey}' was not found.`);
+  }
+
+  const normalizedVersion = normalizeVersionNumber(versionNumber, "versionNumber");
+  const { version } = requireVersion(model, normalizedVersion);
+  const specificationSnapshot = resolveVersionSpecification(version.specification, version.bpmnXml);
+
+  return {
+    model: toPublicModel(model),
+    version: toPublicVersion(version),
+    specification: specificationSnapshot.specification,
+    summary: specificationSnapshot.summary,
+    validation: {
+      valid: specificationSnapshot.validation.valid,
+      errors: specificationSnapshot.validation.errors,
+      warnings: specificationSnapshot.validation.warnings,
+    },
+  };
+}
+
+function validateProcessModelVersionSpecification(rootDir, modelKey, versionNumber, payload = {}) {
+  const normalizedKey = normalizeModelKey(modelKey);
+  const model = loadProcessModel(rootDir, normalizedKey);
+  if (!model) {
+    throw createCatalogError(404, `Model '${normalizedKey}' was not found.`);
+  }
+
+  const normalizedVersion = normalizeVersionNumber(versionNumber, "versionNumber");
+  const { version } = requireVersion(model, normalizedVersion);
+  const specification = parseSpecificationPayload(payload);
+  const validation = validateProcessSpecificationV1(specification, {
+    bpmnXml: version.bpmnXml,
+    strict: true,
+  });
+
+  return {
+    model: toPublicModel(model),
+    version: toPublicVersion(version),
+    specification: validation.normalizedSpecification,
+    summary: summarizeProcessSpecificationV1(validation.normalizedSpecification),
+    validation: {
+      valid: validation.valid,
+      errors: validation.errors,
+      warnings: validation.warnings,
+    },
+  };
+}
+
+function saveProcessModelVersionSpecification(rootDir, modelKey, versionNumber, payload = {}) {
+  const normalizedKey = normalizeModelKey(modelKey);
+  const model = loadProcessModel(rootDir, normalizedKey);
+  if (!model) {
+    throw createCatalogError(404, `Model '${normalizedKey}' was not found.`);
+  }
+
+  const normalizedVersion = normalizeVersionNumber(versionNumber, "versionNumber");
+  const { versionIndex, version } = requireVersion(model, normalizedVersion);
+  const specification = parseSpecificationPayload(payload);
+
+  let normalizedValidation;
+  try {
+    normalizedValidation = normalizeProcessSpecificationV1(specification, {
+      bpmnXml: version.bpmnXml,
+      strict: true,
+    });
+  } catch (error) {
+    if (error?.validation) {
+      const details = error.validation.errors
+        .map((entry) => `${entry.path}: ${entry.message}`)
+        .join(" | ");
+      throw createCatalogError(
+        400,
+        details ? `Specification validation failed. ${details}` : "Specification validation failed.",
+      );
+    }
+    throw error;
+  }
+
+  const now = toIsoNow();
+  model.versions[versionIndex] = {
+    ...version,
+    specification: normalizedValidation.normalizedSpecification,
+    updatedAt: now,
+  };
+  model.updatedAt = now;
+
+  const saved = saveProcessModel(rootDir, model);
+  const savedVersion = requireVersion(saved, normalizedVersion).version;
+  const validation = validateProcessSpecificationV1(savedVersion.specification, {
+    bpmnXml: savedVersion.bpmnXml,
+    strict: true,
+  });
+
+  return {
+    model: toPublicModel(saved),
+    version: toPublicVersion(savedVersion, { includeSpecification: true }),
+    specification: validation.normalizedSpecification,
+    summary: summarizeProcessSpecificationV1(validation.normalizedSpecification),
+    validation: {
+      valid: validation.valid,
+      errors: validation.errors,
+      warnings: validation.warnings,
+    },
+  };
+}
+
 module.exports = {
   PROCESS_STATUSES,
   createCatalogError,
@@ -459,4 +623,7 @@ module.exports = {
   transitionProcessModelVersion,
   listDeployedModels,
   readProcessModelVersion,
+  readProcessModelVersionSpecification,
+  validateProcessModelVersionSpecification,
+  saveProcessModelVersionSpecification,
 };
