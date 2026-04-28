@@ -172,6 +172,60 @@ function createProcessModelController({ processModelService, readJsonBody, sendJ
     }
   }
 
+  async function handleSimulateProcessModelVersion(request, response, modelKey, versionNumber) {
+    let payload = {};
+    try {
+      payload = await readJsonBody(request).catch(() => ({}));
+    } catch (error) {
+      sendJson(response, 400, { error: error.message });
+      return;
+    }
+
+    try {
+      const result = processModelService.simulateModelVersion(modelKey, versionNumber, payload);
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, { error: error.message || "Failed to simulate process version." });
+    }
+  }
+
+  async function handlePromoteProcessModelVersion(request, response, modelKey, versionNumber) {
+    let payload = {};
+    try {
+      payload = await readJsonBody(request).catch(() => ({}));
+    } catch (error) {
+      sendJson(response, 400, { error: error.message });
+      return;
+    }
+
+    try {
+      const result = processModelService.promoteModelVersion(modelKey, versionNumber, payload);
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, { error: error.message || "Failed to promote process version." });
+    }
+  }
+
+  async function handleRollbackProcessModelPromotion(request, response, modelKey, versionNumber) {
+    let payload = {};
+    try {
+      payload = await readJsonBody(request).catch(() => ({}));
+    } catch (error) {
+      sendJson(response, 400, { error: error.message });
+      return;
+    }
+
+    try {
+      const result = processModelService.rollbackPromotion(modelKey, versionNumber, payload);
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, { error: error.message || "Failed to rollback promotion." });
+    }
+  }
+
   async function handleUndeployProcessModelVersion(request, response, modelKey, versionNumber) {
     try {
       await readJsonBody(request).catch(() => ({}));
@@ -244,6 +298,9 @@ function createProcessModelController({ processModelService, readJsonBody, sendJ
     handleCompareProcessModelVersions,
     handleTransitionProcessModelVersion,
     handleDeployProcessModelVersion,
+    handleSimulateProcessModelVersion,
+    handlePromoteProcessModelVersion,
+    handleRollbackProcessModelPromotion,
     handleUndeployProcessModelVersion,
     handleReadProcessModelHistory,
     handleCreateProcessModelSnapshot,

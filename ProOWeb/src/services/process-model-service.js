@@ -19,6 +19,11 @@ const {
   undeployProcessModelVersion,
 } = require("../lib/process-modeling/deployment");
 const {
+  simulateProcessModelVersion,
+  runProcessPromotionPipeline,
+  rollbackProcessPromotion,
+} = require("../lib/process-modeling/promotion-pipeline");
+const {
   loadStudioHistory,
   toPublicHistory,
   pushStudioSnapshot,
@@ -40,6 +45,9 @@ function createProcessModelService(dependencies = {}) {
     transitionProcessModelVersion,
     deployProcessModelVersion,
     undeployProcessModelVersion,
+    simulateProcessModelVersion,
+    runProcessPromotionPipeline,
+    rollbackProcessPromotion,
     readProcessModelVersion,
     readProcessModelVersionSpecification,
     readProcessModelVersionRuntimeContract,
@@ -254,6 +262,54 @@ function createProcessModelService(dependencies = {}) {
     };
   }
 
+  function simulateModelVersion(modelKey, versionNumber, payload = {}) {
+    const config = requireWorkspaceConfig();
+    requireProcessModelingEnabled(config);
+
+    const normalizedVersion = normalizeVersionNumber(versionNumber, "versionNumber");
+    const simulation = deps.simulateProcessModelVersion({
+      rootDir: deps.rootDir,
+      modelKey,
+      versionNumber: normalizedVersion,
+      options: payload,
+    });
+
+    return {
+      message: "Process simulation completed.",
+      modelKey: simulation.modelKey,
+      versionNumber: simulation.versionNumber,
+      simulation,
+    };
+  }
+
+  function promoteModelVersion(modelKey, versionNumber, payload = {}) {
+    const config = requireWorkspaceConfig();
+    requireProcessModelingEnabled(config);
+
+    const normalizedVersion = normalizeVersionNumber(versionNumber, "versionNumber");
+    return deps.runProcessPromotionPipeline({
+      rootDir: deps.rootDir,
+      workspaceConfig: config,
+      modelKey,
+      versionNumber: normalizedVersion,
+      options: payload,
+    });
+  }
+
+  function rollbackPromotion(modelKey, versionNumber, payload = {}) {
+    const config = requireWorkspaceConfig();
+    requireProcessModelingEnabled(config);
+
+    const normalizedVersion = normalizeVersionNumber(versionNumber, "versionNumber");
+    return deps.rollbackProcessPromotion({
+      rootDir: deps.rootDir,
+      workspaceConfig: config,
+      modelKey,
+      versionNumber: normalizedVersion,
+      options: payload,
+    });
+  }
+
   function undeployModelVersion(modelKey, versionNumber) {
     const config = requireWorkspaceConfig();
     requireProcessModelingEnabled(config);
@@ -334,6 +390,9 @@ function createProcessModelService(dependencies = {}) {
     validateModelVersionSpecification,
     saveModelVersionSpecification,
     deployModelVersion,
+    simulateModelVersion,
+    promoteModelVersion,
+    rollbackPromotion,
     undeployModelVersion,
     readStudioHistory,
     createStudioSnapshot,

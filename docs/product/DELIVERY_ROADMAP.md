@@ -115,6 +115,11 @@ This roadmap defines the phased construction plan and acceptance criteria.
 - Add pre-deployment simulation in ProOWeb, automated scenario testing (UT/IT/Cucumber), aggregated coverage and quality gates.
 - Implement promotion workflow: simulate -> test -> deploy -> monitor -> rollback.
 - Exit criteria: industrialized safe promotion pipeline is available.
+- Current implementation baseline:
+  - simulation endpoint (`POST /api/process-models/{modelKey}/versions/{version}/simulate`) with runtime/data preview,
+  - promotion endpoint (`POST /api/process-models/{modelKey}/versions/{version}/promote`) with command and coverage gates,
+  - rollback endpoint (`POST /api/process-models/{modelKey}/versions/{version}/rollback`) with persisted rollback plan,
+  - promotion audit artifacts persisted in `.prooweb/process-models/promotions/`.
 
 ## Phase 21 - Template Customization and Evolution Governance
 - Provide frontend/backend template management with durable developer overrides.

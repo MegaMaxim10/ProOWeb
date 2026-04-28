@@ -15,6 +15,9 @@ import {
   compareProcessModelVersions,
   transitionProcessModelVersion,
   deployProcessModelVersion,
+  simulateProcessModelVersion,
+  promoteProcessModelVersion,
+  rollbackProcessModelPromotion,
   undeployProcessModelVersion,
 } from "./process-modeling-api.js";
 import { initializeBpmnStudio } from "./bpmn-studio.js";
@@ -143,6 +146,161 @@ function renderDeploymentReport(deployment) {
   }
 
   return JSON.stringify(report, null, 2);
+}
+
+function renderSimulationReport(payload) {
+  const simulation = payload?.simulation;
+  if (!simulation) {
+    return "No simulation report.";
+  }
+
+  const lines = [
+    `Simulation: ${simulation.simulationId || "-"}`,
+    `Model: ${simulation.modelKey} v${simulation.versionNumber}`,
+    `Status: ${simulation.status || "-"}`,
+    `Outcome: ${simulation.outcome || "-"}`,
+    `Runtime activities: ${simulation.runtimeSummary?.activityCount ?? 0}`,
+    `Runtime transitions: ${simulation.runtimeSummary?.transitionCount ?? 0}`,
+    `Data mappings: ${simulation.dataSummary?.outputMappingCount ?? 0}`,
+    `Warnings: ${simulation.validation?.warnings?.length ?? 0}`,
+    `Errors: ${simulation.validation?.errors?.length ?? 0}`,
+    "",
+    "[Reachability]",
+    `Entry activities: ${(simulation.preview?.entryActivities || []).join(", ") || "-"}`,
+    `Reachable: ${(simulation.preview?.reachableActivityIds || []).join(", ") || "-"}`,
+    `Unreachable: ${(simulation.preview?.unreachableActivityIds || []).join(", ") || "-"}`,
+  ];
+
+  if (Array.isArray(simulation.preview?.timeline) && simulation.preview.timeline.length > 0) {
+    lines.push("", "[Timeline]");
+    for (const entry of simulation.preview.timeline) {
+      if (entry.activityId) {
+        lines.push(`- #${entry.step} ${entry.marker} ${entry.activityId} (${entry.activityType})`);
+      } else {
+        lines.push(`- #${entry.step} ${entry.marker}`);
+      }
+    }
+    if (simulation.preview?.timelineTruncated) {
+      lines.push("- ... timeline truncated");
+    }
+  }
+
+  if (Array.isArray(simulation.validation?.warnings) && simulation.validation.warnings.length > 0) {
+    lines.push("", "[Warnings]");
+    for (const issue of simulation.validation.warnings) {
+      lines.push(`- ${issue.path || "-"}: ${issue.message || "-"}`);
+    }
+  }
+
+  if (Array.isArray(simulation.validation?.errors) && simulation.validation.errors.length > 0) {
+    lines.push("", "[Errors]");
+    for (const issue of simulation.validation.errors) {
+      lines.push(`- ${issue.path || "-"}: ${issue.message || "-"}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function renderPromotionReport(payload) {
+  const promotion = payload?.promotion;
+  if (!promotion) {
+    return "No promotion report.";
+  }
+
+  const lines = [
+    `Promotion: ${promotion.promotionId || "-"}`,
+    `Model: ${promotion.modelKey} v${promotion.versionNumber}`,
+    `Status: ${payload.status || promotion.status || "-"}`,
+    `Message: ${payload.message || promotion.message || "-"}`,
+    `Requested at: ${promotion.requestedAt || "-"}`,
+    `Completed at: ${promotion.completedAt || "-"}`,
+    "",
+    "[Gates]",
+    `Simulation enabled: ${promotion.options?.runSimulation ? "yes" : "no"}`,
+    `Quality gates enabled: ${promotion.options?.runQualityGates ? "yes" : "no"}`,
+    `Deploy on pass: ${promotion.options?.deployOnPass ? "yes" : "no"}`,
+  ];
+
+  if (Array.isArray(promotion.blockedReasons) && promotion.blockedReasons.length > 0) {
+    lines.push("", "[Blocked reasons]");
+    for (const reason of promotion.blockedReasons) {
+      lines.push(`- ${reason}`);
+    }
+  }
+
+  if (promotion.simulation) {
+    lines.push(
+      "",
+      `[Simulation outcome] ${promotion.simulation.outcome || "-"}`,
+      `Warnings: ${promotion.simulation.validation?.warnings?.length ?? 0}`,
+      `Errors: ${promotion.simulation.validation?.errors?.length ?? 0}`,
+    );
+  }
+
+  const quality = promotion.qualityGates;
+  if (quality) {
+    lines.push(
+      "",
+      "[Quality gates]",
+      `Passed: ${quality.passed ? "yes" : "no"}`,
+      `Commands executed: ${(quality.commands || []).length}`,
+    );
+    for (const command of quality.commands || []) {
+      lines.push(
+        `- ${command.id}: ${command.passed ? "passed" : "failed"} (${command.durationMs ?? 0} ms, exit=${command.exitCode ?? "-"})`,
+      );
+    }
+
+    const backendLine = quality.coverage?.backend?.line?.pct;
+    const frontendLine = quality.coverage?.frontend?.line?.pct;
+    const overallLine = quality.coverage?.overall?.line?.pct;
+    lines.push(
+      `Backend line coverage: ${backendLine == null ? "-" : `${backendLine}%`}`,
+      `Frontend line coverage: ${frontendLine == null ? "-" : `${frontendLine}%`}`,
+      `Overall line coverage: ${overallLine == null ? "-" : `${overallLine}%`}`,
+    );
+
+    if (Array.isArray(quality.coverageGates?.failures) && quality.coverageGates.failures.length > 0) {
+      lines.push("", "[Coverage gate failures]");
+      for (const failure of quality.coverageGates.failures) {
+        lines.push(`- ${failure}`);
+      }
+    }
+
+    if (Array.isArray(quality.coverageGates?.warnings) && quality.coverageGates.warnings.length > 0) {
+      lines.push("", "[Coverage gate warnings]");
+      for (const warning of quality.coverageGates.warnings) {
+        lines.push(`- ${warning}`);
+      }
+    }
+  }
+
+  if (promotion.deployment?.report) {
+    lines.push("", "[Deployment report]");
+    lines.push(JSON.stringify(promotion.deployment.report, null, 2));
+  }
+
+  if (promotion.rollbackPlan) {
+    lines.push(
+      "",
+      "[Rollback plan]",
+      `Strategy: ${promotion.rollbackPlan.strategy || "-"}`,
+      `Target version: ${promotion.rollbackPlan.targetVersionNumber ?? "-"}`,
+      `Description: ${promotion.rollbackPlan.description || "-"}`,
+    );
+  }
+
+  if (promotion.rollback?.completedAt) {
+    lines.push(
+      "",
+      "[Rollback execution]",
+      `Completed at: ${promotion.rollback.completedAt}`,
+      `Strategy: ${promotion.rollback.strategy || "-"}`,
+    );
+  }
+
+  return lines.join("\n");
 }
 
 function renderRuntimeContractReport(payload) {
@@ -301,6 +459,18 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
   const deployFeedback = documentRef.getElementById("process-model-deploy-feedback");
   const deployModelSelector = documentRef.getElementById("process-deploy-model");
   const deployVersionSelector = documentRef.getElementById("process-deploy-version");
+  const simulateForm = documentRef.getElementById("process-model-simulate-form");
+  const simulateFeedback = documentRef.getElementById("process-model-simulate-feedback");
+  const simulateModelSelector = documentRef.getElementById("process-simulate-model");
+  const simulateVersionSelector = documentRef.getElementById("process-simulate-version");
+  const promoteForm = documentRef.getElementById("process-model-promote-form");
+  const promoteFeedback = documentRef.getElementById("process-model-promote-feedback");
+  const promoteModelSelector = documentRef.getElementById("process-promote-model");
+  const promoteVersionSelector = documentRef.getElementById("process-promote-version");
+  const rollbackForm = documentRef.getElementById("process-model-rollback-form");
+  const rollbackFeedback = documentRef.getElementById("process-model-rollback-feedback");
+  const rollbackModelSelector = documentRef.getElementById("process-rollback-model");
+  const rollbackVersionSelector = documentRef.getElementById("process-rollback-version");
   const undeployForm = documentRef.getElementById("process-model-undeploy-form");
   const undeployFeedback = documentRef.getElementById("process-model-undeploy-feedback");
   const undeployModelSelector = documentRef.getElementById("process-undeploy-model");
@@ -323,6 +493,9 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
     || !diffForm
     || !transitionForm
     || !deployForm
+    || !simulateForm
+    || !promoteForm
+    || !rollbackForm
     || !undeployForm
     || !runtimeContractForm
     || !dataContractForm
@@ -369,6 +542,9 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
     diffModelSelector,
     transitionModelSelector,
     deployModelSelector,
+    simulateModelSelector,
+    promoteModelSelector,
+    rollbackModelSelector,
     undeployModelSelector,
     runtimeContractModelSelector,
     dataContractModelSelector,
@@ -396,6 +572,21 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
   bindVersionSync({
     modelSelector: deployModelSelector,
     versionSelector: deployVersionSelector,
+    getModels,
+  });
+  bindVersionSync({
+    modelSelector: simulateModelSelector,
+    versionSelector: simulateVersionSelector,
+    getModels,
+  });
+  bindVersionSync({
+    modelSelector: promoteModelSelector,
+    versionSelector: promoteVersionSelector,
+    getModels,
+  });
+  bindVersionSync({
+    modelSelector: rollbackModelSelector,
+    versionSelector: rollbackVersionSelector,
     getModels,
   });
   bindVersionSync({
@@ -523,6 +714,103 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
       await refreshModels();
     } catch (error) {
       setFeedback(deployFeedback, error.message || "Failed to deploy version.", "error");
+    }
+  });
+
+  simulateForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setFeedback(simulateFeedback, "Running pre-deployment simulation...");
+
+    const form = new FormData(simulateForm);
+    const modelKey = String(form.get("modelKey") || "");
+    const versionNumber = form.get("versionNumber");
+    const strictWarnings = String(form.get("strictWarnings") || "") === "on";
+    const maxTimelineSteps = Number.parseInt(String(form.get("maxTimelineSteps") || "80"), 10);
+
+    try {
+      const payload = await simulateProcessModelVersion(modelKey, versionNumber, {
+        strictWarnings,
+        maxTimelineSteps: Number.isFinite(maxTimelineSteps) && maxTimelineSteps > 0 ? maxTimelineSteps : 80,
+      });
+      setFeedback(simulateFeedback, "Simulation completed.", "success");
+      reportView.textContent = renderSimulationReport(payload);
+    } catch (error) {
+      setFeedback(simulateFeedback, error.message || "Failed to run simulation.", "error");
+    }
+  });
+
+  promoteForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setFeedback(promoteFeedback, "Running safe promotion pipeline...");
+
+    const form = new FormData(promoteForm);
+    const modelKey = String(form.get("modelKey") || "");
+    const versionNumber = form.get("versionNumber");
+    const runSimulation = String(form.get("runSimulation") || "") === "on";
+    const runQualityGates = String(form.get("runQualityGates") || "") === "on";
+    const deployOnPass = String(form.get("deployOnPass") || "") === "on";
+    const strictWarnings = String(form.get("strictWarnings") || "") === "on";
+    const requireCoverageReports = String(form.get("requireCoverageReports") || "") === "on";
+    const commandProfile = String(form.get("commandProfile") || "verify-only");
+
+    const parseThreshold = (name) => {
+      const raw = String(form.get(name) || "").trim();
+      if (!raw) {
+        return null;
+      }
+      const numeric = Number(raw);
+      return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+    };
+
+    try {
+      const payload = await promoteProcessModelVersion(modelKey, versionNumber, {
+        runSimulation,
+        runQualityGates,
+        deployOnPass,
+        strictWarnings,
+        commandProfile,
+        coverageThresholds: {
+          backendLinePct: parseThreshold("backendLinePct"),
+          frontendLinePct: parseThreshold("frontendLinePct"),
+          overallLinePct: parseThreshold("overallLinePct"),
+          requireCoverageReports,
+        },
+      });
+
+      const status = String(payload?.status || "").toUpperCase();
+      const isSuccess = status === "PROMOTED" || status === "READY_FOR_DEPLOYMENT" || status === "READY";
+      setFeedback(
+        promoteFeedback,
+        payload?.message || "Promotion pipeline completed.",
+        isSuccess ? "success" : "error",
+      );
+      reportView.textContent = renderPromotionReport(payload);
+      await refreshModels();
+    } catch (error) {
+      setFeedback(promoteFeedback, error.message || "Failed to execute promotion pipeline.", "error");
+    }
+  });
+
+  rollbackForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setFeedback(rollbackFeedback, "Running promotion rollback...");
+
+    const form = new FormData(rollbackForm);
+    const modelKey = String(form.get("modelKey") || "");
+    const versionNumber = form.get("versionNumber");
+    const promotionId = String(form.get("promotionId") || "").trim();
+    const force = String(form.get("force") || "") === "on";
+
+    try {
+      const payload = await rollbackProcessModelPromotion(modelKey, versionNumber, {
+        promotionId: promotionId || undefined,
+        force,
+      });
+      setFeedback(rollbackFeedback, "Rollback completed.", "success");
+      reportView.textContent = renderPromotionReport(payload);
+      await refreshModels();
+    } catch (error) {
+      setFeedback(rollbackFeedback, error.message || "Failed to rollback promotion.", "error");
     }
   });
 

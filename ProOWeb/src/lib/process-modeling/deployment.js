@@ -5148,6 +5148,51 @@ function buildManagedDeploymentPlan({ workspaceConfig, deployedRecords }) {
     }
   }
 
+  if (fileByPath.size === 0) {
+    const fallbackRuntimeEntries = [];
+    const fallbackFiles = [
+      {
+        relativePath: "src/frontend/web/react/src/modules/processes/generatedProcessRegistry.js",
+        content: buildFrontendRegistryModule(fallbackRuntimeEntries),
+        kind: "frontend-generated-registry-fallback",
+        modelKey: "_runtime_catalog_",
+        versionNumber: 1,
+      },
+      {
+        relativePath: "src/frontend/web/react/src/modules/processes/generatedTaskInboxCatalog.js",
+        content: buildFrontendTaskInboxCatalogModule(fallbackRuntimeEntries),
+        kind: "frontend-generated-task-catalog-fallback",
+        modelKey: "_runtime_catalog_",
+        versionNumber: 1,
+      },
+      {
+        relativePath: "src/frontend/web/react/src/modules/processes/generatedProcessFormCatalog.js",
+        content: buildFrontendProcessFormCatalogModule(fallbackRuntimeEntries),
+        kind: "frontend-generated-form-catalog-fallback",
+        modelKey: "_runtime_catalog_",
+        versionNumber: 1,
+      },
+      {
+        relativePath: "src/frontend/web/react/src/modules/processes/generatedProcessDataLineageCatalog.js",
+        content: buildFrontendDataLineageCatalogModule(fallbackRuntimeEntries),
+        kind: "frontend-generated-lineage-catalog-fallback",
+        modelKey: "_runtime_catalog_",
+        versionNumber: 1,
+      },
+      {
+        relativePath: "src/frontend/web/react/src/modules/processes/runtime/generatedProcessRuntimeApi.js",
+        content: buildGeneratedProcessRuntimeApiJs(),
+        kind: "frontend-generated-runtime-api-fallback",
+        modelKey: "_runtime_catalog_",
+        versionNumber: 1,
+      },
+    ];
+
+    for (const file of fallbackFiles) {
+      fileByPath.set(toPosixPath(file.relativePath), file);
+    }
+  }
+
   return {
     files: Array.from(fileByPath.values()),
     buildByRecord,

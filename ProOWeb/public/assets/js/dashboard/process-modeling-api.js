@@ -83,6 +83,27 @@ export function deployProcessModelVersion(modelKey, versionNumber) {
   });
 }
 
+export function simulateProcessModelVersion(modelKey, versionNumber, payload = {}) {
+  return requestJson(`/api/process-models/${encodeURIComponent(modelKey)}/versions/${encodeURIComponent(versionNumber)}/simulate`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function promoteProcessModelVersion(modelKey, versionNumber, payload = {}) {
+  return requestJson(`/api/process-models/${encodeURIComponent(modelKey)}/versions/${encodeURIComponent(versionNumber)}/promote`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function rollbackProcessModelPromotion(modelKey, versionNumber, payload = {}) {
+  return requestJson(`/api/process-models/${encodeURIComponent(modelKey)}/versions/${encodeURIComponent(versionNumber)}/rollback`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export function undeployProcessModelVersion(modelKey, versionNumber) {
   return requestJson(`/api/process-models/${encodeURIComponent(modelKey)}/versions/${encodeURIComponent(versionNumber)}/undeploy`, {
     method: "POST",

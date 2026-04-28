@@ -238,7 +238,7 @@
         </section>
 
         <section id="process-model" class="panel">
-          <h3>Step 11/12/13 - Process Modeling, Runtime, and Data Contracts</h3>
+          <h3>Step 11-20 - Process Modeling, Runtime, Data, and Safe Promotion</h3>
           <p class="muted">
             Process models are managed in ProOWeb and stored under <code>.prooweb/process-models</code>.
             Source code is generated in the app only when a version is deployed.
@@ -396,6 +396,103 @@
               </label>
               <button type="submit">Deploy and generate code</button>
               <p id="process-model-deploy-feedback" class="feedback" aria-live="polite"></p>
+            </form>
+
+            <form id="process-model-simulate-form" class="wizard-form process-card" novalidate>
+              <h4>Simulate version (pre-deployment)</h4>
+              <label>
+                Model
+                <select id="process-simulate-model" name="modelKey"></select>
+              </label>
+              <label>
+                Version
+                <select id="process-simulate-version" name="versionNumber"></select>
+              </label>
+              <label class="inline-row">
+                <input type="checkbox" name="strictWarnings" />
+                Fail simulation when warnings are present
+              </label>
+              <label>
+                Max timeline steps
+                <input type="number" name="maxTimelineSteps" min="10" value="80" />
+              </label>
+              <button type="submit">Run simulation</button>
+              <p id="process-model-simulate-feedback" class="feedback" aria-live="polite"></p>
+            </form>
+
+            <form id="process-model-promote-form" class="wizard-form process-card" novalidate>
+              <h4>Safe promotion pipeline</h4>
+              <label>
+                Model
+                <select id="process-promote-model" name="modelKey"></select>
+              </label>
+              <label>
+                Version
+                <select id="process-promote-version" name="versionNumber"></select>
+              </label>
+              <label class="inline-row">
+                <input type="checkbox" name="runSimulation" checked />
+                Run simulation gate
+              </label>
+              <label class="inline-row">
+                <input type="checkbox" name="runQualityGates" checked />
+                Run quality gates (tests + coverage)
+              </label>
+              <label class="inline-row">
+                <input type="checkbox" name="deployOnPass" checked />
+                Deploy automatically on pass
+              </label>
+              <label class="inline-row">
+                <input type="checkbox" name="strictWarnings" />
+                Block promotion on simulation warnings
+              </label>
+              <label>
+                Quality command profile
+                <select name="commandProfile">
+                  <option value="verify-only">verify-only</option>
+                  <option value="expanded">expanded</option>
+                </select>
+              </label>
+              <label>
+                Backend line coverage threshold (%)
+                <input type="number" name="backendLinePct" min="1" max="100" value="60" />
+              </label>
+              <label>
+                Frontend line coverage threshold (%) (optional)
+                <input type="number" name="frontendLinePct" min="1" max="100" placeholder="Disabled when empty" />
+              </label>
+              <label>
+                Overall line coverage threshold (%)
+                <input type="number" name="overallLinePct" min="1" max="100" value="60" />
+              </label>
+              <label class="inline-row">
+                <input type="checkbox" name="requireCoverageReports" />
+                Require explicit coverage files to pass
+              </label>
+              <button type="submit">Run safe promotion</button>
+              <p id="process-model-promote-feedback" class="feedback" aria-live="polite"></p>
+            </form>
+
+            <form id="process-model-rollback-form" class="wizard-form process-card" novalidate>
+              <h4>Rollback latest promotion</h4>
+              <label>
+                Model
+                <select id="process-rollback-model" name="modelKey"></select>
+              </label>
+              <label>
+                Version
+                <select id="process-rollback-version" name="versionNumber"></select>
+              </label>
+              <label>
+                Promotion id (optional)
+                <input type="text" name="promotionId" placeholder="promotion-2026-..." />
+              </label>
+              <label class="inline-row">
+                <input type="checkbox" name="force" />
+                Force rollback even if current deployed version changed
+              </label>
+              <button type="submit">Rollback promotion</button>
+              <p id="process-model-rollback-feedback" class="feedback" aria-live="polite"></p>
             </form>
 
             <form id="process-model-undeploy-form" class="wizard-form process-card" novalidate>

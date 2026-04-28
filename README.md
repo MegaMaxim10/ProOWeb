@@ -185,6 +185,9 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `GET /api/process-models/{modelKey}/diff?sourceVersion=...&targetVersion=...`
   - `POST /api/process-models/{modelKey}/versions/{version}/transition`
   - `POST /api/process-models/{modelKey}/versions/{version}/deploy`
+  - `POST /api/process-models/{modelKey}/versions/{version}/simulate`
+  - `POST /api/process-models/{modelKey}/versions/{version}/promote`
+  - `POST /api/process-models/{modelKey}/versions/{version}/rollback`
   - `POST /api/process-models/{modelKey}/versions/{version}/undeploy`
   - `GET /api/process-models/{modelKey}/history`
   - `POST /api/process-models/{modelKey}/history/snapshots`
@@ -228,6 +231,25 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
     - `src/frontend/web/react/src/modules/processes/generatedProcessDataLineageCatalog.js`
 - If a managed generated file was manually modified, deployment creates backup before overwrite:
   - `.prooweb/backups/process-deploy-<id>/...`
+
+## Safe Promotion Pipeline (Step 20)
+
+- ProOWeb now supports a controlled promotion workflow:
+  - `simulate -> test/coverage quality gates -> deploy -> rollback plan`
+- Simulation API:
+  - `POST /api/process-models/{modelKey}/versions/{version}/simulate`
+  - validates specification + runtime/data contracts and returns reachability/timeline preview.
+- Promotion API:
+  - `POST /api/process-models/{modelKey}/versions/{version}/promote`
+  - runs optional simulation gate, optional quality gate commands (`verify-only` or `expanded`), coverage gates, and optional auto-deployment.
+- Rollback API:
+  - `POST /api/process-models/{modelKey}/versions/{version}/rollback`
+  - rolls back latest successful promotion (or provided promotion id) using a persisted rollback strategy.
+- Promotion records are persisted under:
+  - `.prooweb/process-models/promotions/<modelKey>/promotion-*.json`
+- Coverage gate aggregation currently reads:
+  - backend JaCoCo aggregate report (`src/backend/springboot/target/site/jacoco-aggregate/jacoco.xml`),
+  - frontend Vitest summary when available (`src/frontend/web/react/coverage/coverage-summary.json`).
 
 ## Process Runtime Contract
 

@@ -208,6 +208,63 @@ function createAppRouter({
         && pathSegments[0] === "api"
         && pathSegments[1] === "process-models"
         && pathSegments[3] === "versions"
+        && pathSegments[5] === "simulate"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        const versionNumber = decodeURIComponent(pathSegments[4]);
+        processModelController.handleSimulateProcessModelVersion(
+          request,
+          response,
+          modelKey,
+          versionNumber,
+        );
+        return;
+      }
+
+      if (
+        method === "POST"
+        && pathSegments.length === 6
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "versions"
+        && pathSegments[5] === "promote"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        const versionNumber = decodeURIComponent(pathSegments[4]);
+        processModelController.handlePromoteProcessModelVersion(
+          request,
+          response,
+          modelKey,
+          versionNumber,
+        );
+        return;
+      }
+
+      if (
+        method === "POST"
+        && pathSegments.length === 6
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "versions"
+        && pathSegments[5] === "rollback"
+      ) {
+        const modelKey = decodeURIComponent(pathSegments[2]);
+        const versionNumber = decodeURIComponent(pathSegments[4]);
+        processModelController.handleRollbackProcessModelPromotion(
+          request,
+          response,
+          modelKey,
+          versionNumber,
+        );
+        return;
+      }
+
+      if (
+        method === "POST"
+        && pathSegments.length === 6
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[3] === "versions"
         && pathSegments[5] === "deploy"
       ) {
         const modelKey = decodeURIComponent(pathSegments[2]);
