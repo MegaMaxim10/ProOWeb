@@ -359,6 +359,7 @@ function buildFrontendTaskInboxCatalogModule(runtimeEntries) {
         assignmentMode: activity.assignment?.mode || "AUTOMATIC",
         assignmentStrategy: activity.assignment?.strategy || "ROLE_QUEUE",
         activityViewerRoles: activity.visibility?.activityViewerRoles || [],
+        dataViewerRoles: activity.visibility?.dataViewerRoles || [],
       });
     }
   }
@@ -368,6 +369,72 @@ function buildFrontendTaskInboxCatalogModule(runtimeEntries) {
 export function listManualTasksByRole(roleCode) {
   const normalizedRole = String(roleCode || "").trim();
   return generatedManualTaskCatalog.filter((entry) => entry.candidateRoles.includes(normalizedRole));
+}
+`;
+}
+
+function buildFrontendProcessFormCatalogModule(runtimeEntries) {
+  const rows = [];
+
+  for (const { entry, runtimeContract } of runtimeEntries) {
+    for (const activity of runtimeContract.activities || []) {
+      if (activity.activityType !== "MANUAL") {
+        continue;
+      }
+
+      const inputFields = [];
+      for (const source of activity.input?.sources || []) {
+        for (const mapping of source.mappings || []) {
+          const targetPath = String(mapping.to || "").trim();
+          if (!targetPath) {
+            continue;
+          }
+
+          inputFields.push({
+            sourceType: source.sourceType || "PROCESS_CONTEXT",
+            sourceRef: source.sourceRef || "",
+            sourcePath: mapping.from || "",
+            targetPath,
+            label: targetPath,
+          });
+        }
+      }
+
+      const outputFields = (activity.output?.mappings || []).map((mapping) => ({
+        sourcePath: mapping.from || "",
+        targetPath: mapping.to || "",
+      }));
+
+      rows.push({
+        modelKey: entry.modelKey,
+        versionNumber: entry.versionNumber,
+        activityId: activity.activityId,
+        activityType: activity.activityType,
+        candidateRoles: activity.candidateRoles || [],
+        activityViewerRoles: activity.visibility?.activityViewerRoles || [],
+        dataViewerRoles: activity.visibility?.dataViewerRoles || [],
+        outputStorage: activity.output?.storage || "INSTANCE",
+        inputFields,
+        outputFields,
+      });
+    }
+  }
+
+  return `export const generatedProcessFormCatalog = Object.freeze(${JSON.stringify(rows, null, 2)});
+
+export function listProcessFormDefinitions(modelKey, versionNumber) {
+  const normalizedModelKey = String(modelKey || "").trim();
+  const normalizedVersion = Number.parseInt(String(versionNumber || ""), 10);
+  return generatedProcessFormCatalog.filter(
+    (entry) => entry.modelKey === normalizedModelKey && entry.versionNumber === normalizedVersion,
+  );
+}
+
+export function findProcessActivityFormDefinition(modelKey, versionNumber, activityId) {
+  const normalizedActivityId = String(activityId || "").trim();
+  return listProcessFormDefinitions(modelKey, versionNumber).find(
+    (entry) => entry.activityId === normalizedActivityId,
+  ) || null;
 }
 `;
 }
@@ -400,11 +467,31 @@ function buildGeneratedProcessRuntimeCatalogJava({ basePackage, runtimeEntries }
   const processRows = runtimeEntries.map(({ entry, runtimeContract }) => {
     const activityRows = (runtimeContract.activities || []).map((activity) => {
       const automaticHandlerRef = activity.automaticExecution?.handlerRef || "";
+      const inputSourceRows = (activity.input?.sources || []).map((source) => {
+        const sourceMappingRows = (source.mappings || []).map((mapping) =>
+          `            new FieldMappingDescriptor(${toJavaString(mapping.from || "")}, ${toJavaString(mapping.to || "")})`);
+        const sourceMappingsLiteral = sourceMappingRows.length > 0
+          ? `List.of(\n${sourceMappingRows.join(",\n")}\n          )`
+          : "List.of()";
+
+        return `          new InputSourceDescriptor(${toJavaString(source.sourceType || "PROCESS_CONTEXT")}, ${toJavaString(
+          source.sourceRef || "",
+        )}, ${sourceMappingsLiteral})`;
+      });
+      const inputSourcesLiteral = inputSourceRows.length > 0
+        ? `List.of(\n${inputSourceRows.join(",\n")}\n        )`
+        : "List.of()";
+      const outputMappingRows = (activity.output?.mappings || []).map((mapping) =>
+        `          new FieldMappingDescriptor(${toJavaString(mapping.from || "")}, ${toJavaString(mapping.to || "")})`);
+      const outputMappingsLiteral = outputMappingRows.length > 0
+        ? `List.of(\n${outputMappingRows.join(",\n")}\n        )`
+        : "List.of()";
+
       return `        new ActivityDescriptor(${toJavaString(activity.activityId)}, ${toJavaString(activity.activityType)}, ${toJavaList(
         activity.candidateRoles || [],
       )}, ${toJavaString(automaticHandlerRef)}, ${toJavaList(activity.visibility?.activityViewerRoles || [])}, ${toJavaList(
         activity.visibility?.dataViewerRoles || [],
-      )})`;
+      )}, ${inputSourcesLiteral}, ${toJavaString(activity.output?.storage || "INSTANCE")}, ${outputMappingsLiteral})`;
     });
     const transitionRows = (runtimeContract.flow?.transitions || []).map((transition) =>
       `        new TransitionDescriptor(${toJavaString(transition.sourceActivityId)}, ${toJavaString(transition.targetActivityId)})`);
@@ -432,13 +519,27 @@ public final class GeneratedProcessRuntimeCatalog {
   private GeneratedProcessRuntimeCatalog() {
   }
 
+  public record FieldMappingDescriptor(
+      String from,
+      String to) {
+  }
+
+  public record InputSourceDescriptor(
+      String sourceType,
+      String sourceRef,
+      List<FieldMappingDescriptor> mappings) {
+  }
+
   public record ActivityDescriptor(
       String activityId,
       String activityType,
       List<String> candidateRoles,
       String automaticHandlerRef,
       List<String> activityViewerRoles,
-      List<String> dataViewerRoles) {
+      List<String> dataViewerRoles,
+      List<InputSourceDescriptor> inputSources,
+      String outputStorage,
+      List<FieldMappingDescriptor> outputMappings) {
   }
 
   public record TransitionDescriptor(
@@ -588,6 +689,7 @@ public class ProcessRuntimeInstance {
   private final List<ProcessRuntimeTask> tasks;
   private final List<String> timeline;
   private final Map<String, Object> contextData;
+  private final Map<String, Map<String, Object>> activityOutputs;
 
   public ProcessRuntimeInstance(String instanceId, String modelKey, int versionNumber, String startedBy, Map<String, Object> initialPayload) {
     this.instanceId = instanceId;
@@ -600,6 +702,7 @@ public class ProcessRuntimeInstance {
     this.tasks = new ArrayList<>();
     this.timeline = new ArrayList<>();
     this.contextData = new HashMap<>(initialPayload == null ? Map.of() : initialPayload);
+    this.activityOutputs = new HashMap<>();
   }
 
   public String instanceId() {
@@ -675,6 +778,15 @@ public class ProcessRuntimeInstance {
     return tasks.stream().filter((task) -> task.taskId().equals(taskId)).findFirst();
   }
 
+  public void recordActivityOutput(String activityId, Map<String, Object> output) {
+    activityOutputs.put(activityId, new HashMap<>(output == null ? Map.of() : output));
+    this.updatedAt = Instant.now();
+  }
+
+  public Map<String, Object> readActivityOutput(String activityId) {
+    return Map.copyOf(activityOutputs.getOrDefault(activityId, Map.of()));
+  }
+
   public void markCompleted() {
     this.state = ProcessRuntimeState.COMPLETED;
     this.updatedAt = Instant.now();
@@ -701,6 +813,7 @@ function buildProcessRuntimeStorePortJava({ basePackage }) {
 
 import ${basePackage}.system.domain.process.runtime.ProcessRuntimeInstance;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface ProcessRuntimeStorePort {
@@ -709,6 +822,10 @@ public interface ProcessRuntimeStorePort {
   Optional<ProcessRuntimeInstance> findById(String instanceId);
 
   void save(ProcessRuntimeInstance instance);
+
+  Map<String, Object> readSharedData(String entityKey);
+
+  void writeSharedData(String entityKey, Map<String, Object> values);
 }
 `;
 }
@@ -731,7 +848,7 @@ public interface ProcessRuntimeEngineUseCase {
 
   RuntimeTaskView completeTask(CompleteTaskCommand command);
 
-  RuntimeInstanceView readInstance(String instanceId);
+  RuntimeInstanceView readInstance(ReadInstanceQuery query);
 
   RuntimeInstanceView stopInstance(StopCommand command);
 
@@ -751,13 +868,16 @@ public interface ProcessRuntimeEngineUseCase {
       Map<String, Object> initialPayload) {
   }
 
-  record TaskQuery(String actor) {
+  record TaskQuery(String actor, List<String> roleCodes) {
   }
 
   record InstanceQuery(String actor, List<String> roleCodes) {
   }
 
-  record CompleteTaskCommand(String instanceId, String taskId, String actor, Map<String, Object> payload) {
+  record ReadInstanceQuery(String instanceId, String actor, List<String> roleCodes) {
+  }
+
+  record CompleteTaskCommand(String instanceId, String taskId, String actor, List<String> roleCodes, Map<String, Object> payload) {
   }
 
   record StopCommand(String instanceId, String actor, String reason) {
@@ -904,18 +1024,45 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
         }
         return instance.tasks().stream().anyMatch((task) -> Objects.equals(task.assignee(), actor));
       })
-      .map(this::toInstanceView)
+      .map((instance) -> {
+        GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
+          .find(instance.modelKey(), instance.versionNumber())
+          .orElse(null);
+        return toInstanceView(instance, descriptor, roles);
+      })
       .toList();
   }
 
   @Override
   public List<RuntimeTaskView> listTasks(TaskQuery query) {
     String actor = query.actor();
+    List<String> roles = query.roleCodes() == null ? List.of() : query.roleCodes();
+    boolean monitorPrivileges = roles.stream().anyMatch((role) ->
+      "PROCESS_MONITOR".equals(role) || "ADMINISTRATOR".equals(role)
+    );
     return processRuntimeStorePort.listInstances().stream()
-      .flatMap((instance) -> instance.tasks().stream()
-        .filter((task) -> task.state() == ProcessRuntimeTaskState.PENDING)
-        .filter((task) -> actor == null || actor.isBlank() || Objects.equals(task.assignee(), actor))
-        .map((task) -> toTaskView(instance.instanceId(), task)))
+      .flatMap((instance) -> {
+        GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
+          .find(instance.modelKey(), instance.versionNumber())
+          .orElse(null);
+        return instance.tasks().stream()
+          .filter((task) -> task.state() == ProcessRuntimeTaskState.PENDING)
+          .filter((task) -> {
+            if (monitorPrivileges) {
+              return actor == null || actor.isBlank() || Objects.equals(task.assignee(), actor);
+            }
+            if (actor == null || actor.isBlank()) {
+              return false;
+            }
+            return Objects.equals(task.assignee(), actor);
+          })
+          .map((task) -> {
+            GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor = descriptor == null
+              ? null
+              : findActivity(descriptor, task.activityId()).orElse(null);
+            return toTaskView(instance.instanceId(), task, activityDescriptor, roles);
+          });
+      })
       .toList();
   }
 
@@ -933,24 +1080,50 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       throw new IllegalStateException("Task already completed or cancelled");
     }
 
-    task.complete(command.payload());
-    instance.putContextData(command.payload());
-    instance.addTimelineEntry("TASK_COMPLETED:" + task.activityId() + ":" + command.actor());
-
     GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
       .find(instance.modelKey(), instance.versionNumber())
       .orElseThrow(() -> new IllegalArgumentException("Missing deployed descriptor for instance"));
+    GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor = findActivity(descriptor, task.activityId())
+      .orElseThrow(() -> new IllegalArgumentException("Unknown activity in deployed descriptor"));
+    Map<String, Object> payload = command.payload() == null ? Map.of() : command.payload();
+    Map<String, Object> mappedOutput = applyOutputMappings(payload, activityDescriptor.outputMappings());
+
+    task.complete(mappedOutput);
+    instance.recordActivityOutput(task.activityId(), mappedOutput);
+    applyOutputStorage(instance, activityDescriptor, mappedOutput);
+    instance.addTimelineEntry("TASK_COMPLETED:" + task.activityId() + ":" + command.actor());
+
     createOrAdvanceTasks(instance, descriptor, task.activityId(), command.actor(), command.payload(), false);
 
     processRuntimeStorePort.save(instance);
-    return toTaskView(instance.instanceId(), task);
+    return toTaskView(instance.instanceId(), task, activityDescriptor, command.roleCodes());
   }
 
   @Override
-  public RuntimeInstanceView readInstance(String instanceId) {
-    ProcessRuntimeInstance instance = processRuntimeStorePort.findById(instanceId)
+  public RuntimeInstanceView readInstance(ReadInstanceQuery query) {
+    ProcessRuntimeInstance instance = processRuntimeStorePort.findById(query.instanceId())
       .orElseThrow(() -> new IllegalArgumentException("Unknown process instance"));
-    return toInstanceView(instance);
+    GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
+      .find(instance.modelKey(), instance.versionNumber())
+      .orElse(null);
+    List<String> roles = query.roleCodes() == null ? List.of() : query.roleCodes();
+    boolean monitorPrivileges = roles.stream().anyMatch((role) ->
+      "PROCESS_MONITOR".equals(role) || "ADMINISTRATOR".equals(role)
+    );
+    if (!monitorPrivileges) {
+      String actor = query.actor();
+      if (actor == null || actor.isBlank()) {
+        throw new IllegalStateException("actor is required to read this runtime instance.");
+      }
+
+      boolean actorCanAccess = Objects.equals(instance.startedBy(), actor)
+        || instance.tasks().stream().anyMatch((task) -> Objects.equals(task.assignee(), actor));
+      if (!actorCanAccess) {
+        throw new IllegalStateException("Actor is not allowed to access this runtime instance.");
+      }
+    }
+
+    return toInstanceView(instance, descriptor, roles);
   }
 
   @Override
@@ -960,7 +1133,10 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     instance.stop(command.actor(), command.reason());
     instance.addTimelineEntry("INSTANCE_STOPPED:" + command.actor() + ":" + command.reason());
     processRuntimeStorePort.save(instance);
-    return toInstanceView(instance);
+    GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
+      .find(instance.modelKey(), instance.versionNumber())
+      .orElse(null);
+    return toInstanceView(instance, descriptor, List.of());
   }
 
   @Override
@@ -970,7 +1146,10 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     instance.archive(command.actor());
     instance.addTimelineEntry("INSTANCE_ARCHIVED:" + command.actor());
     processRuntimeStorePort.save(instance);
-    return toInstanceView(instance);
+    GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
+      .find(instance.modelKey(), instance.versionNumber())
+      .orElse(null);
+    return toInstanceView(instance, descriptor, List.of());
   }
 
   @Override
@@ -1058,6 +1237,10 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     nextVisited.add(activityId);
 
     if ("AUTOMATIC".equals(descriptorActivity.activityType())) {
+      Map<String, Object> automaticInput = resolveActivityInput(descriptorActivity, instance);
+      Map<String, Object> automaticOutput = executeAutomaticActivity(descriptorActivity, automaticInput, instance);
+      instance.recordActivityOutput(descriptorActivity.activityId(), automaticOutput);
+      applyOutputStorage(instance, descriptorActivity, automaticOutput);
       instance.addTimelineEntry("AUTOMATIC_ACTIVITY_EXECUTED:" + descriptorActivity.activityId() + ":stub");
       List<String> nextActivityIds = nextActivityIds(descriptor, activityId);
       if (nextActivityIds.isEmpty()) {
@@ -1075,11 +1258,12 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     }
 
     String assignee = actor == null || actor.isBlank() ? "SYSTEM" : actor;
+    Map<String, Object> inputData = resolveActivityInput(descriptorActivity, instance);
     ProcessRuntimeTask task = new ProcessRuntimeTask(
       "tsk-" + UUID.randomUUID(),
       descriptorActivity.activityId(),
       assignee,
-      payload == null ? Map.of() : payload
+      inputData
     );
     instance.addTask(task);
     instance.addTimelineEntry("TASK_CREATED:" + descriptorActivity.activityId() + ":" + assignee);
@@ -1191,7 +1375,282 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       .anyMatch((task) -> Objects.equals(task.activityId(), activityId) && task.state() != ProcessRuntimeTaskState.CANCELLED);
   }
 
-  private RuntimeTaskView toTaskView(String instanceId, ProcessRuntimeTask task) {
+  private Map<String, Object> resolveActivityInput(
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor,
+      ProcessRuntimeInstance instance) {
+    Map<String, Object> input = new HashMap<>();
+    for (GeneratedProcessRuntimeCatalog.InputSourceDescriptor source : activityDescriptor.inputSources()) {
+      Map<String, Object> sourceData = resolveInputSourceData(source, instance);
+      if (source.mappings() == null || source.mappings().isEmpty()) {
+        String fallbackKey = source.sourceRef() == null || source.sourceRef().isBlank()
+          ? String.valueOf(source.sourceType()).toLowerCase()
+          : source.sourceRef();
+        input.put(fallbackKey, sourceData);
+        continue;
+      }
+
+      for (GeneratedProcessRuntimeCatalog.FieldMappingDescriptor mapping : source.mappings()) {
+        Object value = readPathValue(sourceData, mapping.from());
+        if (value != null) {
+          writePathValue(input, mapping.to(), value);
+        }
+      }
+    }
+
+    return input;
+  }
+
+  private Map<String, Object> resolveInputSourceData(
+      GeneratedProcessRuntimeCatalog.InputSourceDescriptor source,
+      ProcessRuntimeInstance instance) {
+    String sourceType = source.sourceType() == null ? "PROCESS_CONTEXT" : source.sourceType().toUpperCase();
+    if ("PROCESS_CONTEXT".equals(sourceType)) {
+      return instance.contextData();
+    }
+    if ("PREVIOUS_ACTIVITY".equals(sourceType)) {
+      return instance.readActivityOutput(source.sourceRef());
+    }
+    if ("SHARED_DATA".equals(sourceType)) {
+      return processRuntimeStorePort.readSharedData(inferSharedEntityKey(source.sourceRef()));
+    }
+    if ("BACKEND_SERVICE".equals(sourceType) || "EXTERNAL_SERVICE".equals(sourceType)) {
+      return loadServiceSourceData(sourceType, source.sourceRef(), instance);
+    }
+
+    return Map.of();
+  }
+
+  private Map<String, Object> loadServiceSourceData(String sourceType, String sourceRef, ProcessRuntimeInstance instance) {
+    Map<String, Object> payload = new HashMap<>();
+    payload.put("status", "NOT_IMPLEMENTED");
+    payload.put("sourceType", sourceType);
+    payload.put("sourceRef", sourceRef == null ? "" : sourceRef);
+    payload.put("instanceId", instance.instanceId());
+    return payload;
+  }
+
+  private Map<String, Object> executeAutomaticActivity(
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor,
+      Map<String, Object> inputData,
+      ProcessRuntimeInstance instance) {
+    Map<String, Object> output = new HashMap<>();
+    output.put("status", "AUTOMATIC_EXECUTED_STUB");
+    output.put("activityId", activityDescriptor.activityId());
+    output.put("handlerRef", activityDescriptor.automaticHandlerRef());
+    output.put("instanceId", instance.instanceId());
+    if (inputData != null && !inputData.isEmpty()) {
+      output.put("inputEcho", inputData);
+    }
+    return output;
+  }
+
+  private Map<String, Object> applyOutputMappings(
+      Map<String, Object> payload,
+      List<GeneratedProcessRuntimeCatalog.FieldMappingDescriptor> mappings) {
+    if (payload == null || payload.isEmpty()) {
+      return Map.of();
+    }
+
+    if (mappings == null || mappings.isEmpty()) {
+      return new HashMap<>(payload);
+    }
+
+    Map<String, Object> mapped = new HashMap<>();
+    for (GeneratedProcessRuntimeCatalog.FieldMappingDescriptor mapping : mappings) {
+      Object value = readPathValue(payload, mapping.from());
+      if (value != null) {
+        writePathValue(mapped, mapping.to(), value);
+      }
+    }
+    return mapped;
+  }
+
+  private void applyOutputStorage(
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor,
+      Map<String, Object> outputPayload) {
+    String storage = activityDescriptor.outputStorage() == null
+      ? "INSTANCE"
+      : activityDescriptor.outputStorage().toUpperCase();
+
+    if ("INSTANCE".equals(storage) || "BOTH".equals(storage)) {
+      Map<String, Object> instanceProjection = projectOutputForInstance(outputPayload, activityDescriptor.outputMappings());
+      if (!instanceProjection.isEmpty()) {
+        instance.putContextData(instanceProjection);
+      }
+    }
+
+    if ("SHARED".equals(storage) || "BOTH".equals(storage)) {
+      Map<String, Map<String, Object>> sharedProjection = projectOutputForShared(outputPayload, activityDescriptor.outputMappings());
+      for (Map.Entry<String, Map<String, Object>> entry : sharedProjection.entrySet()) {
+        processRuntimeStorePort.writeSharedData(entry.getKey(), entry.getValue());
+      }
+    }
+  }
+
+  private Map<String, Object> projectOutputForInstance(
+      Map<String, Object> outputPayload,
+      List<GeneratedProcessRuntimeCatalog.FieldMappingDescriptor> mappings) {
+    if (outputPayload == null || outputPayload.isEmpty()) {
+      return Map.of();
+    }
+
+    if (mappings == null || mappings.isEmpty()) {
+      return new HashMap<>(outputPayload);
+    }
+
+    Map<String, Object> projection = new HashMap<>();
+    for (GeneratedProcessRuntimeCatalog.FieldMappingDescriptor mapping : mappings) {
+      if (resolveSharedTarget(mapping.to()) != null) {
+        continue;
+      }
+      Object value = readPathValue(outputPayload, mapping.to());
+      if (value != null) {
+        writePathValue(projection, mapping.to(), value);
+      }
+    }
+    return projection;
+  }
+
+  private Map<String, Map<String, Object>> projectOutputForShared(
+      Map<String, Object> outputPayload,
+      List<GeneratedProcessRuntimeCatalog.FieldMappingDescriptor> mappings) {
+    Map<String, Map<String, Object>> projection = new HashMap<>();
+    if (outputPayload == null || outputPayload.isEmpty() || mappings == null || mappings.isEmpty()) {
+      return projection;
+    }
+
+    for (GeneratedProcessRuntimeCatalog.FieldMappingDescriptor mapping : mappings) {
+      Object value = readPathValue(outputPayload, mapping.to());
+      if (value == null) {
+        continue;
+      }
+      SharedTarget sharedTarget = resolveSharedTarget(mapping.to());
+      if (sharedTarget == null) {
+        continue;
+      }
+
+      Map<String, Object> entityValues = projection.computeIfAbsent(sharedTarget.entityKey, (ignored) -> new HashMap<>());
+      writePathValue(entityValues, sharedTarget.fieldPath, value);
+    }
+
+    return projection;
+  }
+
+  private SharedTarget resolveSharedTarget(String targetPath) {
+    String normalized = normalizePath(targetPath);
+    String lowered = normalized.toLowerCase();
+    if (lowered.startsWith("shared.")) {
+      normalized = normalized.substring("shared.".length());
+    } else if (lowered.startsWith("shared_data.")) {
+      normalized = normalized.substring("shared_data.".length());
+    } else if (lowered.startsWith("shareddata.")) {
+      normalized = normalized.substring("shareddata.".length());
+    } else {
+      return null;
+    }
+
+    if (normalized.isBlank()) {
+      return null;
+    }
+
+    int separatorIndex = normalized.indexOf('.');
+    String entityKey = separatorIndex < 0 ? normalized : normalized.substring(0, separatorIndex);
+    String fieldPath = separatorIndex < 0 ? "value" : normalized.substring(separatorIndex + 1);
+
+    if (entityKey.isBlank()) {
+      return null;
+    }
+    if (fieldPath.isBlank()) {
+      fieldPath = "value";
+    }
+
+    return new SharedTarget(entityKey, fieldPath);
+  }
+
+  private String inferSharedEntityKey(String sourceRef) {
+    SharedTarget target = resolveSharedTarget(sourceRef);
+    if (target != null) {
+      return target.entityKey;
+    }
+    String normalized = normalizePath(sourceRef);
+    int separatorIndex = normalized.indexOf('.');
+    return separatorIndex < 0 ? normalized : normalized.substring(0, separatorIndex);
+  }
+
+  private Object readPathValue(Map<String, Object> source, String path) {
+    if (source == null) {
+      return null;
+    }
+    String normalized = normalizePath(path);
+    if (normalized.isBlank()) {
+      return null;
+    }
+
+    Object cursor = source;
+    String[] segments = normalized.split("\\\\.");
+    for (String segment : segments) {
+      if (!(cursor instanceof Map)) {
+        return null;
+      }
+      Map<?, ?> map = (Map<?, ?>) cursor;
+      cursor = map.get(segment);
+      if (cursor == null) {
+        return null;
+      }
+    }
+
+    return cursor;
+  }
+
+  @SuppressWarnings("unchecked")
+  private void writePathValue(Map<String, Object> target, String path, Object value) {
+    String normalized = normalizePath(path);
+    if (normalized.isBlank()) {
+      return;
+    }
+
+    String[] segments = normalized.split("\\\\.");
+    Map<String, Object> cursor = target;
+    for (int index = 0; index < segments.length - 1; index += 1) {
+      String segment = segments[index];
+      Object next = cursor.get(segment);
+      if (!(next instanceof Map)) {
+        Map<String, Object> created = new HashMap<>();
+        cursor.put(segment, created);
+        cursor = created;
+      } else {
+        cursor = (Map<String, Object>) next;
+      }
+    }
+
+    cursor.put(segments[segments.length - 1], value);
+  }
+
+  private String normalizePath(String path) {
+    if (path == null) {
+      return "";
+    }
+    return path.trim().replaceAll("^\\\\.+", "").replaceAll("\\\\[(\\\\d+)\\\\]", "");
+  }
+
+  private boolean canViewTaskData(GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor, List<String> actorRoles) {
+    if (activityDescriptor == null || activityDescriptor.dataViewerRoles() == null || activityDescriptor.dataViewerRoles().isEmpty()) {
+      return true;
+    }
+    List<String> roles = actorRoles == null ? List.of() : actorRoles;
+    return activityDescriptor.dataViewerRoles().stream().anyMatch(roles::contains);
+  }
+
+  private RuntimeTaskView toTaskView(
+      String instanceId,
+      ProcessRuntimeTask task,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor,
+      List<String> actorRoles) {
+    boolean canViewData = canViewTaskData(activityDescriptor, actorRoles);
+    Map<String, Object> visibleInput = canViewData ? task.inputData() : Map.of();
+    Map<String, Object> visibleOutput = canViewData ? task.outputData() : Map.of();
+
     return new RuntimeTaskView(
       instanceId,
       task.taskId(),
@@ -1200,14 +1659,22 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       task.state().name(),
       task.createdAt(),
       task.completedAt(),
-      task.inputData(),
-      task.outputData()
+      visibleInput,
+      visibleOutput
     );
   }
 
-  private RuntimeInstanceView toInstanceView(ProcessRuntimeInstance instance) {
+  private RuntimeInstanceView toInstanceView(
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor,
+      List<String> actorRoles) {
     List<RuntimeTaskView> taskViews = instance.tasks().stream()
-      .map((task) -> toTaskView(instance.instanceId(), task))
+      .map((task) -> {
+        GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor = descriptor == null
+          ? null
+          : findActivity(descriptor, task.activityId()).orElse(null);
+        return toTaskView(instance.instanceId(), task, activityDescriptor, actorRoles);
+      })
       .collect(Collectors.toCollection(ArrayList::new));
 
     return new RuntimeInstanceView(
@@ -1224,6 +1691,9 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       taskViews
     );
   }
+
+  private record SharedTarget(String entityKey, String fieldPath) {
+  }
 }
 `;
 }
@@ -1234,6 +1704,7 @@ function buildInMemoryProcessRuntimeStoreAdapterJava({ basePackage }) {
 import ${basePackage}.system.application.process.runtime.port.out.ProcessRuntimeStorePort;
 import ${basePackage}.system.domain.process.runtime.ProcessRuntimeInstance;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1243,6 +1714,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class InMemoryProcessRuntimeStoreAdapter implements ProcessRuntimeStorePort {
   private final Map<String, ProcessRuntimeInstance> byInstanceId = new ConcurrentHashMap<>();
+  private final Map<String, Map<String, Object>> sharedDataByEntity = new ConcurrentHashMap<>();
 
   @Override
   public List<ProcessRuntimeInstance> listInstances() {
@@ -1257,6 +1729,29 @@ public class InMemoryProcessRuntimeStoreAdapter implements ProcessRuntimeStorePo
   @Override
   public void save(ProcessRuntimeInstance instance) {
     byInstanceId.put(instance.instanceId(), instance);
+  }
+
+  @Override
+  public Map<String, Object> readSharedData(String entityKey) {
+    return Map.copyOf(sharedDataByEntity.getOrDefault(entityKey, Map.of()));
+  }
+
+  @Override
+  public void writeSharedData(String entityKey, Map<String, Object> values) {
+    if (entityKey == null || entityKey.isBlank()) {
+      return;
+    }
+
+    sharedDataByEntity.compute(
+      entityKey,
+      (ignored, previous) -> {
+        Map<String, Object> next = new HashMap<>(previous == null ? Map.of() : previous);
+        if (values != null) {
+          next.putAll(values);
+        }
+        return next;
+      }
+    );
   }
 }
 `;
@@ -1347,12 +1842,15 @@ public class ProcessRuntimeController {
     );
   }
 
-  @Operation(summary = "List pending tasks for actor")
+  @Operation(summary = "List pending tasks for actor and roles")
   @GetMapping("/tasks")
-  public Map<String, Object> listTasks(@RequestParam(name = "actor", required = false) String actor) {
+  public Map<String, Object> listTasks(
+    @RequestParam(name = "actor", required = false) String actor,
+    @RequestParam(name = "roles", required = false) List<String> roles
+  ) {
     return Map.of(
       "tasks",
-      processRuntimeEngineUseCase.listTasks(new ProcessRuntimeEngineUseCase.TaskQuery(actor))
+      processRuntimeEngineUseCase.listTasks(new ProcessRuntimeEngineUseCase.TaskQuery(actor, roles))
     );
   }
 
@@ -1369,16 +1867,24 @@ public class ProcessRuntimeController {
           payload.instanceId(),
           taskId,
           payload.actor(),
+          payload.roleCodes(),
           payload.payload()
         )
       )
     );
   }
 
-  @Operation(summary = "Read process runtime instance")
+  @Operation(summary = "Read process runtime instance with role-aware data filtering")
   @GetMapping("/instances/{instanceId}")
-  public Map<String, Object> readInstance(@PathVariable("instanceId") String instanceId) {
-    return Map.of("instance", processRuntimeEngineUseCase.readInstance(instanceId));
+  public Map<String, Object> readInstance(
+    @PathVariable("instanceId") String instanceId,
+    @RequestParam(name = "actor", required = false) String actor,
+    @RequestParam(name = "roles", required = false) List<String> roles
+  ) {
+    return Map.of(
+      "instance",
+      processRuntimeEngineUseCase.readInstance(new ProcessRuntimeEngineUseCase.ReadInstanceQuery(instanceId, actor, roles))
+    );
   }
 
   @Operation(summary = "Read process runtime timeline")
@@ -1428,6 +1934,7 @@ public class ProcessRuntimeController {
   public record CompleteTaskPayload(
     String instanceId,
     String actor,
+    List<String> roleCodes,
     Map<String, Object> payload
   ) {
   }
@@ -1497,6 +2004,7 @@ class ProcessRuntimeEngineUT {
         started.instanceId(),
         task.taskId(),
         "alice",
+        List.of("PROCESS_USER"),
         Map.of("decision", "APPROVED")
       )
     );
@@ -1506,6 +2014,7 @@ class ProcessRuntimeEngineUT {
 
   private static final class InMemoryStore implements ProcessRuntimeStorePort {
     private final Map<String, ProcessRuntimeInstance> byId = new HashMap<>();
+    private final Map<String, Map<String, Object>> sharedDataByEntity = new HashMap<>();
 
     @Override
     public List<ProcessRuntimeInstance> listInstances() {
@@ -1520,6 +2029,24 @@ class ProcessRuntimeEngineUT {
     @Override
     public void save(ProcessRuntimeInstance instance) {
       byId.put(instance.instanceId(), instance);
+    }
+
+    @Override
+    public Map<String, Object> readSharedData(String entityKey) {
+      return Map.copyOf(sharedDataByEntity.getOrDefault(entityKey, Map.of()));
+    }
+
+    @Override
+    public void writeSharedData(String entityKey, Map<String, Object> values) {
+      if (entityKey == null || entityKey.isBlank()) {
+        return;
+      }
+
+      Map<String, Object> merged = new HashMap<>(sharedDataByEntity.getOrDefault(entityKey, Map.of()));
+      if (values != null) {
+        merged.putAll(values);
+      }
+      sharedDataByEntity.put(entityKey, merged);
     }
   }
 }
@@ -1612,6 +2139,7 @@ class ProcessRuntimeEngineIT {
           {
             "instanceId": "__INSTANCE_ID__",
             "actor": "runtime.user",
+            "roleCodes": ["PROCESS_USER"],
             "payload": {
               "decision": "APPROVED"
             }
@@ -1672,10 +2200,15 @@ export function startProcessRuntimeInstance(payload) {
   });
 }
 
-export function listProcessRuntimeTasks(actor = "") {
+export function listProcessRuntimeTasks({ actor = "", roles = [] } = {}) {
   const query = new URLSearchParams();
   if (actor) {
     query.set("actor", actor);
+  }
+  for (const role of roles) {
+    if (role) {
+      query.append("roles", role);
+    }
   }
   return requestJson(PROCESS_RUNTIME_API_ROOT + "/tasks?" + query.toString());
 }
@@ -1700,8 +2233,19 @@ export function completeProcessRuntimeTask(taskId, payload) {
   });
 }
 
-export function readProcessRuntimeInstance(instanceId) {
-  return requestJson(PROCESS_RUNTIME_API_ROOT + "/instances/" + encodeURIComponent(instanceId));
+export function readProcessRuntimeInstance(instanceId, { actor = "", roles = [] } = {}) {
+  const query = new URLSearchParams();
+  if (actor) {
+    query.set("actor", actor);
+  }
+  for (const role of roles) {
+    if (role) {
+      query.append("roles", role);
+    }
+  }
+  return requestJson(
+    PROCESS_RUNTIME_API_ROOT + "/instances/" + encodeURIComponent(instanceId) + "?" + query.toString(),
+  );
 }
 
 export function readProcessRuntimeTimeline(instanceId) {
@@ -2119,6 +2663,13 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
       relativePath: "src/frontend/web/react/src/modules/processes/generatedTaskInboxCatalog.js",
       content: buildFrontendTaskInboxCatalogModule(runtimeEntries),
       kind: "frontend-task-catalog",
+      modelKey: "_runtime_catalog_",
+      versionNumber: 1,
+    },
+    {
+      relativePath: "src/frontend/web/react/src/modules/processes/generatedProcessFormCatalog.js",
+      content: buildFrontendProcessFormCatalogModule(runtimeEntries),
+      kind: "frontend-form-catalog",
       modelKey: "_runtime_catalog_",
       versionNumber: 1,
     },

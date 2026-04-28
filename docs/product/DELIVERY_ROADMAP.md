@@ -80,26 +80,46 @@ This roadmap defines the step by step construction plan and acceptance criteria.
   - generated backend/frontend runtime catalogs as source-owned artifacts.
 - Exit criteria: representative process runs end-to-end in generated app.
 
-## Phase 13 - Process Data and Mapping Engine
-- Implement input/output mapping, shared data integration, and persistence strategies.
-- Implementation baseline:
-  - data contract projection generated from deployed `spec-v1` activity mappings,
-  - editor data contract preview API (`GET /api/process-models/{modelKey}/versions/{version}/data-contract`),
-  - generated backend/frontend lineage and shared-data catalogs.
-- Exit criteria: data lineage across activities and shared data is testable.
+## Phase 13 - Deployment Compiler v1 (Spec -> Source Code)
+- On deployment of a process version, compile the specification into modular backend/frontend source code (strict hexagonal layout).
+- Generate automatic handler stubs and runtime API contracts.
+- Exit criteria: deployed version produces a compilable runtime baseline with basic tests and clean undeploy.
 
-## Phase 14 - Simulation, Testing, and Deployment of Process Versions
-- Add simulation mode, scenario testing, deployment, rollback, and retirement workflows.
-- Exit criteria: developers can model, test, deploy, and evolve process versions with generated source code.
+## Phase 14 - Runtime Engine Core
+- Implement runtime execution core (state machine, BPMN main transitions, task creation, guided start, stop/archive lifecycle).
+- Exit criteria: a reference process runs end-to-end in generated runtime.
 
-## Phase 15 - Runtime Operations Workbench
-- Generate runtime-facing user operations baseline in the generated app.
-- Implementation baseline:
-  - generated React runtime workbench (guided start, task completion, instance inspection timeline),
-  - monitor actions (`stop`, `archive`) exposed in UI and backed by runtime APIs,
-  - generated placeholder runtime catalogs/APIs for compile-safe bootstrapping before first deployment,
-  - undeploy action keeps generated runtime artifacts synchronized and removable.
-- Exit criteria: generated app users can operate and monitor deployed process instances end-to-end.
+## Phase 15 - Assignment and Resolution Engine
+- Implement automatic/manual assignment strategies integrated with RBAC + organization hierarchy.
+- Support "already assigned in current instance" rules and deterministic multi-match fallback policies.
+- Exit criteria: complex assignment scenarios are validated in integration tests.
+
+## Phase 16 - Process Data and Forms Engine
+- Implement activity input/output mappings, instance/shared/both storage, and generated task forms.
+- Add role-based runtime data visibility for task/instance views.
+- Exit criteria: a process with forms and internal/external mappings runs in production-like conditions.
+
+## Phase 17 - Generated App Workbench (End-user UX)
+- Generate end-user process screens: tasks to process/assign, process start, instance timeline, participation and consultation views, status filters.
+- Exit criteria: generated UX is complete and aligned with runtime scenario.
+
+## Phase 18 - PROCESS_MONITOR and Operations
+- Generate PROCESS_MONITOR operations console (forced reassignment, stop/archive, runtime supervision) with admin-governed permissions.
+- Exit criteria: runtime governance actions are operational and auditable.
+
+## Phase 19 - User Settings and Auto-task Behavior
+- Generate user preferences screens (credentials, MFA, profile, language, theme, notifications, automatic-task treatment policy).
+- Exit criteria: runtime behavior can be influenced by per-user settings.
+
+## Phase 20 - Simulation, Test, and Safe Promotion
+- Add pre-deployment simulation in ProOWeb, automated scenario testing (UT/IT/Cucumber), aggregated coverage and quality gates.
+- Implement promotion workflow: simulate -> test -> deploy -> monitor -> rollback.
+- Exit criteria: industrialized safe promotion pipeline is available.
+
+## Phase 21 - Template Customization and Evolution Governance
+- Provide frontend/backend template management with durable developer overrides.
+- Maintain continuous intelligent migration across ProOWeb versions without breaking customizations.
+- Exit criteria: long-term customization and upgrades coexist safely.
 
 ## Program-Wide Cross-Cutting Tracks
 - Documentation in English only.

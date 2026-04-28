@@ -227,6 +227,22 @@ h1 {
   display: grid;
   gap: 0.45rem;
 }
+
+.runtime-form-grid {
+  margin-top: 0.45rem;
+  border: 1px solid #d7e2ee;
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.runtime-form-grid label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
 `;
 }
 

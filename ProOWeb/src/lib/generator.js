@@ -254,6 +254,7 @@ const {
   buildFrontendGeneratedProcessRegistryJs,
   buildFrontendGeneratedTaskInboxCatalogJs,
   buildFrontendGeneratedProcessDataLineageCatalogJs,
+  buildFrontendGeneratedProcessFormCatalogJs,
   buildFrontendGeneratedProcessRuntimeApiJs,
   buildFrontendUseProcessRuntimeHookJs,
   buildFrontendProcessRuntimeWorkbenchJsx,
@@ -1297,6 +1298,11 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
     writeManagedFile(
       path.join(frontendRoot, "src/modules/processes/generatedProcessDataLineageCatalog.js"),
       buildFrontendGeneratedProcessDataLineageCatalogJs(),
+      processModelingMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/processes/generatedProcessFormCatalog.js"),
+      buildFrontendGeneratedProcessFormCatalogJs(),
       processModelingMetadata,
     );
     writeManagedFile(

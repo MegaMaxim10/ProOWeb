@@ -2,6 +2,7 @@ function buildFrontendUseProcessRuntimeHookJs() {
   return `import { useMemo, useState } from "react";
 import { generatedProcessRegistry } from "../generatedProcessRegistry";
 import { listManualTasksByRole } from "../generatedTaskInboxCatalog";
+import { findProcessActivityFormDefinition } from "../generatedProcessFormCatalog";
 import {
   fetchProcessRuntimeStartOptions,
   startProcessRuntimeInstance,
@@ -39,8 +40,38 @@ function parseObjectPayload(rawValue) {
   return parsed;
 }
 
+function writePathValue(target, path, value) {
+  const normalizedPath = String(path || "").trim();
+  if (!normalizedPath) {
+    return;
+  }
+
+  const segments = normalizedPath.split(".").map((entry) => entry.trim()).filter(Boolean);
+  if (segments.length === 0) {
+    return;
+  }
+
+  let cursor = target;
+  for (let index = 0; index < segments.length - 1; index += 1) {
+    const segment = segments[index];
+    if (!cursor[segment] || typeof cursor[segment] !== "object" || Array.isArray(cursor[segment])) {
+      cursor[segment] = {};
+    }
+    cursor = cursor[segment];
+  }
+
+  cursor[segments[segments.length - 1]] = value;
+}
+
 function toStartKey(option) {
   return String(option.modelKey || "") + "::" + String(option.versionNumber || "");
+}
+
+function mergePayload(basePayload, extensionPayload) {
+  return {
+    ...(basePayload || {}),
+    ...(extensionPayload || {}),
+  };
 }
 
 export function useProcessRuntime() {
@@ -53,6 +84,7 @@ export function useProcessRuntime() {
   const [selectedStartActivityByKey, setSelectedStartActivityByKey] = useState({});
   const [selectedInstanceId, setSelectedInstanceId] = useState("");
   const [selectedInstance, setSelectedInstance] = useState(null);
+  const [taskFormValuesByTaskId, setTaskFormValuesByTaskId] = useState({});
   const [startOptions, setStartOptions] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [instances, setInstances] = useState([]);
@@ -114,6 +146,64 @@ export function useProcessRuntime() {
     [selectedStartKey, startOptions],
   );
 
+  function getTaskFormDefinition(task) {
+    if (!task) {
+      return null;
+    }
+
+    const instance = instances.find((entry) => entry.instanceId === task.instanceId) || selectedInstance;
+    if (!instance) {
+      return null;
+    }
+
+    return findProcessActivityFormDefinition(instance.modelKey, instance.versionNumber, task.activityId);
+  }
+
+  function setTaskFormValue(task, fieldPath, value) {
+    if (!task?.taskId || !fieldPath) {
+      return;
+    }
+
+    setTaskFormValuesByTaskId((previous) => {
+      const nextByTask = {
+        ...(previous[task.taskId] || {}),
+        [fieldPath]: value,
+      };
+
+      return {
+        ...previous,
+        [task.taskId]: nextByTask,
+      };
+    });
+  }
+
+  function buildTaskFormPayload(task) {
+    if (!task?.taskId) {
+      return {};
+    }
+
+    const values = taskFormValuesByTaskId[task.taskId] || {};
+    const formDefinition = getTaskFormDefinition(task);
+    if (!formDefinition) {
+      return {};
+    }
+
+    const payload = {};
+    for (const field of formDefinition.inputFields || []) {
+      const fieldPath = String(field.targetPath || "").trim();
+      if (!fieldPath) {
+        continue;
+      }
+      const rawValue = values[fieldPath];
+      if (rawValue === undefined || rawValue === null || String(rawValue).trim() === "") {
+        continue;
+      }
+      writePathValue(payload, fieldPath, rawValue);
+    }
+
+    return payload;
+  }
+
   async function refreshRuntimeData() {
     setLoading(true);
     setError(null);
@@ -126,7 +216,10 @@ export function useProcessRuntime() {
           actor: trimmedActor,
           roles: roleCodes,
         }),
-        listProcessRuntimeTasks(trimmedActor),
+        listProcessRuntimeTasks({
+          actor: trimmedActor,
+          roles: roleCodes,
+        }),
         listProcessRuntimeInstances({
           actor: trimmedActor,
           roles: roleCodes,
@@ -155,7 +248,10 @@ export function useProcessRuntime() {
 
       if (selectedInstanceId) {
         const [instancePayload, timelinePayload] = await Promise.all([
-          readProcessRuntimeInstance(selectedInstanceId),
+          readProcessRuntimeInstance(selectedInstanceId, {
+            actor: trimmedActor,
+            roles: roleCodes,
+          }),
           readProcessRuntimeTimeline(selectedInstanceId),
         ]);
         setSelectedInstance(instancePayload?.instance || null);
@@ -214,12 +310,22 @@ export function useProcessRuntime() {
     setSuccess(null);
 
     try {
-      const payload = parseObjectPayload(completionPayloadRaw);
+      const rawPayload = parseObjectPayload(completionPayloadRaw);
+      const formPayload = buildTaskFormPayload(task);
+      const payload = mergePayload(rawPayload, formPayload);
       await completeProcessRuntimeTask(task.taskId, {
         instanceId: task.instanceId,
         actor: actor.trim(),
+        roleCodes,
         payload,
       });
+
+      setTaskFormValuesByTaskId((previous) => {
+        const next = { ...previous };
+        delete next[task.taskId];
+        return next;
+      });
+
       await refreshRuntimeData();
       setSuccess("Task completed.");
     } catch (cause) {
@@ -239,8 +345,12 @@ export function useProcessRuntime() {
     setSuccess(null);
 
     try {
+      const trimmedActor = actor.trim();
       const [instancePayload, timelinePayload] = await Promise.all([
-        readProcessRuntimeInstance(instanceId),
+        readProcessRuntimeInstance(instanceId, {
+          actor: trimmedActor,
+          roles: roleCodes,
+        }),
         readProcessRuntimeTimeline(instanceId),
       ]);
 
@@ -303,6 +413,7 @@ export function useProcessRuntime() {
     selectedStartActivityByKey,
     selectedInstanceId,
     selectedInstance,
+    taskFormValuesByTaskId,
     startOptions,
     startableFromRegistry,
     manualTaskCatalog,
@@ -321,6 +432,8 @@ export function useProcessRuntime() {
     setStopReason,
     setSelectedStartKey,
     setSelectedStartActivityByKey,
+    setTaskFormValue,
+    getTaskFormDefinition,
     refreshRuntimeData,
     startInstance,
     completeTask,
@@ -335,4 +448,3 @@ export function useProcessRuntime() {
 module.exports = {
   buildFrontendUseProcessRuntimeHookJs,
 };
-

@@ -43,14 +43,19 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
 - Supports Step 12 runtime baseline:
   - runtime contract projection generated from deployed process versions (`spec-v1` + BPMN),
   - backend/frontend runtime catalogs generated for process execution bootstrap.
-- Supports Step 13 data and mapping baseline:
-  - data contract projection generated from deployed versions (input/output mappings, lineage edges, shared data entities),
-  - backend/frontend data catalogs generated for process data lineage tooling.
+- Supports Step 13 deployment compiler baseline:
+  - deployment compiles process specs into managed backend/frontend source artifacts,
+  - generated runtime catalogs/contracts and handler stubs remain source-owned and undeploy-safe.
 - Supports Step 14 runtime engine core:
   - generated runtime engine classes and APIs per deployment (state machine, BPMN main transitions, guided start, task creation/completion),
   - runtime instance stop/archive lifecycle with timeline.
-- Supports Step 15 generated runtime workbench:
+- Supports Step 16 process data and forms baseline:
+  - generated activity form catalog from deployed specs (manual activities, mapped input fields, output storage strategy),
+  - runtime engine support for input-source resolution (`PROCESS_CONTEXT`, `PREVIOUS_ACTIVITY`, `SHARED_DATA`, backend/external stubs),
+  - runtime output storage projection (`INSTANCE` / `SHARED` / `BOTH`) and role-based task/instance data filtering.
+- Supports Step 17 generated runtime workbench baseline:
   - React runtime operations panel generated with actor context, guided start, pending task completion, instance inspection, and monitor actions.
+- Step 15 (assignment and resolution engine) remains the dedicated hardening milestone for advanced assignment strategies.
 
 ## Wizard Git Policy
 
@@ -226,7 +231,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - startable roles,
   - monitor roles.
 
-## Process Data and Mapping Baseline (Step 13)
+## Process Data and Forms Baseline (Step 16)
 
 - Data contract preview API:
   - `GET /api/process-models/{modelKey}/versions/{version}/data-contract`
@@ -236,6 +241,16 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - shared data entity catalog (produced/consumed activities),
   - summary counters (input/output mappings, lineage edges, shared entities, warnings).
 - Deployment metadata now includes data summary details and shared data entities.
+- Deployment now generates frontend form metadata catalog:
+  - `src/frontend/web/react/src/modules/processes/generatedProcessFormCatalog.js`
+- Runtime engine now applies:
+  - input source resolution from `PROCESS_CONTEXT`, `PREVIOUS_ACTIVITY`, `SHARED_DATA`, and service-source stubs,
+  - output storage projection to `INSTANCE`, `SHARED`, or `BOTH`,
+  - role-aware task/instance data visibility using `dataViewerRoles`.
+- Runtime API role-aware read/list signatures:
+  - `GET /api/process-runtime/tasks?actor=...&roles=...`
+  - `GET /api/process-runtime/instances/{instanceId}?actor=...&roles=...`
+  - task completion payload accepts `roleCodes` for filtered runtime responses.
 
 ## Process Runtime Engine Core (Step 14)
 
@@ -255,7 +270,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `POST /api/process-runtime/instances/{instanceId}/stop`
   - `POST /api/process-runtime/instances/{instanceId}/archive`
 
-## Runtime Workbench Baseline (Step 15)
+## Runtime Workbench Baseline (Step 17)
 
 - Generated React app now includes runtime operations UI (`ProcessRuntimeWorkbench`) when process modeling is enabled.
 - Scaffold includes safe placeholder runtime catalogs/APIs so initial generation compiles even before first process deployment.

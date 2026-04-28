@@ -6,39 +6,39 @@ function toEmptyPayload(key) {
   return { [key]: [] };
 }
 
-export function fetchProcessRuntimeStartOptions() {
+export function fetchProcessRuntimeStartOptions(_query = {}) {
   return Promise.resolve(toEmptyPayload("startOptions"));
 }
 
-export function startProcessRuntimeInstance() {
+export function startProcessRuntimeInstance(_payload) {
   return Promise.reject(new Error(RUNTIME_NOT_DEPLOYED_MESSAGE));
 }
 
-export function listProcessRuntimeTasks() {
+export function listProcessRuntimeTasks(_query = {}) {
   return Promise.resolve(toEmptyPayload("tasks"));
 }
 
-export function listProcessRuntimeInstances() {
+export function listProcessRuntimeInstances(_query = {}) {
   return Promise.resolve(toEmptyPayload("instances"));
 }
 
-export function completeProcessRuntimeTask() {
+export function completeProcessRuntimeTask(_taskId, _payload) {
   return Promise.reject(new Error(RUNTIME_NOT_DEPLOYED_MESSAGE));
 }
 
-export function readProcessRuntimeInstance() {
+export function readProcessRuntimeInstance(_instanceId, _query = {}) {
   return Promise.resolve({ instance: null });
 }
 
-export function readProcessRuntimeTimeline() {
+export function readProcessRuntimeTimeline(_instanceId) {
   return Promise.resolve(toEmptyPayload("timeline"));
 }
 
-export function stopProcessRuntimeInstance() {
+export function stopProcessRuntimeInstance(_instanceId, _payload) {
   return Promise.reject(new Error(RUNTIME_NOT_DEPLOYED_MESSAGE));
 }
 
-export function archiveProcessRuntimeInstance() {
+export function archiveProcessRuntimeInstance(_instanceId, _payload) {
   return Promise.reject(new Error(RUNTIME_NOT_DEPLOYED_MESSAGE));
 }
 `;
@@ -47,4 +47,3 @@ export function archiveProcessRuntimeInstance() {
 module.exports = {
   buildFrontendGeneratedProcessRuntimeApiJs,
 };
-

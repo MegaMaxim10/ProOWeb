@@ -159,6 +159,7 @@ const { buildFrontendShellAppJsx } = require("./frontend/react/buildFrontendShel
 const { buildFrontendGeneratedProcessRegistryJs } = require("./frontend/react/buildFrontendGeneratedProcessRegistryJs");
 const { buildFrontendGeneratedTaskInboxCatalogJs } = require("./frontend/react/buildFrontendGeneratedTaskInboxCatalogJs");
 const { buildFrontendGeneratedProcessDataLineageCatalogJs } = require("./frontend/react/buildFrontendGeneratedProcessDataLineageCatalogJs");
+const { buildFrontendGeneratedProcessFormCatalogJs } = require("./frontend/react/buildFrontendGeneratedProcessFormCatalogJs");
 const { buildFrontendGeneratedProcessRuntimeApiJs } = require("./frontend/react/buildFrontendGeneratedProcessRuntimeApiJs");
 const { buildFrontendUseProcessRuntimeHookJs } = require("./frontend/react/buildFrontendUseProcessRuntimeHookJs");
 const { buildFrontendProcessRuntimeWorkbenchJsx } = require("./frontend/react/buildFrontendProcessRuntimeWorkbenchJsx");
@@ -382,6 +383,7 @@ module.exports = {
   buildFrontendGeneratedProcessRegistryJs,
   buildFrontendGeneratedTaskInboxCatalogJs,
   buildFrontendGeneratedProcessDataLineageCatalogJs,
+  buildFrontendGeneratedProcessFormCatalogJs,
   buildFrontendGeneratedProcessRuntimeApiJs,
   buildFrontendUseProcessRuntimeHookJs,
   buildFrontendProcessRuntimeWorkbenchJsx,

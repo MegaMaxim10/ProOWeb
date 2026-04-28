@@ -18,6 +18,7 @@ export function ProcessRuntimeWorkbench() {
     selectedStartActivityByKey,
     selectedInstanceId,
     selectedInstance,
+    taskFormValuesByTaskId,
     startOptions,
     startableFromRegistry,
     manualTaskCatalog,
@@ -36,6 +37,8 @@ export function ProcessRuntimeWorkbench() {
     setStopReason,
     setSelectedStartKey,
     setSelectedStartActivityByKey,
+    setTaskFormValue,
+    getTaskFormDefinition,
     refreshRuntimeData,
     startInstance,
     completeTask,
@@ -152,7 +155,7 @@ export function ProcessRuntimeWorkbench() {
         <div className="identity-box">
           <h3>Pending tasks ({tasks.length})</h3>
           <label>
-            Completion payload (JSON object)
+            Global completion payload (JSON object, merged with generated form fields)
             <textarea
               value={completionPayloadRaw}
               onChange={(event) => setCompletionPayloadRaw(event.target.value)}
@@ -167,6 +170,29 @@ export function ProcessRuntimeWorkbench() {
                 <span>Task: {task.taskId}</span>
                 <small>Instance: {task.instanceId}</small>
                 <small>Assignee: {task.assignee || "-"}</small>
+                {getTaskFormDefinition(task) ? (
+                  <div className="runtime-form-grid">
+                    {(getTaskFormDefinition(task).inputFields || []).map((field) => (
+                      <label key={String(task.taskId) + ":" + String(field.targetPath)}>
+                        {field.label || field.targetPath}
+                        <input
+                          type="text"
+                          value={(taskFormValuesByTaskId[task.taskId] || {})[field.targetPath] || ""}
+                          onChange={(event) => setTaskFormValue(task, field.targetPath, event.target.value)}
+                          placeholder={field.targetPath}
+                        />
+                      </label>
+                    ))}
+                    {((getTaskFormDefinition(task).inputFields || []).length === 0) ? (
+                      <small>No generated input field for this activity.</small>
+                    ) : null}
+                    <small>
+                      Data viewer roles: {(getTaskFormDefinition(task).dataViewerRoles || []).join(", ") || "-"}
+                    </small>
+                  </div>
+                ) : (
+                  <small>No generated form definition for this activity.</small>
+                )}
                 <div className="runtime-actions">
                   <button type="button" disabled={loading || working} onClick={() => completeTask(task)}>
                     Complete task
@@ -266,4 +292,3 @@ export function ProcessRuntimeWorkbench() {
 module.exports = {
   buildFrontendProcessRuntimeWorkbenchJsx,
 };
-
