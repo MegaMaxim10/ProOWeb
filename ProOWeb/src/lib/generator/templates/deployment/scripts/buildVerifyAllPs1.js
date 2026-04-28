@@ -8,6 +8,13 @@ function Assert-CommandExists([string]$name) {
   }
 }
 
+function Invoke-External([string]$step, [scriptblock]$command) {
+  & $command
+  if ($LASTEXITCODE -ne 0) {
+    throw "$step failed (exit code $LASTEXITCODE)."
+  }
+}
+
 Push-Location $root
 try {
   Assert-CommandExists "mvn"
@@ -22,13 +29,13 @@ try {
   }
 
   Push-Location "src/backend/springboot"
-  mvn clean verify
+  Invoke-External "Backend verify" { mvn clean verify }
   Pop-Location
 
   Push-Location "src/frontend/web/react"
-  npm install
-  npm run test --if-present
-  npm run build
+  Invoke-External "Install frontend dependencies" { npm install }
+  Invoke-External "Frontend tests" { npm run test --if-present }
+  Invoke-External "Frontend build" { npm run build }
   Pop-Location
 
   $profiles = @("dev", "demo", "test", "preprod", "prod")
@@ -39,7 +46,7 @@ try {
         throw "Missing compose file for profile '$profile': $composeFile"
       }
 
-      docker compose -f $composeFile config | Out-Null
+      Invoke-External "Docker compose validation ($profile)" { docker compose -f $composeFile config | Out-Null }
     }
     Write-Host "Docker compose profiles validated: $($profiles -join ', ')." -ForegroundColor Green
   } else {

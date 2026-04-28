@@ -19,11 +19,17 @@ export function ProcessRuntimeWorkbench() {
     selectedInstanceId,
     selectedInstance,
     taskFormValuesByTaskId,
+    assignTargetByTaskId,
+    instanceStatusFilter,
+    instanceViewMode,
+    taskViewMode,
     startOptions,
     startableFromRegistry,
     manualTaskCatalog,
     tasks,
+    visibleTasks,
     instances,
+    visibleInstances,
     timeline,
     loading,
     working,
@@ -38,9 +44,14 @@ export function ProcessRuntimeWorkbench() {
     setSelectedStartKey,
     setSelectedStartActivityByKey,
     setTaskFormValue,
+    setAssignTargetByTaskId,
+    setInstanceStatusFilter,
+    setInstanceViewMode,
+    setTaskViewMode,
     getTaskFormDefinition,
     refreshRuntimeData,
     startInstance,
+    assignTask,
     completeTask,
     inspectInstance,
     stopInstance,
@@ -153,7 +164,30 @@ export function ProcessRuntimeWorkbench() {
 
       <div className="identity-grid">
         <div className="identity-box">
-          <h3>Pending tasks ({tasks.length})</h3>
+          <h3>Pending tasks ({visibleTasks.length}/{tasks.length})</h3>
+          <div className="runtime-view-switch">
+            <button
+              type="button"
+              className={taskViewMode === "TO_PROCESS" ? "is-active" : ""}
+              onClick={() => setTaskViewMode("TO_PROCESS")}
+            >
+              To process
+            </button>
+            <button
+              type="button"
+              className={taskViewMode === "TO_ASSIGN" ? "is-active" : ""}
+              onClick={() => setTaskViewMode("TO_ASSIGN")}
+            >
+              To assign
+            </button>
+            <button
+              type="button"
+              className={taskViewMode === "ALL" ? "is-active" : ""}
+              onClick={() => setTaskViewMode("ALL")}
+            >
+              All visible
+            </button>
+          </div>
           <label>
             Global completion payload (JSON object, merged with generated form fields)
             <textarea
@@ -164,12 +198,16 @@ export function ProcessRuntimeWorkbench() {
             />
           </label>
           <ul className="identity-list">
-            {tasks.map((task) => (
+            {visibleTasks.map((task) => (
               <li key={task.taskId}>
                 <strong>{task.activityId}</strong>
                 <span>Task: {task.taskId}</span>
                 <small>Instance: {task.instanceId}</small>
                 <small>Assignee: {task.assignee || "-"}</small>
+                <small>
+                  Assignment: {task.assignmentStatus || "-"} ({task.assignmentMode || "-"} / {task.assignmentStrategy || "-"})
+                </small>
+                <small>Candidate roles: {(task.candidateRoles || []).join(", ") || "-"}</small>
                 {getTaskFormDefinition(task) ? (
                   <div className="runtime-form-grid">
                     {(getTaskFormDefinition(task).inputFields || []).map((field) => (
@@ -193,8 +231,41 @@ export function ProcessRuntimeWorkbench() {
                 ) : (
                   <small>No generated form definition for this activity.</small>
                 )}
+                <div className="assign-row">
+                  <input
+                    type="text"
+                    value={assignTargetByTaskId[task.taskId] || ""}
+                    onChange={(event) =>
+                      setAssignTargetByTaskId((previous) => ({
+                        ...previous,
+                        [task.taskId]: event.target.value,
+                      }))
+                    }
+                    placeholder="assignee id"
+                  />
+                  <button
+                    type="button"
+                    disabled={loading || working}
+                    onClick={() => assignTask(task)}
+                  >
+                    Assign
+                  </button>
+                  {hasMonitorPrivilege ? (
+                    <button
+                      type="button"
+                      disabled={loading || working}
+                      onClick={() => assignTask(task, { force: true })}
+                    >
+                      Force assign
+                    </button>
+                  ) : null}
+                </div>
                 <div className="runtime-actions">
-                  <button type="button" disabled={loading || working} onClick={() => completeTask(task)}>
+                  <button
+                    type="button"
+                    disabled={loading || working || !task.assignee}
+                    onClick={() => completeTask(task)}
+                  >
                     Complete task
                   </button>
                   <button type="button" disabled={loading || working} onClick={() => inspectInstance(task.instanceId)}>
@@ -203,12 +274,48 @@ export function ProcessRuntimeWorkbench() {
                 </div>
               </li>
             ))}
-            {tasks.length === 0 ? <li>No pending task for current actor context.</li> : null}
+            {visibleTasks.length === 0 ? <li>No pending task for this task view.</li> : null}
           </ul>
         </div>
 
         <div className="identity-box">
-          <h3>Instances ({instances.length})</h3>
+          <h3>Instances ({visibleInstances.length}/{instances.length})</h3>
+          <div className="runtime-view-switch">
+            <button
+              type="button"
+              className={instanceViewMode === "PARTICIPATING" ? "is-active" : ""}
+              onClick={() => setInstanceViewMode("PARTICIPATING")}
+            >
+              Participating
+            </button>
+            <button
+              type="button"
+              className={instanceViewMode === "CONSULTATION" ? "is-active" : ""}
+              onClick={() => setInstanceViewMode("CONSULTATION")}
+            >
+              Consultation
+            </button>
+            <button
+              type="button"
+              className={instanceViewMode === "ALL" ? "is-active" : ""}
+              onClick={() => setInstanceViewMode("ALL")}
+            >
+              All visible
+            </button>
+          </div>
+          <label>
+            Status filter
+            <select
+              value={instanceStatusFilter}
+              onChange={(event) => setInstanceStatusFilter(event.target.value)}
+            >
+              <option value="ALL">ALL</option>
+              <option value="RUNNING">RUNNING</option>
+              <option value="STOPPED">STOPPED</option>
+              <option value="ARCHIVED">ARCHIVED</option>
+              <option value="COMPLETED">COMPLETED</option>
+            </select>
+          </label>
           <label>
             Stop reason
             <input
@@ -219,7 +326,7 @@ export function ProcessRuntimeWorkbench() {
             />
           </label>
           <ul className="identity-list">
-            {instances.map((instance) => (
+            {visibleInstances.map((instance) => (
               <li key={instance.instanceId}>
                 <strong>{instance.modelKey} v{instance.versionNumber}</strong>
                 <span>Status: {instance.status}</span>
@@ -242,7 +349,7 @@ export function ProcessRuntimeWorkbench() {
                 </div>
               </li>
             ))}
-            {instances.length === 0 ? <li>No visible instance for current actor context.</li> : null}
+            {visibleInstances.length === 0 ? <li>No visible instance for current filters.</li> : null}
           </ul>
         </div>
       </div>

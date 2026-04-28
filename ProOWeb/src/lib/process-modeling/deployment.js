@@ -489,7 +489,13 @@ function buildGeneratedProcessRuntimeCatalogJava({ basePackage, runtimeEntries }
 
       return `        new ActivityDescriptor(${toJavaString(activity.activityId)}, ${toJavaString(activity.activityType)}, ${toJavaList(
         activity.candidateRoles || [],
-      )}, ${toJavaString(automaticHandlerRef)}, ${toJavaList(activity.visibility?.activityViewerRoles || [])}, ${toJavaList(
+      )}, ${toJavaString(activity.assignment?.mode || "AUTOMATIC")}, ${toJavaString(
+        activity.assignment?.strategy || "ROLE_QUEUE",
+      )}, ${Boolean(activity.assignment?.allowPreviouslyAssignedAssignee)}, ${toJavaList(
+        activity.assignment?.manualAssignerRoles || [],
+      )}, ${Number.isFinite(Number(activity.assignment?.maxAssignees))
+        ? Number(activity.assignment.maxAssignees)
+        : 1}, ${toJavaString(automaticHandlerRef)}, ${toJavaList(activity.visibility?.activityViewerRoles || [])}, ${toJavaList(
         activity.visibility?.dataViewerRoles || [],
       )}, ${inputSourcesLiteral}, ${toJavaString(activity.output?.storage || "INSTANCE")}, ${outputMappingsLiteral})`;
     });
@@ -534,6 +540,11 @@ public final class GeneratedProcessRuntimeCatalog {
       String activityId,
       String activityType,
       List<String> candidateRoles,
+      String assignmentMode,
+      String assignmentStrategy,
+      boolean allowPreviouslyAssignedAssignee,
+      List<String> manualAssignerRoles,
+      int maxAssignees,
       String automaticHandlerRef,
       List<String> activityViewerRoles,
       List<String> dataViewerRoles,
@@ -604,7 +615,9 @@ import java.util.Map;
 public class ProcessRuntimeTask {
   private final String taskId;
   private final String activityId;
-  private final String assignee;
+  private String assignee;
+  private String assignedBy;
+  private Instant assignedAt;
   private ProcessRuntimeTaskState state;
   private final Map<String, Object> inputData;
   private final Map<String, Object> outputData;
@@ -615,6 +628,8 @@ public class ProcessRuntimeTask {
     this.taskId = taskId;
     this.activityId = activityId;
     this.assignee = assignee;
+    this.assignedBy = assignee == null || assignee.isBlank() ? null : "SYSTEM";
+    this.assignedAt = assignee == null || assignee.isBlank() ? null : Instant.now();
     this.state = ProcessRuntimeTaskState.PENDING;
     this.inputData = new HashMap<>(inputData == null ? Map.of() : inputData);
     this.outputData = new HashMap<>();
@@ -631,6 +646,14 @@ public class ProcessRuntimeTask {
 
   public String assignee() {
     return assignee;
+  }
+
+  public String assignedBy() {
+    return assignedBy;
+  }
+
+  public Instant assignedAt() {
+    return assignedAt;
   }
 
   public ProcessRuntimeTaskState state() {
@@ -651,6 +674,22 @@ public class ProcessRuntimeTask {
 
   public Instant completedAt() {
     return completedAt;
+  }
+
+  public boolean isAssigned() {
+    return assignee != null && !assignee.isBlank();
+  }
+
+  public void assign(String assignee, String actor) {
+    this.assignee = assignee == null || assignee.isBlank() ? null : assignee;
+    this.assignedBy = actor == null || actor.isBlank() ? "SYSTEM" : actor;
+    this.assignedAt = this.assignee == null ? null : Instant.now();
+  }
+
+  public void unassign(String actor) {
+    this.assignee = null;
+    this.assignedBy = actor == null || actor.isBlank() ? "SYSTEM" : actor;
+    this.assignedAt = null;
   }
 
   public void complete(Map<String, Object> outputPayload) {
@@ -826,6 +865,28 @@ public interface ProcessRuntimeStorePort {
   Map<String, Object> readSharedData(String entityKey);
 
   void writeSharedData(String entityKey, Map<String, Object> values);
+
+  List<RuntimeUserDescriptor> listUsers();
+
+  RuntimeOrganizationSnapshot readOrganizationSnapshot();
+
+  record RuntimeUserDescriptor(
+      String userId,
+      List<String> roleCodes,
+      String unitId,
+      String supervisorId) {
+  }
+
+  record RuntimeOrganizationUnitDescriptor(
+      String unitId,
+      String parentUnitId,
+      String managerUserId,
+      List<String> memberUserIds) {
+  }
+
+  record RuntimeOrganizationSnapshot(
+      List<RuntimeOrganizationUnitDescriptor> units) {
+  }
 }
 `;
 }
@@ -845,6 +906,8 @@ public interface ProcessRuntimeEngineUseCase {
   List<RuntimeInstanceView> listInstances(InstanceQuery query);
 
   List<RuntimeTaskView> listTasks(TaskQuery query);
+
+  RuntimeTaskView assignTask(AssignTaskCommand command);
 
   RuntimeTaskView completeTask(CompleteTaskCommand command);
 
@@ -880,6 +943,15 @@ public interface ProcessRuntimeEngineUseCase {
   record CompleteTaskCommand(String instanceId, String taskId, String actor, List<String> roleCodes, Map<String, Object> payload) {
   }
 
+  record AssignTaskCommand(
+      String instanceId,
+      String taskId,
+      String actor,
+      List<String> roleCodes,
+      String assignee,
+      boolean force) {
+  }
+
   record StopCommand(String instanceId, String actor, String reason) {
   }
 
@@ -898,8 +970,14 @@ public interface ProcessRuntimeEngineUseCase {
       String taskId,
       String activityId,
       String assignee,
+      String assignmentStatus,
+      String assignmentMode,
+      String assignmentStrategy,
+      List<String> candidateRoles,
+      List<String> manualAssignerRoles,
       String status,
       Instant createdAt,
+      Instant assignedAt,
       Instant completedAt,
       Map<String, Object> inputData,
       Map<String, Object> outputData) {
@@ -933,6 +1011,7 @@ import ${basePackage}.system.domain.process.runtime.ProcessRuntimeState;
 import ${basePackage}.system.domain.process.runtime.ProcessRuntimeTask;
 import ${basePackage}.system.domain.process.runtime.ProcessRuntimeTaskState;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1000,7 +1079,7 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     createOrAdvanceTasks(instance, descriptor, startActivityId, command.actor(), command.initialPayload(), true);
 
     processRuntimeStorePort.save(instance);
-    return toInstanceView(instance);
+    return toInstanceView(instance, descriptor, actorRoles);
   }
 
   @Override
@@ -1019,10 +1098,10 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
         if (actor == null || actor.isBlank()) {
           return false;
         }
-        if (Objects.equals(instance.startedBy(), actor)) {
-          return true;
-        }
-        return instance.tasks().stream().anyMatch((task) -> Objects.equals(task.assignee(), actor));
+        GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
+          .find(instance.modelKey(), instance.versionNumber())
+          .orElse(null);
+        return canActorSeeInstance(instance, descriptor, actor, roles);
       })
       .map((instance) -> {
         GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
@@ -1048,13 +1127,30 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
         return instance.tasks().stream()
           .filter((task) -> task.state() == ProcessRuntimeTaskState.PENDING)
           .filter((task) -> {
+            GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor = descriptor == null
+              ? null
+              : findActivity(descriptor, task.activityId()).orElse(null);
+
             if (monitorPrivileges) {
-              return actor == null || actor.isBlank() || Objects.equals(task.assignee(), actor);
+              if (actor == null || actor.isBlank()) {
+                return true;
+              }
+              return Objects.equals(task.assignee(), actor) || canActorAssignTask(activityDescriptor, roles);
             }
+
             if (actor == null || actor.isBlank()) {
               return false;
             }
-            return Objects.equals(task.assignee(), actor);
+
+            if (Objects.equals(task.assignee(), actor)) {
+              return true;
+            }
+
+            if (!task.isAssigned() && canActorAssignTask(activityDescriptor, roles)) {
+              return true;
+            }
+
+            return false;
           })
           .map((task) -> {
             GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor = descriptor == null
@@ -1064,6 +1160,61 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
           });
       })
       .toList();
+  }
+
+  @Override
+  public RuntimeTaskView assignTask(AssignTaskCommand command) {
+    ProcessRuntimeInstance instance = processRuntimeStorePort.findById(command.instanceId())
+      .orElseThrow(() -> new IllegalArgumentException("Unknown process instance"));
+    if (instance.state() != ProcessRuntimeState.RUNNING) {
+      throw new IllegalStateException("Instance is not running");
+    }
+
+    ProcessRuntimeTask task = instance.findTask(command.taskId())
+      .orElseThrow(() -> new IllegalArgumentException("Unknown task"));
+    if (task.state() != ProcessRuntimeTaskState.PENDING) {
+      throw new IllegalStateException("Task is not assignable because it is no longer pending.");
+    }
+
+    GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
+      .find(instance.modelKey(), instance.versionNumber())
+      .orElseThrow(() -> new IllegalArgumentException("Missing deployed descriptor for instance"));
+    GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor = findActivity(descriptor, task.activityId())
+      .orElseThrow(() -> new IllegalArgumentException("Unknown activity in deployed descriptor"));
+
+    String assignee = normalizeActor(command.assignee());
+    if (assignee == null) {
+      throw new IllegalArgumentException("assignee is required.");
+    }
+
+    String actor = normalizeActor(command.actor());
+    List<String> actorRoles = command.roleCodes() == null ? List.of() : command.roleCodes();
+    boolean monitorPrivileges = actorRoles.stream().anyMatch((role) ->
+      "PROCESS_MONITOR".equals(role) || "ADMINISTRATOR".equals(role)
+    );
+    if (!monitorPrivileges && actor == null) {
+      throw new IllegalStateException("actor is required to assign task.");
+    }
+    if (!monitorPrivileges && !canActorAssignTask(activityDescriptor, actorRoles)) {
+      throw new IllegalStateException("Actor is not allowed to assign this task.");
+    }
+
+    AssignmentResolution resolution = resolveManualAssignment(
+      instance,
+      activityDescriptor,
+      command.actor(),
+      actorRoles,
+      assignee,
+      command.force() || monitorPrivileges
+    );
+    if (resolution.assignee() == null) {
+      throw new IllegalStateException("Unable to assign task: " + resolution.reason());
+    }
+
+    task.assign(resolution.assignee(), command.actor());
+    instance.addTimelineEntry("TASK_ASSIGNED:" + task.activityId() + ":" + resolution.assignee() + ":" + resolution.reason());
+    processRuntimeStorePort.save(instance);
+    return toTaskView(instance.instanceId(), task, activityDescriptor, actorRoles);
   }
 
   @Override
@@ -1085,6 +1236,28 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       .orElseThrow(() -> new IllegalArgumentException("Missing deployed descriptor for instance"));
     GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor = findActivity(descriptor, task.activityId())
       .orElseThrow(() -> new IllegalArgumentException("Unknown activity in deployed descriptor"));
+    String actor = normalizeActor(command.actor());
+    List<String> actorRoles = command.roleCodes() == null ? List.of() : command.roleCodes();
+    boolean monitorPrivileges = actorRoles.stream().anyMatch((role) ->
+      "PROCESS_MONITOR".equals(role) || "ADMINISTRATOR".equals(role)
+    );
+    if (!task.isAssigned()) {
+      if (!monitorPrivileges && !canActorAssignTask(activityDescriptor, actorRoles)) {
+        throw new IllegalStateException("Task is unassigned and actor cannot resolve assignment.");
+      }
+
+      AssignmentResolution autoResolution = resolveAssignment(instance, activityDescriptor, actor, actorRoles, false);
+      if (autoResolution.assignee() == null) {
+        throw new IllegalStateException("Task requires assignment before completion.");
+      }
+      task.assign(autoResolution.assignee(), actor);
+      instance.addTimelineEntry("TASK_AUTO_ASSIGNED_FOR_COMPLETION:" + task.activityId() + ":" + autoResolution.assignee());
+    }
+
+    if (!monitorPrivileges && actor != null && !Objects.equals(task.assignee(), actor)) {
+      throw new IllegalStateException("Actor cannot complete a task assigned to another user.");
+    }
+
     Map<String, Object> payload = command.payload() == null ? Map.of() : command.payload();
     Map<String, Object> mappedOutput = applyOutputMappings(payload, activityDescriptor.outputMappings());
 
@@ -1117,7 +1290,8 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       }
 
       boolean actorCanAccess = Objects.equals(instance.startedBy(), actor)
-        || instance.tasks().stream().anyMatch((task) -> Objects.equals(task.assignee(), actor));
+        || instance.tasks().stream().anyMatch((task) -> Objects.equals(task.assignee(), actor))
+        || canRoleConsultInstance(descriptor, roles);
       if (!actorCanAccess) {
         throw new IllegalStateException("Actor is not allowed to access this runtime instance.");
       }
@@ -1257,7 +1431,16 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       return;
     }
 
-    String assignee = actor == null || actor.isBlank() ? "SYSTEM" : actor;
+    String normalizedActor = normalizeActor(actor);
+    List<String> actorRoles = resolveActorRoles(normalizedActor);
+    AssignmentResolution assignmentResolution = resolveAssignment(
+      instance,
+      descriptorActivity,
+      normalizedActor,
+      actorRoles,
+      false
+    );
+    String assignee = assignmentResolution.assignee();
     Map<String, Object> inputData = resolveActivityInput(descriptorActivity, instance);
     ProcessRuntimeTask task = new ProcessRuntimeTask(
       "tsk-" + UUID.randomUUID(),
@@ -1266,7 +1449,349 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       inputData
     );
     instance.addTask(task);
-    instance.addTimelineEntry("TASK_CREATED:" + descriptorActivity.activityId() + ":" + assignee);
+    instance.addTimelineEntry(
+      "TASK_CREATED:" + descriptorActivity.activityId()
+      + ":" + (assignee == null ? "UNASSIGNED" : assignee)
+      + ":" + assignmentResolution.reason()
+    );
+  }
+
+  private AssignmentResolution resolveAssignment(
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor,
+      String actor,
+      List<String> actorRoles,
+      boolean forceManualAssignment) {
+    if (activityDescriptor == null) {
+      return new AssignmentResolution(null, List.of(), "MISSING_ACTIVITY_DESCRIPTOR");
+    }
+
+    String mode = normalizeUpper(activityDescriptor.assignmentMode(), "AUTOMATIC");
+    String strategy = normalizeUpper(activityDescriptor.assignmentStrategy(), "ROLE_QUEUE");
+    if ("MANUAL".equals(mode) && !forceManualAssignment) {
+      return new AssignmentResolution(null, List.of(), "MANUAL_ASSIGNMENT_REQUIRED");
+    }
+    if ("MANUAL_ONLY".equals(strategy) && !forceManualAssignment) {
+      return new AssignmentResolution(null, List.of(), "MANUAL_ONLY_STRATEGY");
+    }
+
+    List<ProcessRuntimeStorePort.RuntimeUserDescriptor> eligibleCandidates = resolveEligibleCandidates(
+      instance,
+      activityDescriptor,
+      actor,
+      actorRoles
+    );
+    if (eligibleCandidates.isEmpty()) {
+      return new AssignmentResolution(null, List.of(), "NO_MATCHING_CANDIDATE");
+    }
+
+    List<String> candidateIds = eligibleCandidates.stream()
+      .map(ProcessRuntimeStorePort.RuntimeUserDescriptor::userId)
+      .toList();
+
+    if ("SINGLE_MATCH_ONLY".equals(strategy)) {
+      if (eligibleCandidates.size() == 1) {
+        return new AssignmentResolution(eligibleCandidates.get(0).userId(), candidateIds, "SINGLE_MATCH");
+      }
+      return new AssignmentResolution(null, candidateIds, "MULTI_MATCH_REQUIRES_MANUAL_ASSIGNMENT");
+    }
+
+    ProcessRuntimeStorePort.RuntimeUserDescriptor selected = selectCandidateByStrategy(
+      instance,
+      activityDescriptor,
+      strategy,
+      actor,
+      eligibleCandidates
+    );
+    if (selected == null) {
+      return new AssignmentResolution(null, candidateIds, "NO_CANDIDATE_SELECTED");
+    }
+
+    return new AssignmentResolution(selected.userId(), candidateIds, "AUTO_ASSIGNED_" + strategy);
+  }
+
+  private AssignmentResolution resolveManualAssignment(
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor,
+      String actor,
+      List<String> actorRoles,
+      String requestedAssignee,
+      boolean force) {
+    String normalizedRequested = normalizeActor(requestedAssignee);
+    if (normalizedRequested == null) {
+      return new AssignmentResolution(null, List.of(), "ASSIGNEE_REQUIRED");
+    }
+
+    if (force) {
+      return new AssignmentResolution(normalizedRequested, List.of(normalizedRequested), "FORCED_ASSIGNMENT");
+    }
+
+    List<ProcessRuntimeStorePort.RuntimeUserDescriptor> eligibleCandidates = resolveEligibleCandidates(
+      instance,
+      activityDescriptor,
+      actor,
+      actorRoles
+    );
+    List<String> candidateIds = eligibleCandidates.stream()
+      .map(ProcessRuntimeStorePort.RuntimeUserDescriptor::userId)
+      .toList();
+    if (candidateIds.contains(normalizedRequested)) {
+      return new AssignmentResolution(normalizedRequested, candidateIds, "MANUAL_ASSIGNMENT_VALIDATED");
+    }
+
+    return new AssignmentResolution(null, candidateIds, "ASSIGNEE_NOT_ELIGIBLE");
+  }
+
+  private List<ProcessRuntimeStorePort.RuntimeUserDescriptor> resolveEligibleCandidates(
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor,
+      String actor,
+      List<String> actorRoles) {
+    List<String> requiredRoles = activityDescriptor.candidateRoles() == null ? List.of() : activityDescriptor.candidateRoles();
+    List<ProcessRuntimeStorePort.RuntimeUserDescriptor> users = new ArrayList<>(processRuntimeStorePort.listUsers());
+    String normalizedActor = normalizeActor(actor);
+    if (normalizedActor != null && users.stream().noneMatch((entry) -> Objects.equals(entry.userId(), normalizedActor))) {
+      users.add(
+        new ProcessRuntimeStorePort.RuntimeUserDescriptor(
+          normalizedActor,
+          actorRoles == null ? List.of() : actorRoles,
+          null,
+          null
+        )
+      );
+    }
+
+    List<ProcessRuntimeStorePort.RuntimeUserDescriptor> roleFiltered = users.stream()
+      .filter((user) -> requiredRoles.isEmpty() || hasRoleIntersection(user.roleCodes(), requiredRoles))
+      .sorted(Comparator.comparing((user) -> normalizeActor(user.userId()), Comparator.nullsLast(String::compareTo)))
+      .toList();
+    if (roleFiltered.isEmpty()) {
+      return List.of();
+    }
+
+    Set<String> blockedAssignees = new HashSet<>();
+    if (!activityDescriptor.allowPreviouslyAssignedAssignee()) {
+      for (ProcessRuntimeTask task : instance.tasks()) {
+        if (task.assignee() != null && !task.assignee().isBlank()) {
+          blockedAssignees.add(task.assignee());
+        }
+      }
+    }
+
+    List<ProcessRuntimeStorePort.RuntimeUserDescriptor> previousRuleFiltered = roleFiltered.stream()
+      .filter((entry) -> !blockedAssignees.contains(entry.userId()))
+      .toList();
+    if (previousRuleFiltered.isEmpty()) {
+      return List.of();
+    }
+
+    String strategy = normalizeUpper(activityDescriptor.assignmentStrategy(), "ROLE_QUEUE");
+    if ("SUPERVISOR_ONLY".equals(strategy) || "SUPERVISOR_THEN_ANCESTORS".equals(strategy)) {
+      List<String> supervisorChain = resolveSupervisorChain(normalizedActor, previousRuleFiltered);
+      if (supervisorChain.isEmpty()) {
+        return previousRuleFiltered;
+      }
+      List<ProcessRuntimeStorePort.RuntimeUserDescriptor> supervisorCandidates = previousRuleFiltered.stream()
+        .filter((entry) -> supervisorChain.contains(entry.userId()))
+        .sorted(Comparator.comparingInt((entry) -> supervisorChain.indexOf(entry.userId())))
+        .toList();
+      if ("SUPERVISOR_ONLY".equals(strategy)) {
+        if (supervisorCandidates.isEmpty()) {
+          return List.of();
+        }
+        return List.of(supervisorCandidates.get(0));
+      }
+      if (!supervisorCandidates.isEmpty()) {
+        return supervisorCandidates;
+      }
+    }
+
+    if ("UNIT_MEMBERS".equals(strategy)) {
+      String actorUnitId = resolveActorUnitId(normalizedActor, previousRuleFiltered);
+      if (actorUnitId == null) {
+        return previousRuleFiltered;
+      }
+      List<ProcessRuntimeStorePort.RuntimeUserDescriptor> unitMembers = previousRuleFiltered.stream()
+        .filter((entry) -> Objects.equals(actorUnitId, normalizeActor(entry.unitId())))
+        .toList();
+      if (!unitMembers.isEmpty()) {
+        return unitMembers;
+      }
+    }
+
+    return previousRuleFiltered;
+  }
+
+  private ProcessRuntimeStorePort.RuntimeUserDescriptor selectCandidateByStrategy(
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor,
+      String strategy,
+      String actor,
+      List<ProcessRuntimeStorePort.RuntimeUserDescriptor> candidates) {
+    if (candidates == null || candidates.isEmpty()) {
+      return null;
+    }
+
+    if ("ROUND_ROBIN".equals(strategy)) {
+      int currentIndex = readRoundRobinIndex(instance, activityDescriptor.activityId());
+      int selectedIndex = Math.floorMod(currentIndex, candidates.size());
+      writeRoundRobinIndex(instance, activityDescriptor.activityId(), currentIndex + 1);
+      return candidates.get(selectedIndex);
+    }
+
+    if ("SUPERVISOR_ONLY".equals(strategy) || "SUPERVISOR_THEN_ANCESTORS".equals(strategy)) {
+      return candidates.get(0);
+    }
+
+    if ("UNIT_MEMBERS".equals(strategy)) {
+      String normalizedActor = normalizeActor(actor);
+      ProcessRuntimeStorePort.RuntimeUserDescriptor actorCandidate = candidates.stream()
+        .filter((entry) -> Objects.equals(normalizedActor, entry.userId()))
+        .findFirst()
+        .orElse(null);
+      if (actorCandidate != null) {
+        return actorCandidate;
+      }
+      return candidates.get(0);
+    }
+
+    if ("ROLE_QUEUE".equals(strategy)) {
+      return candidates.get(0);
+    }
+
+    return candidates.get(0);
+  }
+
+  private List<String> resolveSupervisorChain(
+      String actor,
+      List<ProcessRuntimeStorePort.RuntimeUserDescriptor> users) {
+    if (actor == null || actor.isBlank() || users == null || users.isEmpty()) {
+      return List.of();
+    }
+
+    Map<String, ProcessRuntimeStorePort.RuntimeUserDescriptor> byUserId = users.stream()
+      .collect(Collectors.toMap(
+        (entry) -> normalizeActor(entry.userId()),
+        (entry) -> entry,
+        (left, right) -> left
+      ));
+    ProcessRuntimeStorePort.RuntimeUserDescriptor actorDescriptor = byUserId.get(actor);
+    if (actorDescriptor == null) {
+      return List.of();
+    }
+
+    List<String> chain = new ArrayList<>();
+    Set<String> visited = new HashSet<>();
+    String supervisorId = normalizeActor(actorDescriptor.supervisorId());
+    while (supervisorId != null && !visited.contains(supervisorId)) {
+      visited.add(supervisorId);
+      chain.add(supervisorId);
+      ProcessRuntimeStorePort.RuntimeUserDescriptor supervisor = byUserId.get(supervisorId);
+      if (supervisor == null) {
+        break;
+      }
+      supervisorId = normalizeActor(supervisor.supervisorId());
+    }
+
+    if (!chain.isEmpty()) {
+      return chain;
+    }
+
+    String actorUnitId = normalizeActor(actorDescriptor.unitId());
+    if (actorUnitId == null) {
+      return List.of();
+    }
+    ProcessRuntimeStorePort.RuntimeOrganizationSnapshot snapshot = processRuntimeStorePort.readOrganizationSnapshot();
+    if (snapshot == null || snapshot.units() == null) {
+      return List.of();
+    }
+    Map<String, ProcessRuntimeStorePort.RuntimeOrganizationUnitDescriptor> byUnitId = snapshot.units().stream()
+      .collect(Collectors.toMap(
+        (entry) -> normalizeActor(entry.unitId()),
+        (entry) -> entry,
+        (left, right) -> left
+      ));
+    Set<String> visitedUnits = new HashSet<>();
+    String cursorUnitId = actorUnitId;
+    while (cursorUnitId != null && !visitedUnits.contains(cursorUnitId)) {
+      visitedUnits.add(cursorUnitId);
+      ProcessRuntimeStorePort.RuntimeOrganizationUnitDescriptor unit = byUnitId.get(cursorUnitId);
+      if (unit == null) {
+        break;
+      }
+      String managerUserId = normalizeActor(unit.managerUserId());
+      if (managerUserId != null) {
+        chain.add(managerUserId);
+      }
+      cursorUnitId = normalizeActor(unit.parentUnitId());
+    }
+
+    return chain;
+  }
+
+  private String resolveActorUnitId(
+      String actor,
+      List<ProcessRuntimeStorePort.RuntimeUserDescriptor> users) {
+    if (actor == null || actor.isBlank() || users == null) {
+      return null;
+    }
+    return users.stream()
+      .filter((entry) -> Objects.equals(actor, normalizeActor(entry.userId())))
+      .map((entry) -> normalizeActor(entry.unitId()))
+      .filter(Objects::nonNull)
+      .findFirst()
+      .orElse(null);
+  }
+
+  private int readRoundRobinIndex(ProcessRuntimeInstance instance, String activityId) {
+    Object value = instance.contextData().get("__assignment_rr__" + activityId);
+    if (value instanceof Number) {
+      return ((Number) value).intValue();
+    }
+    if (value != null) {
+      try {
+        return Integer.parseInt(String.valueOf(value));
+      } catch (NumberFormatException ignored) {
+        return 0;
+      }
+    }
+    return 0;
+  }
+
+  private void writeRoundRobinIndex(ProcessRuntimeInstance instance, String activityId, int nextIndex) {
+    Map<String, Object> update = new HashMap<>();
+    update.put("__assignment_rr__" + activityId, Integer.valueOf(nextIndex));
+    instance.putContextData(update);
+  }
+
+  private String normalizeActor(String value) {
+    String normalized = value == null ? "" : value.trim();
+    return normalized.isBlank() ? null : normalized;
+  }
+
+  private String normalizeUpper(String value, String fallback) {
+    String normalized = value == null ? "" : value.trim().toUpperCase();
+    return normalized.isBlank() ? fallback : normalized;
+  }
+
+  private boolean hasRoleIntersection(List<String> sourceRoles, List<String> requiredRoles) {
+    if (requiredRoles == null || requiredRoles.isEmpty()) {
+      return true;
+    }
+    List<String> source = sourceRoles == null ? List.of() : sourceRoles;
+    return requiredRoles.stream().anyMatch(source::contains);
+  }
+
+  private List<String> resolveActorRoles(String actor) {
+    if (actor == null || actor.isBlank()) {
+      return List.of();
+    }
+    return processRuntimeStorePort.listUsers().stream()
+      .filter((entry) -> Objects.equals(actor, normalizeActor(entry.userId())))
+      .map(ProcessRuntimeStorePort.RuntimeUserDescriptor::roleCodes)
+      .filter(Objects::nonNull)
+      .findFirst()
+      .orElse(List.of());
   }
 
   private void maybeCompleteInstance(ProcessRuntimeInstance instance) {
@@ -1642,6 +2167,69 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     return activityDescriptor.dataViewerRoles().stream().anyMatch(roles::contains);
   }
 
+  private boolean canActorAssignTask(
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor,
+      List<String> actorRoles) {
+    if (activityDescriptor == null) {
+      return false;
+    }
+    List<String> roles = actorRoles == null ? List.of() : actorRoles;
+    if (roles.stream().anyMatch((role) -> "PROCESS_MONITOR".equals(role) || "ADMINISTRATOR".equals(role))) {
+      return true;
+    }
+
+    if ("MANUAL".equals(normalizeUpper(activityDescriptor.assignmentMode(), "AUTOMATIC"))) {
+      if (activityDescriptor.manualAssignerRoles() == null || activityDescriptor.manualAssignerRoles().isEmpty()) {
+        return false;
+      }
+      return activityDescriptor.manualAssignerRoles().stream().anyMatch(roles::contains);
+    }
+
+    if ("MANUAL_ONLY".equals(normalizeUpper(activityDescriptor.assignmentStrategy(), "ROLE_QUEUE"))) {
+      if (activityDescriptor.manualAssignerRoles() == null || activityDescriptor.manualAssignerRoles().isEmpty()) {
+        return false;
+      }
+      return activityDescriptor.manualAssignerRoles().stream().anyMatch(roles::contains);
+    }
+
+    return false;
+  }
+
+  private boolean canRoleConsultInstance(
+      GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor,
+      List<String> actorRoles) {
+    if (descriptor == null) {
+      return false;
+    }
+    List<String> roles = actorRoles == null ? List.of() : actorRoles;
+    if (roles.isEmpty()) {
+      return false;
+    }
+    return descriptor.activities().stream()
+      .anyMatch((activity) ->
+        activity.activityViewerRoles() != null
+        && activity.activityViewerRoles().stream().anyMatch(roles::contains)
+      );
+  }
+
+  private boolean canActorSeeInstance(
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor,
+      String actor,
+      List<String> actorRoles) {
+    if (actor == null || actor.isBlank()) {
+      return false;
+    }
+
+    if (Objects.equals(instance.startedBy(), actor)) {
+      return true;
+    }
+    if (instance.tasks().stream().anyMatch((task) -> Objects.equals(task.assignee(), actor))) {
+      return true;
+    }
+    return canRoleConsultInstance(descriptor, actorRoles);
+  }
+
   private RuntimeTaskView toTaskView(
       String instanceId,
       ProcessRuntimeTask task,
@@ -1656,8 +2244,14 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       task.taskId(),
       task.activityId(),
       task.assignee(),
+      task.isAssigned() ? "ASSIGNED" : "UNASSIGNED",
+      activityDescriptor == null ? "AUTOMATIC" : normalizeUpper(activityDescriptor.assignmentMode(), "AUTOMATIC"),
+      activityDescriptor == null ? "ROLE_QUEUE" : normalizeUpper(activityDescriptor.assignmentStrategy(), "ROLE_QUEUE"),
+      activityDescriptor == null || activityDescriptor.candidateRoles() == null ? List.of() : activityDescriptor.candidateRoles(),
+      activityDescriptor == null || activityDescriptor.manualAssignerRoles() == null ? List.of() : activityDescriptor.manualAssignerRoles(),
       task.state().name(),
       task.createdAt(),
+      task.assignedAt(),
       task.completedAt(),
       visibleInput,
       visibleOutput
@@ -1694,6 +2288,9 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
 
   private record SharedTarget(String entityKey, String fieldPath) {
   }
+
+  private record AssignmentResolution(String assignee, List<String> candidateIds, String reason) {
+  }
 }
 `;
 }
@@ -1715,6 +2312,20 @@ import org.springframework.stereotype.Component;
 public class InMemoryProcessRuntimeStoreAdapter implements ProcessRuntimeStorePort {
   private final Map<String, ProcessRuntimeInstance> byInstanceId = new ConcurrentHashMap<>();
   private final Map<String, Map<String, Object>> sharedDataByEntity = new ConcurrentHashMap<>();
+  private final List<ProcessRuntimeStorePort.RuntimeUserDescriptor> users = List.of(
+    new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.user", List.of("PROCESS_USER"), "unit.operations", "runtime.supervisor"),
+    new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.supervisor", List.of("PROCESS_MONITOR", "PROCESS_USER"), "unit.operations", "runtime.admin"),
+    new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.approverA", List.of("PROCESS_USER"), "unit.finance", "runtime.supervisor"),
+    new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.approverB", List.of("PROCESS_USER"), "unit.finance", "runtime.supervisor"),
+    new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.admin", List.of("ADMINISTRATOR", "PROCESS_MONITOR"), "unit.executive", null)
+  );
+  private final ProcessRuntimeStorePort.RuntimeOrganizationSnapshot organizationSnapshot = new ProcessRuntimeStorePort.RuntimeOrganizationSnapshot(
+    List.of(
+      new ProcessRuntimeStorePort.RuntimeOrganizationUnitDescriptor("unit.executive", null, "runtime.admin", List.of("runtime.admin")),
+      new ProcessRuntimeStorePort.RuntimeOrganizationUnitDescriptor("unit.operations", "unit.executive", "runtime.supervisor", List.of("runtime.user", "runtime.supervisor")),
+      new ProcessRuntimeStorePort.RuntimeOrganizationUnitDescriptor("unit.finance", "unit.executive", "runtime.supervisor", List.of("runtime.approverA", "runtime.approverB"))
+    )
+  );
 
   @Override
   public List<ProcessRuntimeInstance> listInstances() {
@@ -1752,6 +2363,16 @@ public class InMemoryProcessRuntimeStoreAdapter implements ProcessRuntimeStorePo
         return next;
       }
     );
+  }
+
+  @Override
+  public List<ProcessRuntimeStorePort.RuntimeUserDescriptor> listUsers() {
+    return users;
+  }
+
+  @Override
+  public ProcessRuntimeStorePort.RuntimeOrganizationSnapshot readOrganizationSnapshot() {
+    return organizationSnapshot;
   }
 }
 `;
@@ -1874,6 +2495,27 @@ public class ProcessRuntimeController {
     );
   }
 
+  @Operation(summary = "Assign or reassign a runtime task")
+  @PostMapping("/tasks/{taskId}/assign")
+  public Map<String, Object> assignTask(
+    @PathVariable("taskId") String taskId,
+    @RequestBody AssignTaskPayload payload
+  ) {
+    return Map.of(
+      "task",
+      processRuntimeEngineUseCase.assignTask(
+        new ProcessRuntimeEngineUseCase.AssignTaskCommand(
+          payload.instanceId(),
+          taskId,
+          payload.actor(),
+          payload.roleCodes(),
+          payload.assignee(),
+          payload.force()
+        )
+      )
+    );
+  }
+
   @Operation(summary = "Read process runtime instance with role-aware data filtering")
   @GetMapping("/instances/{instanceId}")
   public Map<String, Object> readInstance(
@@ -1936,6 +2578,15 @@ public class ProcessRuntimeController {
     String actor,
     List<String> roleCodes,
     Map<String, Object> payload
+  ) {
+  }
+
+  public record AssignTaskPayload(
+    String instanceId,
+    String actor,
+    List<String> roleCodes,
+    String assignee,
+    boolean force
   ) {
   }
 
@@ -2012,9 +2663,58 @@ class ProcessRuntimeEngineUT {
     assertThat(completed.status()).isEqualTo("COMPLETED");
   }
 
+  @Test
+  void shouldAllowMonitorToAssignPendingTask() {
+    ProcessRuntimeEngineUseCase useCase = new ProcessRuntimeEngineService(new InMemoryStore());
+    ProcessRuntimeEngineUseCase.StartOption option = useCase.listStartOptions(
+      new ProcessRuntimeEngineUseCase.StartOptionsQuery("alice", List.of("PROCESS_USER"))
+    ).get(0);
+
+    ProcessRuntimeEngineUseCase.RuntimeInstanceView started = useCase.startInstance(
+      new ProcessRuntimeEngineUseCase.StartCommand(
+        option.modelKey(),
+        option.versionNumber(),
+        option.allowedStartActivities().isEmpty() ? null : option.allowedStartActivities().get(0),
+        "alice",
+        List.of("PROCESS_USER"),
+        Map.of("seed", "assignment-test")
+      )
+    );
+
+    ProcessRuntimeEngineUseCase.RuntimeTaskView pending = started.tasks().stream()
+      .filter((entry) -> "PENDING".equals(entry.status()))
+      .findFirst()
+      .orElseThrow();
+
+    ProcessRuntimeEngineUseCase.RuntimeTaskView reassigned = useCase.assignTask(
+      new ProcessRuntimeEngineUseCase.AssignTaskCommand(
+        started.instanceId(),
+        pending.taskId(),
+        "manager",
+        List.of("PROCESS_MONITOR"),
+        "alice",
+        true
+      )
+    );
+
+    assertThat(reassigned.assignee()).isEqualTo("alice");
+    assertThat(reassigned.assignmentStatus()).isEqualTo("ASSIGNED");
+  }
+
   private static final class InMemoryStore implements ProcessRuntimeStorePort {
     private final Map<String, ProcessRuntimeInstance> byId = new HashMap<>();
     private final Map<String, Map<String, Object>> sharedDataByEntity = new HashMap<>();
+    private final List<ProcessRuntimeStorePort.RuntimeUserDescriptor> users = List.of(
+      new ProcessRuntimeStorePort.RuntimeUserDescriptor("alice", List.of("PROCESS_USER"), "unit.operations", "manager"),
+      new ProcessRuntimeStorePort.RuntimeUserDescriptor("manager", List.of("PROCESS_MONITOR", "PROCESS_USER"), "unit.operations", "admin"),
+      new ProcessRuntimeStorePort.RuntimeUserDescriptor("admin", List.of("ADMINISTRATOR", "PROCESS_MONITOR"), "unit.executive", null)
+    );
+    private final ProcessRuntimeStorePort.RuntimeOrganizationSnapshot organizationSnapshot = new ProcessRuntimeStorePort.RuntimeOrganizationSnapshot(
+      List.of(
+        new ProcessRuntimeStorePort.RuntimeOrganizationUnitDescriptor("unit.executive", null, "admin", List.of("admin")),
+        new ProcessRuntimeStorePort.RuntimeOrganizationUnitDescriptor("unit.operations", "unit.executive", "manager", List.of("alice", "manager"))
+      )
+    );
 
     @Override
     public List<ProcessRuntimeInstance> listInstances() {
@@ -2047,6 +2747,16 @@ class ProcessRuntimeEngineUT {
         merged.putAll(values);
       }
       sharedDataByEntity.put(entityKey, merged);
+    }
+
+    @Override
+    public List<ProcessRuntimeStorePort.RuntimeUserDescriptor> listUsers() {
+      return users;
+    }
+
+    @Override
+    public ProcessRuntimeStorePort.RuntimeOrganizationSnapshot readOrganizationSnapshot() {
+      return organizationSnapshot;
     }
   }
 }
@@ -2131,6 +2841,33 @@ class ProcessRuntimeEngineIT {
     )
       .andExpect(status().isOk())
       .andExpect(jsonPath("$.instances").isArray());
+
+    mockMvc.perform(
+      get("/api/process-runtime/tasks")
+        .queryParam("actor", "runtime.supervisor")
+        .queryParam("roles", "PROCESS_MONITOR")
+    )
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.tasks").isArray())
+      .andExpect(jsonPath("$.tasks[0].assignmentStatus").isNotEmpty())
+      .andExpect(jsonPath("$.tasks[0].assignmentMode").isNotEmpty())
+      .andExpect(jsonPath("$.tasks[0].assignmentStrategy").isNotEmpty());
+
+    mockMvc.perform(
+      post("/api/process-runtime/tasks/" + taskId + "/assign")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("""
+          {
+            "instanceId": "__INSTANCE_ID__",
+            "actor": "runtime.supervisor",
+            "roleCodes": ["PROCESS_MONITOR"],
+            "assignee": "runtime.user",
+            "force": true
+          }
+          """.replace("__INSTANCE_ID__", instanceId))
+    )
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.task.assignee").value("runtime.user"));
 
     mockMvc.perform(
       post("/api/process-runtime/tasks/" + taskId + "/complete")
@@ -2228,6 +2965,13 @@ export function listProcessRuntimeInstances({ actor = "", roles = [] } = {}) {
 
 export function completeProcessRuntimeTask(taskId, payload) {
   return requestJson(PROCESS_RUNTIME_API_ROOT + "/tasks/" + encodeURIComponent(taskId) + "/complete", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function assignProcessRuntimeTask(taskId, payload) {
+  return requestJson(PROCESS_RUNTIME_API_ROOT + "/tasks/" + encodeURIComponent(taskId) + "/assign", {
     method: "POST",
     body: payload,
   });

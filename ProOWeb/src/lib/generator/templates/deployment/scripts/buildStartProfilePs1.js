@@ -10,6 +10,13 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
   throw "Docker est requis pour lancer les profils de deploiement."
 }
 
+function Invoke-External([string]$step, [scriptblock]$command) {
+  & $command
+  if ($LASTEXITCODE -ne 0) {
+    throw "$step a echoue (code $LASTEXITCODE)."
+  }
+}
+
 $composeFile = Join-Path $root "deployment/docker/docker-compose.$Profile.yml"
 if (-not (Test-Path $composeFile)) {
   throw "Profil inconnu: $Profile. Fichier attendu: $composeFile"
@@ -17,7 +24,7 @@ if (-not (Test-Path $composeFile)) {
 
 Push-Location $root
 try {
-  docker compose -f $composeFile up --build
+  Invoke-External "Demarrage du profil $Profile" { docker compose -f $composeFile up --build }
 }
 finally {
   Pop-Location

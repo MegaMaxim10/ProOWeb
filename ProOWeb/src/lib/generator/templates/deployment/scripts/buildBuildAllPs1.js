@@ -8,6 +8,13 @@ function Assert-CommandExists([string]$name) {
   }
 }
 
+function Invoke-External([string]$step, [scriptblock]$command) {
+  & $command
+  if ($LASTEXITCODE -ne 0) {
+    throw "$step a echoue (code $LASTEXITCODE)."
+  }
+}
+
 Push-Location $root
 try {
   if (-not (Test-Path "src/backend/springboot/pom.xml")) {
@@ -22,12 +29,12 @@ try {
   Assert-CommandExists "npm"
 
   Push-Location "src/backend/springboot"
-  mvn clean package -DskipTests
+  Invoke-External "Build backend" { mvn clean package -DskipTests }
   Pop-Location
 
   Push-Location "src/frontend/web/react"
-  npm install
-  npm run build
+  Invoke-External "Install frontend dependencies" { npm install }
+  Invoke-External "Build frontend" { npm run build }
   Pop-Location
 
   Write-Host "Build termine avec succes." -ForegroundColor Green

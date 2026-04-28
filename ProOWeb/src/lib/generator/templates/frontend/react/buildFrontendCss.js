@@ -146,10 +146,13 @@ h1 {
   margin-top: 0.45rem;
   display: flex;
   gap: 0.45rem;
+  flex-wrap: wrap;
 }
 
-.assign-row select {
+.assign-row select,
+.assign-row input {
   flex: 1;
+  min-width: 180px;
 }
 
 .auth-grid {
@@ -242,6 +245,24 @@ h1 {
   display: grid;
   gap: 0.25rem;
   font-size: 0.85rem;
+}
+
+.runtime-view-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.4rem 0 0.6rem;
+}
+
+.runtime-view-switch button {
+  margin-top: 0;
+  background: #dbe8f5;
+  color: #15344f;
+}
+
+.runtime-view-switch button.is-active {
+  background: #0f5f9a;
+  color: #fff;
 }
 `;
 }

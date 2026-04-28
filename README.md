@@ -49,13 +49,18 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
 - Supports Step 14 runtime engine core:
   - generated runtime engine classes and APIs per deployment (state machine, BPMN main transitions, guided start, task creation/completion),
   - runtime instance stop/archive lifecycle with timeline.
+- Supports Step 15 assignment and resolution engine:
+  - strategy-aware automatic/manual assignment (`ROLE_QUEUE`, `SUPERVISOR_ONLY`, `SUPERVISOR_THEN_ANCESTORS`, `UNIT_MEMBERS`, `SINGLE_MATCH_ONLY`, `MANUAL_ONLY`, `ROUND_ROBIN`),
+  - RBAC + hierarchy aware candidate resolution with rule `allowPreviouslyAssignedAssignee`,
+  - runtime task assignment/reassignment API (`POST /api/process-runtime/tasks/{taskId}/assign`) with monitor/admin force mode.
 - Supports Step 16 process data and forms baseline:
   - generated activity form catalog from deployed specs (manual activities, mapped input fields, output storage strategy),
   - runtime engine support for input-source resolution (`PROCESS_CONTEXT`, `PREVIOUS_ACTIVITY`, `SHARED_DATA`, backend/external stubs),
   - runtime output storage projection (`INSTANCE` / `SHARED` / `BOTH`) and role-based task/instance data filtering.
 - Supports Step 17 generated runtime workbench baseline:
-  - React runtime operations panel generated with actor context, guided start, pending task completion, instance inspection, and monitor actions.
-- Step 15 (assignment and resolution engine) remains the dedicated hardening milestone for advanced assignment strategies.
+  - React runtime panel with task views (`to process`, `to assign`, `all visible`),
+  - instance views (`participating`, `consultation`, status filter),
+  - assignment actions (`assign`, `force assign`) + process start, completion, timeline, monitor operations.
 
 ## Wizard Git Policy
 
@@ -264,11 +269,25 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `POST /api/process-runtime/instances/start`
   - `GET /api/process-runtime/instances`
   - `GET /api/process-runtime/tasks`
+  - `POST /api/process-runtime/tasks/{taskId}/assign`
   - `POST /api/process-runtime/tasks/{taskId}/complete`
   - `GET /api/process-runtime/instances/{instanceId}`
   - `GET /api/process-runtime/instances/{instanceId}/timeline`
   - `POST /api/process-runtime/instances/{instanceId}/stop`
   - `POST /api/process-runtime/instances/{instanceId}/archive`
+
+## Assignment and Resolution Engine (Step 15)
+
+- Generated runtime uses assignment policy from deployed process specification:
+  - assignment mode (`AUTOMATIC`, `MANUAL`),
+  - strategy (`ROLE_QUEUE`, `SUPERVISOR_ONLY`, `SUPERVISOR_THEN_ANCESTORS`, `UNIT_MEMBERS`, `SINGLE_MATCH_ONLY`, `MANUAL_ONLY`, `ROUND_ROBIN`),
+  - candidate roles, manual assigner roles, and `allowPreviouslyAssignedAssignee`.
+- Candidate resolution combines:
+  - RBAC role matching,
+  - hierarchy metadata (supervisor chain + unit ancestry),
+  - deterministic multi-match resolution/fallback.
+- Runtime task views now expose assignment metadata:
+  - `assignmentStatus`, `assignmentMode`, `assignmentStrategy`, `candidateRoles`, `manualAssignerRoles`.
 
 ## Runtime Workbench Baseline (Step 17)
 

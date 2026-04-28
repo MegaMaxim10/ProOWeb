@@ -8,6 +8,7 @@ import {
   startProcessRuntimeInstance,
   listProcessRuntimeTasks,
   listProcessRuntimeInstances,
+  assignProcessRuntimeTask,
   completeProcessRuntimeTask,
   readProcessRuntimeInstance,
   readProcessRuntimeTimeline,
@@ -85,6 +86,10 @@ export function useProcessRuntime() {
   const [selectedInstanceId, setSelectedInstanceId] = useState("");
   const [selectedInstance, setSelectedInstance] = useState(null);
   const [taskFormValuesByTaskId, setTaskFormValuesByTaskId] = useState({});
+  const [assignTargetByTaskId, setAssignTargetByTaskId] = useState({});
+  const [instanceStatusFilter, setInstanceStatusFilter] = useState("ALL");
+  const [instanceViewMode, setInstanceViewMode] = useState("PARTICIPATING");
+  const [taskViewMode, setTaskViewMode] = useState("TO_PROCESS");
   const [startOptions, setStartOptions] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [instances, setInstances] = useState([]);
@@ -145,6 +150,50 @@ export function useProcessRuntime() {
     () => startOptions.find((entry) => toStartKey(entry) === selectedStartKey) || null,
     [selectedStartKey, startOptions],
   );
+  const visibleTasks = useMemo(() => {
+    const actorId = actor.trim();
+    if (taskViewMode === "TO_ASSIGN") {
+      return tasks.filter((task) => {
+        if (task.assignmentStatus === "UNASSIGNED") {
+          return true;
+        }
+        if (hasMonitorPrivilege) {
+          return true;
+        }
+        const manualAssignerRoles = task.manualAssignerRoles || [];
+        return manualAssignerRoles.some((roleCode) => roleCodes.includes(roleCode));
+      });
+    }
+    if (taskViewMode === "ALL") {
+      return tasks.slice();
+    }
+    return tasks.filter((task) => task.assignee === actorId);
+  }, [actor, hasMonitorPrivilege, roleCodes, taskViewMode, tasks]);
+  const visibleInstances = useMemo(() => {
+    const actorId = actor.trim();
+    const statusFiltered = instances.filter((instance) => {
+      if (!instanceStatusFilter || instanceStatusFilter === "ALL") {
+        return true;
+      }
+      return String(instance.status || "").toUpperCase() === instanceStatusFilter;
+    });
+
+    if (instanceViewMode === "ALL") {
+      return statusFiltered;
+    }
+    if (instanceViewMode === "PARTICIPATING") {
+      return statusFiltered.filter((instance) => (instance.tasks || []).some((task) => task.assignee === actorId));
+    }
+    if (instanceViewMode === "CONSULTATION") {
+      return statusFiltered.filter((instance) => {
+        if (instance.startedBy === actorId) {
+          return false;
+        }
+        return !(instance.tasks || []).some((task) => task.assignee === actorId);
+      });
+    }
+    return statusFiltered;
+  }, [actor, instanceStatusFilter, instanceViewMode, instances]);
 
   function getTaskFormDefinition(task) {
     if (!task) {
@@ -335,6 +384,45 @@ export function useProcessRuntime() {
     }
   }
 
+  async function assignTask(task, options = {}) {
+    if (!task?.taskId) {
+      return;
+    }
+
+    const requestedAssignee = String(options.assignee || assignTargetByTaskId[task.taskId] || "").trim();
+    if (!requestedAssignee) {
+      setError("Select or type an assignee first.");
+      return;
+    }
+
+    setWorking(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await assignProcessRuntimeTask(task.taskId, {
+        instanceId: task.instanceId,
+        actor: actor.trim(),
+        roleCodes,
+        assignee: requestedAssignee,
+        force: Boolean(options.force),
+      });
+
+      setAssignTargetByTaskId((previous) => {
+        const next = { ...previous };
+        delete next[task.taskId];
+        return next;
+      });
+
+      await refreshRuntimeData();
+      setSuccess("Task assignment updated.");
+    } catch (cause) {
+      setError(cause?.message || "Unable to assign task.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
   async function inspectInstance(instanceId) {
     if (!instanceId) {
       return;
@@ -414,11 +502,17 @@ export function useProcessRuntime() {
     selectedInstanceId,
     selectedInstance,
     taskFormValuesByTaskId,
+    assignTargetByTaskId,
+    instanceStatusFilter,
+    instanceViewMode,
+    taskViewMode,
     startOptions,
     startableFromRegistry,
     manualTaskCatalog,
     tasks,
+    visibleTasks,
     instances,
+    visibleInstances,
     timeline,
     loading,
     working,
@@ -433,9 +527,14 @@ export function useProcessRuntime() {
     setSelectedStartKey,
     setSelectedStartActivityByKey,
     setTaskFormValue,
+    setAssignTargetByTaskId,
+    setInstanceStatusFilter,
+    setInstanceViewMode,
+    setTaskViewMode,
     getTaskFormDefinition,
     refreshRuntimeData,
     startInstance,
+    assignTask,
     completeTask,
     inspectInstance,
     stopInstance,
