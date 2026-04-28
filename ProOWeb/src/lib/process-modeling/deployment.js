@@ -851,6 +851,7 @@ function buildProcessRuntimeStorePortJava({ basePackage }) {
   return `package ${basePackage}.system.application.process.runtime.port.out;
 
 import ${basePackage}.system.domain.process.runtime.ProcessRuntimeInstance;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -870,6 +871,10 @@ public interface ProcessRuntimeStorePort {
 
   RuntimeOrganizationSnapshot readOrganizationSnapshot();
 
+  void appendMonitorEvent(RuntimeMonitorEvent event);
+
+  List<RuntimeMonitorEvent> listMonitorEvents();
+
   record RuntimeUserDescriptor(
       String userId,
       List<String> roleCodes,
@@ -886,6 +891,18 @@ public interface ProcessRuntimeStorePort {
 
   record RuntimeOrganizationSnapshot(
       List<RuntimeOrganizationUnitDescriptor> units) {
+  }
+
+  record RuntimeMonitorEvent(
+      String eventId,
+      Instant occurredAt,
+      String actionType,
+      String actor,
+      List<String> actorRoleCodes,
+      String targetType,
+      String targetId,
+      String details,
+      boolean forced) {
   }
 }
 `;
@@ -917,6 +934,8 @@ public interface ProcessRuntimeEngineUseCase {
 
   RuntimeInstanceView archiveInstance(ArchiveCommand command);
 
+  List<MonitorEventView> listMonitorEvents(MonitorEventsQuery query);
+
   List<String> readTimeline(String instanceId);
 
   record StartOptionsQuery(String actor, List<String> roleCodes) {
@@ -940,6 +959,14 @@ public interface ProcessRuntimeEngineUseCase {
   record ReadInstanceQuery(String instanceId, String actor, List<String> roleCodes) {
   }
 
+  record MonitorEventsQuery(
+      String actor,
+      List<String> roleCodes,
+      String instanceId,
+      String actionType,
+      int limit) {
+  }
+
   record CompleteTaskCommand(String instanceId, String taskId, String actor, List<String> roleCodes, Map<String, Object> payload) {
   }
 
@@ -952,10 +979,10 @@ public interface ProcessRuntimeEngineUseCase {
       boolean force) {
   }
 
-  record StopCommand(String instanceId, String actor, String reason) {
+  record StopCommand(String instanceId, String actor, List<String> roleCodes, String reason) {
   }
 
-  record ArchiveCommand(String instanceId, String actor) {
+  record ArchiveCommand(String instanceId, String actor, List<String> roleCodes) {
   }
 
   record StartOption(
@@ -996,6 +1023,18 @@ public interface ProcessRuntimeEngineUseCase {
       String archivedBy,
       List<RuntimeTaskView> tasks) {
   }
+
+  record MonitorEventView(
+      String eventId,
+      Instant occurredAt,
+      String actionType,
+      String actor,
+      List<String> actorRoleCodes,
+      String targetType,
+      String targetId,
+      String details,
+      boolean forced) {
+  }
 }
 `;
 }
@@ -1010,6 +1049,7 @@ import ${basePackage}.system.domain.process.runtime.ProcessRuntimeInstance;
 import ${basePackage}.system.domain.process.runtime.ProcessRuntimeState;
 import ${basePackage}.system.domain.process.runtime.ProcessRuntimeTask;
 import ${basePackage}.system.domain.process.runtime.ProcessRuntimeTaskState;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -1086,9 +1126,7 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
   public List<RuntimeInstanceView> listInstances(InstanceQuery query) {
     String actor = query.actor();
     List<String> roles = query.roleCodes() == null ? List.of() : query.roleCodes();
-    boolean monitorPrivileges = roles.stream().anyMatch((role) ->
-      "PROCESS_MONITOR".equals(role) || "ADMINISTRATOR".equals(role)
-    );
+    boolean monitorPrivileges = hasMonitorPrivileges(roles);
 
     return processRuntimeStorePort.listInstances().stream()
       .filter((instance) -> {
@@ -1116,9 +1154,7 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
   public List<RuntimeTaskView> listTasks(TaskQuery query) {
     String actor = query.actor();
     List<String> roles = query.roleCodes() == null ? List.of() : query.roleCodes();
-    boolean monitorPrivileges = roles.stream().anyMatch((role) ->
-      "PROCESS_MONITOR".equals(role) || "ADMINISTRATOR".equals(role)
-    );
+    boolean monitorPrivileges = hasMonitorPrivileges(roles);
     return processRuntimeStorePort.listInstances().stream()
       .flatMap((instance) -> {
         GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
@@ -1189,15 +1225,18 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
 
     String actor = normalizeActor(command.actor());
     List<String> actorRoles = command.roleCodes() == null ? List.of() : command.roleCodes();
-    boolean monitorPrivileges = actorRoles.stream().anyMatch((role) ->
-      "PROCESS_MONITOR".equals(role) || "ADMINISTRATOR".equals(role)
-    );
+    boolean monitorPrivileges = hasMonitorPrivileges(actorRoles);
     if (!monitorPrivileges && actor == null) {
       throw new IllegalStateException("actor is required to assign task.");
     }
     if (!monitorPrivileges && !canActorAssignTask(activityDescriptor, actorRoles)) {
       throw new IllegalStateException("Actor is not allowed to assign this task.");
     }
+    if (!monitorPrivileges && command.force()) {
+      throw new IllegalStateException("Force assignment requires PROCESS_MONITOR or ADMINISTRATOR role.");
+    }
+
+    boolean forceMode = monitorPrivileges && command.force();
 
     AssignmentResolution resolution = resolveManualAssignment(
       instance,
@@ -1205,7 +1244,7 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       command.actor(),
       actorRoles,
       assignee,
-      command.force() || monitorPrivileges
+      forceMode
     );
     if (resolution.assignee() == null) {
       throw new IllegalStateException("Unable to assign task: " + resolution.reason());
@@ -1214,6 +1253,17 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     task.assign(resolution.assignee(), command.actor());
     instance.addTimelineEntry("TASK_ASSIGNED:" + task.activityId() + ":" + resolution.assignee() + ":" + resolution.reason());
     processRuntimeStorePort.save(instance);
+    if (monitorPrivileges || forceMode) {
+      appendMonitorEvent(
+        "TASK_ASSIGN",
+        command.actor(),
+        actorRoles,
+        "TASK",
+        task.taskId(),
+        "instanceId=" + instance.instanceId() + ",assignee=" + resolution.assignee() + ",reason=" + resolution.reason(),
+        forceMode
+      );
+    }
     return toTaskView(instance.instanceId(), task, activityDescriptor, actorRoles);
   }
 
@@ -1238,9 +1288,7 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       .orElseThrow(() -> new IllegalArgumentException("Unknown activity in deployed descriptor"));
     String actor = normalizeActor(command.actor());
     List<String> actorRoles = command.roleCodes() == null ? List.of() : command.roleCodes();
-    boolean monitorPrivileges = actorRoles.stream().anyMatch((role) ->
-      "PROCESS_MONITOR".equals(role) || "ADMINISTRATOR".equals(role)
-    );
+    boolean monitorPrivileges = hasMonitorPrivileges(actorRoles);
     if (!task.isAssigned()) {
       if (!monitorPrivileges && !canActorAssignTask(activityDescriptor, actorRoles)) {
         throw new IllegalStateException("Task is unassigned and actor cannot resolve assignment.");
@@ -1280,9 +1328,7 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       .find(instance.modelKey(), instance.versionNumber())
       .orElse(null);
     List<String> roles = query.roleCodes() == null ? List.of() : query.roleCodes();
-    boolean monitorPrivileges = roles.stream().anyMatch((role) ->
-      "PROCESS_MONITOR".equals(role) || "ADMINISTRATOR".equals(role)
-    );
+    boolean monitorPrivileges = hasMonitorPrivileges(roles);
     if (!monitorPrivileges) {
       String actor = query.actor();
       if (actor == null || actor.isBlank()) {
@@ -1304,26 +1350,74 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
   public RuntimeInstanceView stopInstance(StopCommand command) {
     ProcessRuntimeInstance instance = processRuntimeStorePort.findById(command.instanceId())
       .orElseThrow(() -> new IllegalArgumentException("Unknown process instance"));
+    List<String> roles = command.roleCodes() == null ? List.of() : command.roleCodes();
+    ensureMonitorPrivilege(command.actor(), roles, "stop runtime instances");
     instance.stop(command.actor(), command.reason());
     instance.addTimelineEntry("INSTANCE_STOPPED:" + command.actor() + ":" + command.reason());
     processRuntimeStorePort.save(instance);
+    appendMonitorEvent(
+      "INSTANCE_STOP",
+      command.actor(),
+      roles,
+      "INSTANCE",
+      instance.instanceId(),
+      "reason=" + normalizeBlank(command.reason()),
+      true
+    );
     GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
       .find(instance.modelKey(), instance.versionNumber())
       .orElse(null);
-    return toInstanceView(instance, descriptor, List.of());
+    return toInstanceView(instance, descriptor, roles);
   }
 
   @Override
   public RuntimeInstanceView archiveInstance(ArchiveCommand command) {
     ProcessRuntimeInstance instance = processRuntimeStorePort.findById(command.instanceId())
       .orElseThrow(() -> new IllegalArgumentException("Unknown process instance"));
+    List<String> roles = command.roleCodes() == null ? List.of() : command.roleCodes();
+    ensureMonitorPrivilege(command.actor(), roles, "archive runtime instances");
     instance.archive(command.actor());
     instance.addTimelineEntry("INSTANCE_ARCHIVED:" + command.actor());
     processRuntimeStorePort.save(instance);
+    appendMonitorEvent(
+      "INSTANCE_ARCHIVE",
+      command.actor(),
+      roles,
+      "INSTANCE",
+      instance.instanceId(),
+      "archiveRequestedBy=" + normalizeBlank(command.actor()),
+      true
+    );
     GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
       .find(instance.modelKey(), instance.versionNumber())
       .orElse(null);
-    return toInstanceView(instance, descriptor, List.of());
+    return toInstanceView(instance, descriptor, roles);
+  }
+
+  @Override
+  public List<MonitorEventView> listMonitorEvents(MonitorEventsQuery query) {
+    List<String> roles = query.roleCodes() == null ? List.of() : query.roleCodes();
+    ensureMonitorPrivilege(query.actor(), roles, "read runtime monitor events");
+    int maxRows = query.limit() <= 0 ? 100 : Math.min(query.limit(), 500);
+    String requestedInstanceId = normalizeBlank(query.instanceId());
+    String requestedActionType = normalizeUpper(query.actionType(), "");
+    return processRuntimeStorePort.listMonitorEvents().stream()
+      .filter((event) -> requestedInstanceId.isBlank() || Objects.equals(event.targetId(), requestedInstanceId))
+      .filter((event) -> requestedActionType.isBlank() || requestedActionType.equals(normalizeUpper(event.actionType(), "")))
+      .sorted(Comparator.comparing(ProcessRuntimeStorePort.RuntimeMonitorEvent::occurredAt).reversed())
+      .limit(maxRows)
+      .map((event) -> new MonitorEventView(
+        event.eventId(),
+        event.occurredAt(),
+        event.actionType(),
+        event.actor(),
+        event.actorRoleCodes(),
+        event.targetType(),
+        event.targetId(),
+        event.details(),
+        event.forced()
+      ))
+      .toList();
   }
 
   @Override
@@ -1772,6 +1866,50 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
   private String normalizeUpper(String value, String fallback) {
     String normalized = value == null ? "" : value.trim().toUpperCase();
     return normalized.isBlank() ? fallback : normalized;
+  }
+
+  private String normalizeBlank(String value) {
+    String normalized = value == null ? "" : value.trim();
+    return normalized;
+  }
+
+  private boolean hasMonitorPrivileges(List<String> actorRoles) {
+    List<String> roles = actorRoles == null ? List.of() : actorRoles;
+    return roles.stream().anyMatch((role) ->
+      "PROCESS_MONITOR".equals(role) || "ADMINISTRATOR".equals(role)
+    );
+  }
+
+  private void ensureMonitorPrivilege(String actor, List<String> actorRoles, String actionLabel) {
+    if (!hasMonitorPrivileges(actorRoles)) {
+      throw new IllegalStateException("Actor is not allowed to " + actionLabel + ".");
+    }
+    if (normalizeActor(actor) == null) {
+      throw new IllegalStateException("actor is required to " + actionLabel + ".");
+    }
+  }
+
+  private void appendMonitorEvent(
+      String actionType,
+      String actor,
+      List<String> actorRoles,
+      String targetType,
+      String targetId,
+      String details,
+      boolean forced) {
+    processRuntimeStorePort.appendMonitorEvent(
+      new ProcessRuntimeStorePort.RuntimeMonitorEvent(
+        "evt-" + UUID.randomUUID(),
+        Instant.now(),
+        normalizeUpper(actionType, "UNKNOWN"),
+        normalizeBlank(actor),
+        actorRoles == null ? List.of() : List.copyOf(actorRoles),
+        normalizeUpper(targetType, "UNKNOWN"),
+        normalizeBlank(targetId),
+        normalizeBlank(details),
+        forced
+      )
+    );
   }
 
   private boolean hasRoleIntersection(List<String> sourceRoles, List<String> requiredRoles) {
@@ -2300,18 +2438,21 @@ function buildInMemoryProcessRuntimeStoreAdapterJava({ basePackage }) {
 
 import ${basePackage}.system.application.process.runtime.port.out.ProcessRuntimeStorePort;
 import ${basePackage}.system.domain.process.runtime.ProcessRuntimeInstance;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.springframework.stereotype.Component;
 
 @Component
 public class InMemoryProcessRuntimeStoreAdapter implements ProcessRuntimeStorePort {
   private final Map<String, ProcessRuntimeInstance> byInstanceId = new ConcurrentHashMap<>();
   private final Map<String, Map<String, Object>> sharedDataByEntity = new ConcurrentHashMap<>();
+  private final List<ProcessRuntimeStorePort.RuntimeMonitorEvent> monitorEvents = new CopyOnWriteArrayList<>();
   private final List<ProcessRuntimeStorePort.RuntimeUserDescriptor> users = List.of(
     new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.user", List.of("PROCESS_USER"), "unit.operations", "runtime.supervisor"),
     new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.supervisor", List.of("PROCESS_MONITOR", "PROCESS_USER"), "unit.operations", "runtime.admin"),
@@ -2373,6 +2514,31 @@ public class InMemoryProcessRuntimeStoreAdapter implements ProcessRuntimeStorePo
   @Override
   public ProcessRuntimeStorePort.RuntimeOrganizationSnapshot readOrganizationSnapshot() {
     return organizationSnapshot;
+  }
+
+  @Override
+  public void appendMonitorEvent(ProcessRuntimeStorePort.RuntimeMonitorEvent event) {
+    if (event == null) {
+      return;
+    }
+    monitorEvents.add(
+      new ProcessRuntimeStorePort.RuntimeMonitorEvent(
+        event.eventId(),
+        event.occurredAt() == null ? Instant.now() : event.occurredAt(),
+        event.actionType(),
+        event.actor(),
+        event.actorRoleCodes() == null ? List.of() : List.copyOf(event.actorRoleCodes()),
+        event.targetType(),
+        event.targetId(),
+        event.details(),
+        event.forced()
+      )
+    );
+  }
+
+  @Override
+  public List<ProcessRuntimeStorePort.RuntimeMonitorEvent> listMonitorEvents() {
+    return List.copyOf(monitorEvents);
   }
 }
 `;
@@ -2544,7 +2710,7 @@ public class ProcessRuntimeController {
     return Map.of(
       "instance",
       processRuntimeEngineUseCase.stopInstance(
-        new ProcessRuntimeEngineUseCase.StopCommand(instanceId, payload.actor(), payload.reason())
+        new ProcessRuntimeEngineUseCase.StopCommand(instanceId, payload.actor(), payload.roleCodes(), payload.reason())
       )
     );
   }
@@ -2558,7 +2724,24 @@ public class ProcessRuntimeController {
     return Map.of(
       "instance",
       processRuntimeEngineUseCase.archiveInstance(
-        new ProcessRuntimeEngineUseCase.ArchiveCommand(instanceId, payload.actor())
+        new ProcessRuntimeEngineUseCase.ArchiveCommand(instanceId, payload.actor(), payload.roleCodes())
+      )
+    );
+  }
+
+  @Operation(summary = "List PROCESS_MONITOR governance audit events")
+  @GetMapping("/monitor/events")
+  public Map<String, Object> listMonitorEvents(
+    @RequestParam(name = "actor", required = false) String actor,
+    @RequestParam(name = "roles", required = false) List<String> roles,
+    @RequestParam(name = "instanceId", required = false) String instanceId,
+    @RequestParam(name = "actionType", required = false) String actionType,
+    @RequestParam(name = "limit", required = false, defaultValue = "100") int limit
+  ) {
+    return Map.of(
+      "events",
+      processRuntimeEngineUseCase.listMonitorEvents(
+        new ProcessRuntimeEngineUseCase.MonitorEventsQuery(actor, roles, instanceId, actionType, limit)
       )
     );
   }
@@ -2592,12 +2775,14 @@ public class ProcessRuntimeController {
 
   public record StopInstancePayload(
     String actor,
+    List<String> roleCodes,
     String reason
   ) {
   }
 
   public record ArchiveInstancePayload(
-    String actor
+    String actor,
+    List<String> roleCodes
   ) {
   }
 }
@@ -2611,6 +2796,7 @@ import ${basePackage}.system.application.process.runtime.port.in.ProcessRuntimeE
 import ${basePackage}.system.application.process.runtime.port.out.ProcessRuntimeStorePort;
 import ${basePackage}.system.application.process.runtime.service.ProcessRuntimeEngineService;
 import ${basePackage}.system.domain.process.runtime.ProcessRuntimeInstance;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -2619,6 +2805,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ProcessRuntimeEngineUT {
   @Test
@@ -2701,9 +2888,73 @@ class ProcessRuntimeEngineUT {
     assertThat(reassigned.assignmentStatus()).isEqualTo("ASSIGNED");
   }
 
+  @Test
+  void shouldRequireMonitorRoleForGovernanceActionsAndTrackAuditEvents() {
+    ProcessRuntimeEngineUseCase useCase = new ProcessRuntimeEngineService(new InMemoryStore());
+    ProcessRuntimeEngineUseCase.StartOption option = useCase.listStartOptions(
+      new ProcessRuntimeEngineUseCase.StartOptionsQuery("alice", List.of("PROCESS_USER"))
+    ).get(0);
+
+    ProcessRuntimeEngineUseCase.RuntimeInstanceView started = useCase.startInstance(
+      new ProcessRuntimeEngineUseCase.StartCommand(
+        option.modelKey(),
+        option.versionNumber(),
+        option.allowedStartActivities().isEmpty() ? null : option.allowedStartActivities().get(0),
+        "alice",
+        List.of("PROCESS_USER"),
+        Map.of("seed", "monitor-audit-test")
+      )
+    );
+
+    assertThatThrownBy(() ->
+      useCase.stopInstance(
+        new ProcessRuntimeEngineUseCase.StopCommand(
+          started.instanceId(),
+          "alice",
+          List.of("PROCESS_USER"),
+          "not-allowed"
+        )
+      )
+    ).isInstanceOf(IllegalStateException.class);
+
+    ProcessRuntimeEngineUseCase.RuntimeInstanceView stopped = useCase.stopInstance(
+      new ProcessRuntimeEngineUseCase.StopCommand(
+        started.instanceId(),
+        "manager",
+        List.of("PROCESS_MONITOR"),
+        "suspicious runtime drift"
+      )
+    );
+    assertThat(stopped.status()).isEqualTo("STOPPED");
+
+    ProcessRuntimeEngineUseCase.RuntimeInstanceView archived = useCase.archiveInstance(
+      new ProcessRuntimeEngineUseCase.ArchiveCommand(
+        started.instanceId(),
+        "manager",
+        List.of("PROCESS_MONITOR")
+      )
+    );
+    assertThat(archived.status()).isEqualTo("ARCHIVED");
+
+    List<ProcessRuntimeEngineUseCase.MonitorEventView> events = useCase.listMonitorEvents(
+      new ProcessRuntimeEngineUseCase.MonitorEventsQuery(
+        "manager",
+        List.of("PROCESS_MONITOR"),
+        started.instanceId(),
+        "",
+        20
+      )
+    );
+
+    assertThat(events).isNotEmpty();
+    assertThat(events).anyMatch((entry) -> "INSTANCE_STOP".equals(entry.actionType()));
+    assertThat(events).anyMatch((entry) -> "INSTANCE_ARCHIVE".equals(entry.actionType()));
+  }
+
   private static final class InMemoryStore implements ProcessRuntimeStorePort {
     private final Map<String, ProcessRuntimeInstance> byId = new HashMap<>();
     private final Map<String, Map<String, Object>> sharedDataByEntity = new HashMap<>();
+    private final List<ProcessRuntimeStorePort.RuntimeMonitorEvent> monitorEvents = new ArrayList<>();
     private final List<ProcessRuntimeStorePort.RuntimeUserDescriptor> users = List.of(
       new ProcessRuntimeStorePort.RuntimeUserDescriptor("alice", List.of("PROCESS_USER"), "unit.operations", "manager"),
       new ProcessRuntimeStorePort.RuntimeUserDescriptor("manager", List.of("PROCESS_MONITOR", "PROCESS_USER"), "unit.operations", "admin"),
@@ -2757,6 +3008,31 @@ class ProcessRuntimeEngineUT {
     @Override
     public ProcessRuntimeStorePort.RuntimeOrganizationSnapshot readOrganizationSnapshot() {
       return organizationSnapshot;
+    }
+
+    @Override
+    public void appendMonitorEvent(ProcessRuntimeStorePort.RuntimeMonitorEvent event) {
+      if (event == null) {
+        return;
+      }
+      monitorEvents.add(
+        new ProcessRuntimeStorePort.RuntimeMonitorEvent(
+          event.eventId(),
+          event.occurredAt() == null ? Instant.now() : event.occurredAt(),
+          event.actionType(),
+          event.actor(),
+          event.actorRoleCodes() == null ? List.of() : List.copyOf(event.actorRoleCodes()),
+          event.targetType(),
+          event.targetId(),
+          event.details(),
+          event.forced()
+        )
+      );
+    }
+
+    @Override
+    public List<ProcessRuntimeStorePort.RuntimeMonitorEvent> listMonitorEvents() {
+      return List.copyOf(monitorEvents);
     }
   }
 }
@@ -2891,6 +3167,65 @@ class ProcessRuntimeEngineIT {
     )
       .andExpect(status().isOk())
       .andExpect(jsonPath("$.timeline").isArray());
+
+    MvcResult monitorStartResult = mockMvc.perform(
+      post("/api/process-runtime/instances/start")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("""
+          {
+            "modelKey": "${escapeJavaSingle(modelKey)}",
+            "versionNumber": ${versionNumber},
+            "actor": "runtime.user",
+            "roleCodes": ["PROCESS_USER"],
+            "initialPayload": {
+              "seed": "monitor-run"
+            }
+          }
+          """)
+    )
+      .andExpect(status().isOk())
+      .andReturn();
+
+    JsonNode monitorStartPayload = objectMapper.readTree(monitorStartResult.getResponse().getContentAsString());
+    String monitorInstanceId = monitorStartPayload.path("instance").path("instanceId").asText();
+
+    mockMvc.perform(
+      post("/api/process-runtime/instances/" + monitorInstanceId + "/stop")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("""
+          {
+            "actor": "runtime.supervisor",
+            "roleCodes": ["PROCESS_MONITOR"],
+            "reason": "operator-stop"
+          }
+          """)
+    )
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.instance.status").value("STOPPED"));
+
+    mockMvc.perform(
+      post("/api/process-runtime/instances/" + monitorInstanceId + "/archive")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("""
+          {
+            "actor": "runtime.supervisor",
+            "roleCodes": ["PROCESS_MONITOR"]
+          }
+          """)
+    )
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.instance.status").value("ARCHIVED"));
+
+    mockMvc.perform(
+      get("/api/process-runtime/monitor/events")
+        .queryParam("actor", "runtime.supervisor")
+        .queryParam("roles", "PROCESS_MONITOR")
+        .queryParam("instanceId", monitorInstanceId)
+        .queryParam("limit", "20")
+    )
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.events").isArray())
+      .andExpect(jsonPath("$.events[0].actionType").isNotEmpty());
   }
 }
 `;
@@ -2994,6 +3329,30 @@ export function readProcessRuntimeInstance(instanceId, { actor = "", roles = [] 
 
 export function readProcessRuntimeTimeline(instanceId) {
   return requestJson(PROCESS_RUNTIME_API_ROOT + "/instances/" + encodeURIComponent(instanceId) + "/timeline");
+}
+
+export function listProcessRuntimeMonitorEvents(
+  { actor = "", roles = [], instanceId = "", actionType = "", limit = 100 } = {},
+) {
+  const query = new URLSearchParams();
+  if (actor) {
+    query.set("actor", actor);
+  }
+  for (const role of roles) {
+    if (role) {
+      query.append("roles", role);
+    }
+  }
+  if (instanceId) {
+    query.set("instanceId", instanceId);
+  }
+  if (actionType) {
+    query.set("actionType", actionType);
+  }
+  if (limit) {
+    query.set("limit", String(limit));
+  }
+  return requestJson(PROCESS_RUNTIME_API_ROOT + "/monitor/events?" + query.toString());
 }
 
 export function stopProcessRuntimeInstance(instanceId, payload) {

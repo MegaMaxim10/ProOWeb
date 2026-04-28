@@ -264,6 +264,29 @@ h1 {
   background: #0f5f9a;
   color: #fff;
 }
+
+.monitor-event-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.monitor-event-list li {
+  border: 1px solid #dce7f2;
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  background: #ffffff;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.monitor-event-list small {
+  color: #556f87;
+}
 `;
 }
 

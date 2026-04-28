@@ -61,6 +61,10 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
   - React runtime panel with task views (`to process`, `to assign`, `all visible`),
   - instance views (`participating`, `consultation`, status filter),
   - assignment actions (`assign`, `force assign`) + process start, completion, timeline, monitor operations.
+- Supports Step 18 PROCESS_MONITOR operations:
+  - strict monitor/admin governance checks for force assignment, stop, archive, and monitor audit visibility,
+  - generated monitor audit stream endpoint (`GET /api/process-runtime/monitor/events`) with instance/action filters,
+  - generated React PROCESS_MONITOR console with auditable governance history.
 
 ## Wizard Git Policy
 
@@ -294,6 +298,18 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
 - Generated React app now includes runtime operations UI (`ProcessRuntimeWorkbench`) when process modeling is enabled.
 - Scaffold includes safe placeholder runtime catalogs/APIs so initial generation compiles even before first process deployment.
 - Once a process version is deployed, generated runtime catalogs and API module are overwritten with deployed runtime metadata and live backend calls.
+
+## PROCESS_MONITOR Operations (Step 18)
+
+- Runtime governance actions are now monitor-governed and auditable:
+  - force assignment requires `PROCESS_MONITOR` or `ADMINISTRATOR`,
+  - stop/archive endpoints require monitor/admin role context in payload (`roleCodes`),
+  - monitor events are persisted by generated runtime store adapters and exposed through:
+    - `GET /api/process-runtime/monitor/events?actor=...&roles=...&instanceId=...&actionType=...&limit=...`
+- Generated runtime workbench now includes a dedicated PROCESS_MONITOR console:
+  - instance/action filters,
+  - governance event feed (`TASK_ASSIGN`, `INSTANCE_STOP`, `INSTANCE_ARCHIVE`),
+  - force-mode visibility and action details.
 
 ## Usage
 

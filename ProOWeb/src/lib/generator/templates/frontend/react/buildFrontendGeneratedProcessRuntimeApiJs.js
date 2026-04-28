@@ -38,6 +38,10 @@ export function readProcessRuntimeTimeline(_instanceId) {
   return Promise.resolve(toEmptyPayload("timeline"));
 }
 
+export function listProcessRuntimeMonitorEvents(_query = {}) {
+  return Promise.resolve(toEmptyPayload("events"));
+}
+
 export function stopProcessRuntimeInstance(_instanceId, _payload) {
   return Promise.reject(new Error(RUNTIME_NOT_DEPLOYED_MESSAGE));
 }

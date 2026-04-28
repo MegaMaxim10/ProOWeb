@@ -23,6 +23,8 @@ export function ProcessRuntimeWorkbench() {
     instanceStatusFilter,
     instanceViewMode,
     taskViewMode,
+    monitorInstanceFilter,
+    monitorActionFilter,
     startOptions,
     startableFromRegistry,
     manualTaskCatalog,
@@ -31,6 +33,7 @@ export function ProcessRuntimeWorkbench() {
     instances,
     visibleInstances,
     timeline,
+    monitorEvents,
     loading,
     working,
     hasMonitorPrivilege,
@@ -48,6 +51,8 @@ export function ProcessRuntimeWorkbench() {
     setInstanceStatusFilter,
     setInstanceViewMode,
     setTaskViewMode,
+    setMonitorInstanceFilter,
+    setMonitorActionFilter,
     getTaskFormDefinition,
     refreshRuntimeData,
     startInstance,
@@ -370,6 +375,56 @@ export function ProcessRuntimeWorkbench() {
             ))}
             {timeline.length === 0 ? <li>No timeline event loaded.</li> : null}
           </ol>
+        </div>
+
+        <div className="identity-box">
+          <h3>PROCESS_MONITOR Console</h3>
+          {hasMonitorPrivilege ? (
+            <>
+              <label>
+                Instance filter
+                <input
+                  type="text"
+                  value={monitorInstanceFilter}
+                  onChange={(event) => setMonitorInstanceFilter(event.target.value)}
+                  placeholder="instance id (optional)"
+                />
+              </label>
+              <label>
+                Action filter
+                <select
+                  value={monitorActionFilter}
+                  onChange={(event) => setMonitorActionFilter(event.target.value)}
+                >
+                  <option value="ALL">ALL</option>
+                  <option value="TASK_ASSIGN">TASK_ASSIGN</option>
+                  <option value="INSTANCE_STOP">INSTANCE_STOP</option>
+                  <option value="INSTANCE_ARCHIVE">INSTANCE_ARCHIVE</option>
+                </select>
+              </label>
+              <button type="button" onClick={refreshRuntimeData} disabled={loading || working}>
+                Refresh monitor events
+              </button>
+              <ul className="monitor-event-list">
+                {monitorEvents.map((event) => (
+                  <li key={event.eventId || (String(event.occurredAt) + ":" + String(event.actionType))}>
+                    <strong>{event.actionType || "UNKNOWN_ACTION"}</strong>
+                    <small>{event.occurredAt || "-"}</small>
+                    <small>
+                      Actor: {event.actor || "-"} | Roles: {(event.actorRoleCodes || []).join(", ") || "-"}
+                    </small>
+                    <small>
+                      Target: {event.targetType || "-"} / {event.targetId || "-"} | Forced: {event.forced ? "YES" : "NO"}
+                    </small>
+                    <small>Details: {event.details || "-"}</small>
+                  </li>
+                ))}
+                {monitorEvents.length === 0 ? <li>No monitor event for current filters.</li> : null}
+              </ul>
+            </>
+          ) : (
+            <small>PROCESS_MONITOR or ADMINISTRATOR role is required to access governance audit events.</small>
+          )}
         </div>
 
         <div className="identity-box">

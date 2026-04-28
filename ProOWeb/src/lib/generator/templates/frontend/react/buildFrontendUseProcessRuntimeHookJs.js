@@ -12,6 +12,7 @@ import {
   completeProcessRuntimeTask,
   readProcessRuntimeInstance,
   readProcessRuntimeTimeline,
+  listProcessRuntimeMonitorEvents,
   stopProcessRuntimeInstance,
   archiveProcessRuntimeInstance,
 } from "../runtime/generatedProcessRuntimeApi";
@@ -90,10 +91,13 @@ export function useProcessRuntime() {
   const [instanceStatusFilter, setInstanceStatusFilter] = useState("ALL");
   const [instanceViewMode, setInstanceViewMode] = useState("PARTICIPATING");
   const [taskViewMode, setTaskViewMode] = useState("TO_PROCESS");
+  const [monitorInstanceFilter, setMonitorInstanceFilter] = useState("");
+  const [monitorActionFilter, setMonitorActionFilter] = useState("ALL");
   const [startOptions, setStartOptions] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [instances, setInstances] = useState([]);
   const [timeline, setTimeline] = useState([]);
+  const [monitorEvents, setMonitorEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState(null);
@@ -280,10 +284,23 @@ export function useProcessRuntime() {
         : [];
       const nextTasks = Array.isArray(tasksPayload?.tasks) ? tasksPayload.tasks : [];
       const nextInstances = Array.isArray(instancesPayload?.instances) ? instancesPayload.instances : [];
+      let nextMonitorEvents = [];
+
+      if (hasMonitorPrivilege) {
+        const monitorEventsPayload = await listProcessRuntimeMonitorEvents({
+          actor: trimmedActor,
+          roles: roleCodes,
+          instanceId: monitorInstanceFilter.trim(),
+          actionType: monitorActionFilter === "ALL" ? "" : monitorActionFilter,
+          limit: 200,
+        });
+        nextMonitorEvents = Array.isArray(monitorEventsPayload?.events) ? monitorEventsPayload.events : [];
+      }
 
       setStartOptions(nextStartOptions);
       setTasks(nextTasks);
       setInstances(nextInstances);
+      setMonitorEvents(nextMonitorEvents);
 
       if (!selectedStartKey && nextStartOptions.length > 0) {
         const defaultStart = nextStartOptions[0];
@@ -461,6 +478,7 @@ export function useProcessRuntime() {
     try {
       await stopProcessRuntimeInstance(instanceId, {
         actor: actor.trim(),
+        roleCodes,
         reason: stopReason.trim(),
       });
       await refreshRuntimeData();
@@ -480,6 +498,7 @@ export function useProcessRuntime() {
     try {
       await archiveProcessRuntimeInstance(instanceId, {
         actor: actor.trim(),
+        roleCodes,
       });
       await refreshRuntimeData();
       setSuccess("Runtime instance archived.");
@@ -506,6 +525,8 @@ export function useProcessRuntime() {
     instanceStatusFilter,
     instanceViewMode,
     taskViewMode,
+    monitorInstanceFilter,
+    monitorActionFilter,
     startOptions,
     startableFromRegistry,
     manualTaskCatalog,
@@ -514,6 +535,7 @@ export function useProcessRuntime() {
     instances,
     visibleInstances,
     timeline,
+    monitorEvents,
     loading,
     working,
     hasMonitorPrivilege,
@@ -531,6 +553,8 @@ export function useProcessRuntime() {
     setInstanceStatusFilter,
     setInstanceViewMode,
     setTaskViewMode,
+    setMonitorInstanceFilter,
+    setMonitorActionFilter,
     getTaskFormDefinition,
     refreshRuntimeData,
     startInstance,
