@@ -212,6 +212,24 @@
               </div>
             </fieldset>
 
+            <fieldset>
+              <legend>Test Automation</legend>
+              <label class="inline-row">
+                <input id="backend-cucumber-toggle" type="checkbox" name="backendBddCucumberEnabled" />
+                Generate backend BDD E2E tests (Cucumber + Spring Boot)
+              </label>
+              <p class="fieldset-hint">
+                Adds Cucumber features, Spring glue, and aggregated cucumber reporting.
+              </p>
+              <label class="inline-row">
+                <input id="frontend-cypress-toggle" type="checkbox" name="frontendE2eCypressEnabled" />
+                Generate frontend E2E tests (Cypress)
+              </label>
+              <p class="fieldset-hint">
+                Adds Cypress config/specs and CI-ready scripts (<code>test:e2e:ci</code>).
+              </p>
+            </fieldset>
+
             <button id="reconfigure-button" type="submit">Apply reconfiguration</button>
             <p id="reconfigure-feedback" class="feedback" aria-live="polite"></p>
           </form>

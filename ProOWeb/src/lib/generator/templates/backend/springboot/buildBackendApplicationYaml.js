@@ -132,6 +132,11 @@ management:
       exposure:
         include: health,info
 
+logging:
+  level:
+    HTTP_AUDIT: INFO
+    PROCESS_RUNTIME_AUDIT: INFO
+
 springdoc:
   api-docs:
     enabled: false
@@ -147,6 +152,11 @@ app:
     swagger-ui:
       enabled: ${swaggerEnabled}
       profiles: "${escapeYamlDoubleQuotes(swaggerProfiles)}"
+  logging:
+    audit:
+      enabled: true
+      anonymize-identifiers: true
+      request-correlation-header: "X-Request-Id"
 ${authSection}
 ${identitySection}
 ${organizationHierarchySection}

@@ -4,9 +4,9 @@
 Accepted
 
 ## Context
-After initial generation, teams need to change baseline capability choices (security, IAM, organization, notifications, Liquibase, package namespace) without manually editing the generated tree and without losing migration traceability.
+After initial generation, teams need to change capability choices (security, IAM, organization, notifications, Liquibase, package namespace) without manually editing the generated tree and without losing migration traceability.
 
-Step 10 requires a developer-facing reconfiguration flow that is explicit, safe, and fully reportable.
+This requires a developer-facing reconfiguration flow that is explicit, safe, and fully reportable.
 
 ## Decision
 - Add a dedicated workspace reconfiguration endpoint:
@@ -30,4 +30,3 @@ Step 10 requires a developer-facing reconfiguration flow that is explicit, safe,
 - Capability changes are now operationally supported after initialization.
 - Reconfiguration remains deterministic and auditable through existing smart migration report structure.
 - Teams can evolve project generation preferences without leaving the ProOWeb runtime.
-

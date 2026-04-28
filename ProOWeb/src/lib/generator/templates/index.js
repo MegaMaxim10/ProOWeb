@@ -53,6 +53,7 @@ const { buildGatewaySessionSecurityControllerJava } = require("./backend/springb
 const { buildGatewayOrganizationHierarchyControllerJava } = require("./backend/springboot/buildGatewayOrganizationHierarchyControllerJava");
 const { buildGatewayNotificationWorkflowControllerJava } = require("./backend/springboot/buildGatewayNotificationWorkflowControllerJava");
 const { buildGatewaySecurityConfigJava } = require("./backend/springboot/buildGatewaySecurityConfigJava");
+const { buildGatewayRequestAuditFilterJava } = require("./backend/springboot/buildGatewayRequestAuditFilterJava");
 const { buildGatewayPbkdf2WorkspacePasswordEncoderJava } = require("./backend/springboot/buildGatewayPbkdf2WorkspacePasswordEncoderJava");
 const { buildKernelDomainMarkerJava } = require("./backend/springboot/buildKernelDomainMarkerJava");
 const { buildKernelApplicationMarkerJava } = require("./backend/springboot/buildKernelApplicationMarkerJava");
@@ -142,6 +143,11 @@ const { buildSessionDeviceSecurityItJava } = require("./backend/springboot/build
 const { buildOrganizationHierarchyItJava } = require("./backend/springboot/buildOrganizationHierarchyItJava");
 const { buildNotificationWorkflowsItJava } = require("./backend/springboot/buildNotificationWorkflowsItJava");
 const { buildLiquibaseBaselineItJava } = require("./backend/springboot/buildLiquibaseBaselineItJava");
+const { buildBackendProcessRuntimeCucumberItJava } = require("./backend/springboot/buildBackendProcessRuntimeCucumberItJava");
+const { buildBackendProcessRuntimeCucumberSpringConfigurationJava } = require("./backend/springboot/buildBackendProcessRuntimeCucumberSpringConfigurationJava");
+const { buildBackendProcessRuntimeBddStepsJava } = require("./backend/springboot/buildBackendProcessRuntimeBddStepsJava");
+const { buildBackendProcessRuntimeFeatureFile } = require("./backend/springboot/buildBackendProcessRuntimeFeatureFile");
+const { buildBackendProcessRuntimeJunitPlatformProperties } = require("./backend/springboot/buildBackendProcessRuntimeJunitPlatformProperties");
 const { buildLiquibaseMasterChangelogYaml } = require("./backend/springboot/buildLiquibaseMasterChangelogYaml");
 const { buildLiquibaseBaselineSchemaChangelogYaml } = require("./backend/springboot/buildLiquibaseBaselineSchemaChangelogYaml");
 const { buildLiquibaseReferenceDataChangelogYaml } = require("./backend/springboot/buildLiquibaseReferenceDataChangelogYaml");
@@ -163,6 +169,8 @@ const { buildFrontendGeneratedProcessFormCatalogJs } = require("./frontend/react
 const { buildFrontendGeneratedProcessRuntimeApiJs } = require("./frontend/react/buildFrontendGeneratedProcessRuntimeApiJs");
 const { buildFrontendUseProcessRuntimeHookJs } = require("./frontend/react/buildFrontendUseProcessRuntimeHookJs");
 const { buildFrontendProcessRuntimeWorkbenchJsx } = require("./frontend/react/buildFrontendProcessRuntimeWorkbenchJsx");
+const { buildFrontendUseProcessRuntimeHookTestJsx } = require("./frontend/react/buildFrontendUseProcessRuntimeHookTestJsx");
+const { buildFrontendProcessRuntimeWorkbenchTestJsx } = require("./frontend/react/buildFrontendProcessRuntimeWorkbenchTestJsx");
 const { buildFrontendIdentityUserModelJs } = require("./frontend/react/buildFrontendIdentityUserModelJs");
 const { buildFrontendIdentityRoleModelJs } = require("./frontend/react/buildFrontendIdentityRoleModelJs");
 const { buildFrontendLoadIdentityUsersPortJs } = require("./frontend/react/buildFrontendLoadIdentityUsersPortJs");
@@ -206,6 +214,10 @@ const { buildFrontendUseNotificationWorkflowsHookJs } = require("./frontend/reac
 const { buildFrontendNotificationWorkflowPanelJsx } = require("./frontend/react/buildFrontendNotificationWorkflowPanelJsx");
 const { buildFrontendCss } = require("./frontend/react/buildFrontendCss");
 const { buildFrontendViteConfig } = require("./frontend/react/buildFrontendViteConfig");
+const { buildFrontendVitestConfigJs } = require("./frontend/react/buildFrontendVitestConfigJs");
+const { buildFrontendTestSetupJs } = require("./frontend/react/buildFrontendTestSetupJs");
+const { buildFrontendCypressConfigJs } = require("./frontend/react/buildFrontendCypressConfigJs");
+const { buildFrontendCypressRuntimeWorkbenchCyJs } = require("./frontend/react/buildFrontendCypressRuntimeWorkbenchCyJs");
 const { buildComposeFile } = require("./deployment/docker/buildComposeFile");
 const { buildFrontendDockerfile } = require("./frontend/react/buildFrontendDockerfile");
 const { buildNginxConf } = require("./deployment/docker/buildNginxConf");
@@ -277,6 +289,7 @@ module.exports = {
   buildGatewayOrganizationHierarchyControllerJava,
   buildGatewayNotificationWorkflowControllerJava,
   buildGatewaySecurityConfigJava,
+  buildGatewayRequestAuditFilterJava,
   buildGatewayPbkdf2WorkspacePasswordEncoderJava,
   buildKernelDomainMarkerJava,
   buildKernelApplicationMarkerJava,
@@ -367,6 +380,11 @@ module.exports = {
   buildOrganizationHierarchyItJava,
   buildNotificationWorkflowsItJava,
   buildLiquibaseBaselineItJava,
+  buildBackendProcessRuntimeCucumberItJava,
+  buildBackendProcessRuntimeCucumberSpringConfigurationJava,
+  buildBackendProcessRuntimeBddStepsJava,
+  buildBackendProcessRuntimeFeatureFile,
+  buildBackendProcessRuntimeJunitPlatformProperties,
   buildLiquibaseMasterChangelogYaml,
   buildLiquibaseBaselineSchemaChangelogYaml,
   buildLiquibaseReferenceDataChangelogYaml,
@@ -387,6 +405,8 @@ module.exports = {
   buildFrontendGeneratedProcessRuntimeApiJs,
   buildFrontendUseProcessRuntimeHookJs,
   buildFrontendProcessRuntimeWorkbenchJsx,
+  buildFrontendUseProcessRuntimeHookTestJsx,
+  buildFrontendProcessRuntimeWorkbenchTestJsx,
   buildFrontendIdentityUserModelJs,
   buildFrontendIdentityRoleModelJs,
   buildFrontendLoadIdentityUsersPortJs,
@@ -430,6 +450,10 @@ module.exports = {
   buildFrontendNotificationWorkflowPanelJsx,
   buildFrontendCss,
   buildFrontendViteConfig,
+  buildFrontendVitestConfigJs,
+  buildFrontendTestSetupJs,
+  buildFrontendCypressConfigJs,
+  buildFrontendCypressRuntimeWorkbenchCyJs,
   buildComposeFile,
   buildFrontendDockerfile,
   buildNginxConf,

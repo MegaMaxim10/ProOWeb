@@ -24,11 +24,10 @@ The implementation must stay source-owned, modular, and configurable from ProOWe
   - `organizationHierarchyEnabled`
   - `organizationDefaultAssignmentStrategy`
   - `organizationMaxTraversalDepth`
-- Add frontend baseline module for organization administration and assignment preview.
+- Add frontend module for organization administration and assignment preview.
 - Add integration coverage via `OrganizationHierarchyIT`.
 
 ## Consequences
-- Generated projects now include an immediately usable organization hierarchy baseline aligned with process assignment needs.
+- Generated projects now include an immediately usable organization hierarchy capability aligned with process assignment needs.
 - Assignment logic becomes configurable and extensible without coupling to an external BPMS engine.
 - Migration remains deterministic because files are owned by `organization-hierarchy` in managed manifests.
-

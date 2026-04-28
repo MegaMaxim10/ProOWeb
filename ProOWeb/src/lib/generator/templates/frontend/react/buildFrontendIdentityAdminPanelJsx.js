@@ -82,7 +82,7 @@ export function IdentityAdminPanel() {
       <p className="eyebrow">Identity RBAC foundation</p>
       <h2>Identity Administration</h2>
       <p className="muted">
-        This generated panel calls the backend admin APIs and demonstrates the default RBAC baseline.
+        This generated panel calls the backend admin APIs and demonstrates the default RBAC capabilities.
       </p>
 
       <div className="identity-grid">

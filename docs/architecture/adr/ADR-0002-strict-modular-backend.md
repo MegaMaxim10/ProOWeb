@@ -1,4 +1,4 @@
-# ADR-0002: Strict Modular Backend Architecture Inspired by Njangui
+# ADR-0002: Strict Modular Backend Architecture
 
 - Status: Accepted
 - Date: 2026-04-26
@@ -18,4 +18,4 @@ Generated Spring Boot backend follows a strict multi-module structure:
 ## Consequences
 - Clear dependency direction and module boundaries.
 - Easier incremental growth and refactoring.
-- Stronger alignment with proven Njangui backend patterns.
+- Consistent modular conventions across generated business applications.

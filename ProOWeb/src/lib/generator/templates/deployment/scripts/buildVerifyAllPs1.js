@@ -35,6 +35,7 @@ try {
   Push-Location "src/frontend/web/react"
   Invoke-External "Install frontend dependencies" { npm install }
   Invoke-External "Frontend tests" { npm run test --if-present }
+  Invoke-External "Frontend E2E tests" { npm run test:e2e:ci --if-present }
   Invoke-External "Frontend build" { npm run build }
   Pop-Location
 

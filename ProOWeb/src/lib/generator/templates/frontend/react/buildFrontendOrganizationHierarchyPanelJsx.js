@@ -73,7 +73,7 @@ export function OrganizationHierarchyPanel() {
 
   return (
     <section className="card">
-      <p className="eyebrow">Organization hierarchy baseline</p>
+      <p className="eyebrow">Organization hierarchy capability</p>
       <h2>Organization Hierarchy Administration</h2>
       <p className="muted">
         Manage units, supervisors, and hierarchy-aware assignment previews for process task strategies.
@@ -235,4 +235,3 @@ export function OrganizationHierarchyPanel() {
 module.exports = {
   buildFrontendOrganizationHierarchyPanelJsx,
 };
-

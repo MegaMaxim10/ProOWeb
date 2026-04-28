@@ -26,6 +26,7 @@ try {
 
   Push-Location "src/frontend/web/react"
   Invoke-External "Frontend tests" { npm run test --if-present }
+  Invoke-External "Frontend E2E tests" { npm run test:e2e:ci --if-present }
   Pop-Location
 
   Write-Host "Tests termines." -ForegroundColor Green

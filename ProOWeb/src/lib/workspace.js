@@ -14,6 +14,8 @@ const ORGANIZATION_HIERARCHY_FEATURE_PACK_ID = "organization-hierarchy";
 const NOTIFICATIONS_EMAIL_FEATURE_PACK_ID = "notifications-email";
 const DATABASE_LIQUIBASE_FEATURE_PACK_ID = "database-liquibase";
 const PROCESS_MODELING_FEATURE_PACK_ID = "process-modeling-core";
+const BACKEND_CUCUMBER_BDD_FEATURE_PACK_ID = "backend-cucumber-bdd";
+const FRONTEND_CYPRESS_E2E_FEATURE_PACK_ID = "frontend-cypress-e2e";
 const ORGANIZATION_ASSIGNMENT_STRATEGIES = [
   "SUPERVISOR_ONLY",
   "SUPERVISOR_THEN_ANCESTORS",
@@ -310,6 +312,20 @@ function normalizeProcessModelingConfig(rawConfig = {}, options = {}) {
   };
 }
 
+function normalizeTestAutomationConfig(rawConfig = {}, options = {}) {
+  const backendBddCucumberEnabled = options.forceBackendBddEnabled !== undefined
+    ? Boolean(options.forceBackendBddEnabled)
+    : normalizeBool(rawConfig.backendBddCucumberEnabled);
+  const frontendE2eCypressEnabled = options.forceFrontendE2eEnabled !== undefined
+    ? Boolean(options.forceFrontendE2eEnabled)
+    : normalizeBool(rawConfig.frontendE2eCypressEnabled);
+
+  return {
+    backendBddCucumberEnabled,
+    frontendE2eCypressEnabled,
+  };
+}
+
 function withConfigDrivenFeaturePacks(featurePacks, options = {}) {
   const enabled = Array.isArray(featurePacks?.enabled) ? featurePacks.enabled : [];
   const enabledSet = new Set(enabled);
@@ -348,6 +364,18 @@ function withConfigDrivenFeaturePacks(featurePacks, options = {}) {
     enabledSet.add(PROCESS_MODELING_FEATURE_PACK_ID);
   } else {
     enabledSet.delete(PROCESS_MODELING_FEATURE_PACK_ID);
+  }
+
+  if (options.backendBddCucumberEnabled) {
+    enabledSet.add(BACKEND_CUCUMBER_BDD_FEATURE_PACK_ID);
+  } else {
+    enabledSet.delete(BACKEND_CUCUMBER_BDD_FEATURE_PACK_ID);
+  }
+
+  if (options.frontendE2eCypressEnabled) {
+    enabledSet.add(FRONTEND_CYPRESS_E2E_FEATURE_PACK_ID);
+  } else {
+    enabledSet.delete(FRONTEND_CYPRESS_E2E_FEATURE_PACK_ID);
   }
 
   return normalizeFeaturePacks({
@@ -457,6 +485,7 @@ function readWorkspaceConfig() {
   const notifications = parsed.backendOptions.notifications || {};
   const databaseMigration = parsed.backendOptions.databaseMigration || {};
   const processModeling = parsed.backendOptions.processModeling || {};
+  const testAutomation = parsed.backendOptions.testAutomation || {};
   parsed.backendOptions.swaggerUi = {
     enabled: Boolean(swaggerUi.enabled),
     profiles: normalizeStringList(swaggerUi.profiles).map((value) => value.toLowerCase()),
@@ -506,6 +535,13 @@ function readWorkspaceConfig() {
     },
     { strict: false },
   );
+  parsed.backendOptions.testAutomation = normalizeTestAutomationConfig(
+    {
+      backendBddCucumberEnabled: testAutomation.backendBddCucumberEnabled,
+      frontendE2eCypressEnabled: testAutomation.frontendE2eCypressEnabled,
+    },
+    { strict: false },
+  );
 
   parsed.featurePacks = withConfigDrivenFeaturePacks(
     normalizeFeaturePacks(parsed.featurePacks),
@@ -516,6 +552,8 @@ function readWorkspaceConfig() {
       notificationsEnabled: parsed.backendOptions.notifications.enabled,
       liquibaseEnabled: parsed.backendOptions.databaseMigration.liquibaseEnabled,
       processModelingEnabled: parsed.backendOptions.processModeling.enabled,
+      backendBddCucumberEnabled: parsed.backendOptions.testAutomation.backendBddCucumberEnabled,
+      frontendE2eCypressEnabled: parsed.backendOptions.testAutomation.frontendE2eCypressEnabled,
     },
   );
   parsed.managedBy = normalizeManagedBy(parsed);
@@ -591,6 +629,7 @@ function toPublicWorkspaceConfig(config) {
   const notifications = backendOptions.notifications || {};
   const databaseMigration = backendOptions.databaseMigration || {};
   const processModeling = backendOptions.processModeling || {};
+  const testAutomation = backendOptions.testAutomation || {};
   backendOptions.externalIam = {
     enabled: Boolean(externalIam.enabled),
     providers: normalizeExternalIamProviders(externalIam.providers).map((provider) => ({
@@ -641,6 +680,13 @@ function toPublicWorkspaceConfig(config) {
       versioningStrategy: processModeling.versioningStrategy,
       maxVersionsPerModel: processModeling.maxVersionsPerModel,
       allowDirectDeployment: processModeling.allowDirectDeployment,
+    },
+    { strict: false },
+  );
+  backendOptions.testAutomation = normalizeTestAutomationConfig(
+    {
+      backendBddCucumberEnabled: testAutomation.backendBddCucumberEnabled,
+      frontendE2eCypressEnabled: testAutomation.frontendE2eCypressEnabled,
     },
     { strict: false },
   );
@@ -735,6 +781,16 @@ function buildWorkspaceConfig(payload) {
     },
     { strict: true, forceEnabled: processModelingEnabled },
   );
+  const backendBddCucumberEnabled = Object.prototype.hasOwnProperty.call(payload, "backendBddCucumberEnabled")
+    ? normalizeBool(payload.backendBddCucumberEnabled)
+    : false;
+  const frontendE2eCypressEnabled = Object.prototype.hasOwnProperty.call(payload, "frontendE2eCypressEnabled")
+    ? normalizeBool(payload.frontendE2eCypressEnabled)
+    : false;
+  const testAutomationConfig = normalizeTestAutomationConfig({
+    backendBddCucumberEnabled,
+    frontendE2eCypressEnabled,
+  });
   const featurePacksEnabled = normalizeStringList(payload.featurePacksEnabled).map((entry) => entry.toLowerCase());
   const featurePackConfigs = payload?.featurePackConfigs;
 
@@ -791,13 +847,15 @@ function buildWorkspaceConfig(payload) {
       notificationsEnabled: notificationsConfig.enabled,
       liquibaseEnabled: databaseMigrationConfig.liquibaseEnabled,
       processModelingEnabled: processModelingConfig.enabled,
+      backendBddCucumberEnabled: testAutomationConfig.backendBddCucumberEnabled,
+      frontendE2eCypressEnabled: testAutomationConfig.frontendE2eCypressEnabled,
     },
   );
 
   const { hash, salt } = hashPassword(superAdminPassword);
 
   return {
-    schemaVersion: 5,
+    schemaVersion: 6,
     initializedAt: new Date().toISOString(),
     project: {
       title: projectTitle,
@@ -825,6 +883,7 @@ function buildWorkspaceConfig(payload) {
       notifications: notificationsConfig,
       databaseMigration: databaseMigrationConfig,
       processModeling: processModelingConfig,
+      testAutomation: testAutomationConfig,
     },
     featurePacks,
     managedBy: {
@@ -1053,6 +1112,28 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
     },
     { strict: true, forceEnabled: processModelingEnabled },
   );
+  const currentTestAutomation = currentConfig?.backendOptions?.testAutomation || {};
+  const hasBackendBddOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "backendBddCucumberEnabled",
+  );
+  const hasFrontendE2eOverride = Object.prototype.hasOwnProperty.call(
+    safePayload,
+    "frontendE2eCypressEnabled",
+  );
+  const testAutomationConfig = normalizeTestAutomationConfig(
+    {
+      backendBddCucumberEnabled: hasBackendBddOverride
+        ? safePayload.backendBddCucumberEnabled
+        : currentTestAutomation.backendBddCucumberEnabled,
+      frontendE2eCypressEnabled: hasFrontendE2eOverride
+        ? safePayload.frontendE2eCypressEnabled
+        : currentTestAutomation.frontendE2eCypressEnabled,
+    },
+    {
+      strict: true,
+    },
+  );
 
   const featurePacksEnabled = normalizeStringList(safePayload.featurePacksEnabled).map((entry) => entry.toLowerCase());
   const rawFeaturePacks =
@@ -1073,12 +1154,14 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
       notificationsEnabled: notificationsConfig.enabled,
       liquibaseEnabled: databaseMigrationConfig.liquibaseEnabled,
       processModelingEnabled: processModelingConfig.enabled,
+      backendBddCucumberEnabled: testAutomationConfig.backendBddCucumberEnabled,
+      frontendE2eCypressEnabled: testAutomationConfig.frontendE2eCypressEnabled,
     },
   );
 
   return {
     ...currentConfig,
-    schemaVersion: 5,
+    schemaVersion: 6,
     project: {
       ...currentConfig.project,
       basePackage,
@@ -1098,6 +1181,7 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
       notifications: notificationsConfig,
       databaseMigration: databaseMigrationConfig,
       processModeling: processModelingConfig,
+      testAutomation: testAutomationConfig,
     },
     featurePacks,
   };
@@ -1126,6 +1210,8 @@ function markWorkspaceMigrated(config) {
         processModelingEnabled: config?.backendOptions?.processModeling?.enabled === undefined
           ? true
           : Boolean(config?.backendOptions?.processModeling?.enabled),
+        backendBddCucumberEnabled: Boolean(config?.backendOptions?.testAutomation?.backendBddCucumberEnabled),
+        frontendE2eCypressEnabled: Boolean(config?.backendOptions?.testAutomation?.frontendE2eCypressEnabled),
       },
     ),
     managedBy: {

@@ -39,6 +39,7 @@ function buildBackendRootPomXml(projectTitle, projectSlug, options = {}) {
     <java.version>21</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <springdoc.version>2.6.0</springdoc.version>
+    <cucumber.version>7.20.1</cucumber.version>
     <surefire.version>3.2.5</surefire.version>
     <jacoco.version>0.8.13</jacoco.version>
   </properties>

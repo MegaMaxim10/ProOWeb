@@ -59,6 +59,7 @@ function initializeFormValues(form, workspace) {
   const notifications = backendOptions.notifications || {};
   const databaseMigration = backendOptions.databaseMigration || {};
   const processModeling = backendOptions.processModeling || {};
+  const testAutomation = backendOptions.testAutomation || {};
 
   setInputValue(form, "basePackage", workspace?.project?.basePackage || "com.prooweb.generated");
   setInputValue(form, "mode", "full");
@@ -103,6 +104,8 @@ function initializeFormValues(form, workspace) {
   setInputValue(form, "processVersioningStrategy", processModeling.versioningStrategy || "LINEAR");
   setInputValue(form, "processMaxVersionsPerModel", processModeling.maxVersionsPerModel || 50);
   setCheckboxValue(form, "processAllowDirectDeployment", Boolean(processModeling.allowDirectDeployment));
+  setCheckboxValue(form, "backendBddCucumberEnabled", Boolean(testAutomation.backendBddCucumberEnabled));
+  setCheckboxValue(form, "frontendE2eCypressEnabled", Boolean(testAutomation.frontendE2eCypressEnabled));
 }
 
 function wireControls(form) {

@@ -29,6 +29,7 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
   const notificationsConfig = workspace.backendOptions?.notifications;
   const databaseMigrationConfig = workspace.backendOptions?.databaseMigration;
   const processModelingConfig = workspace.backendOptions?.processModeling;
+  const testAutomationConfig = workspace.backendOptions?.testAutomation;
   const externalProviderIds = Array.isArray(externalIamConfig?.providers)
     ? externalIamConfig.providers.map((provider) => provider.id).filter(Boolean)
     : [];
@@ -56,7 +57,9 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
     "ProOWeb process catalog: " + (processModelingConfig?.enabled ? "active" : "desactive") + "<br />" +
     "Process versioning strategy: " + (processModelingConfig?.versioningStrategy || "-") + "<br />" +
     "Process max versions/model: " + (processModelingConfig?.maxVersionsPerModel || "-") + "<br />" +
-    "Direct deployment from draft: " + (processModelingConfig?.allowDirectDeployment ? "active" : "desactive");
+    "Direct deployment from draft: " + (processModelingConfig?.allowDirectDeployment ? "active" : "desactive") + "<br />" +
+    "Backend BDD (Cucumber): " + (testAutomationConfig?.backendBddCucumberEnabled ? "active" : "desactive") + "<br />" +
+    "Frontend E2E (Cypress): " + (testAutomationConfig?.frontendE2eCypressEnabled ? "active" : "desactive");
 
   const managementLine = documentRef.getElementById("management-line");
   managementLine.textContent =

@@ -21,7 +21,7 @@ This workspace was generated and managed by ProOWeb.
 - Database: ${config.stack.databaseTech}
 
 ## Generated architecture
-- Backend: strict modular architecture inspired by Njangui:
+- Backend: strict modular hexagonal architecture:
   - gateway (request orchestration),
   - kernel (kernel-domain, kernel-application, kernel-infrastructure),
   - common (common-domain, common-application, common-infrastructure),
@@ -53,6 +53,8 @@ This workspace was generated and managed by ProOWeb.
 - Process versioning strategy: ${config.backendOptions.processModeling?.versioningStrategy || "LINEAR"}
 - Max versions per model (editor catalog): ${config.backendOptions.processModeling?.maxVersionsPerModel || "50"}
 - Allow direct deployment from draft (editor action): ${config.backendOptions.processModeling?.allowDirectDeployment ? "enabled" : "disabled"}
+- Backend BDD E2E (Cucumber): ${config.backendOptions.testAutomation?.backendBddCucumberEnabled ? "enabled" : "disabled"}
+- Frontend E2E (Cypress): ${config.backendOptions.testAutomation?.frontendE2eCypressEnabled ? "enabled" : "disabled"}
 
 ## Active feature packs
 ${activeFeaturePacks.length > 0 ? activeFeaturePacks.map((packId) => `- ${packId}`).join("\n") : "- none"}

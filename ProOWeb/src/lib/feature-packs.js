@@ -80,6 +80,22 @@ const FEATURE_PACK_DEFINITIONS = Object.freeze([
     description: "Generate Liquibase changelog baseline and migration conventions for reproducible schema evolution.",
   },
   {
+    id: "backend-cucumber-bdd",
+    category: "application",
+    defaultEnabled: false,
+    supportedModes: ["full"],
+    dependencies: ["backend-platform"],
+    description: "Generate backend BDD integration tests using Cucumber + Spring Boot.",
+  },
+  {
+    id: "frontend-cypress-e2e",
+    category: "application",
+    defaultEnabled: false,
+    supportedModes: ["full"],
+    dependencies: ["frontend-web-react"],
+    description: "Generate frontend E2E tests using Cypress with CI-ready scripts.",
+  },
+  {
     id: "mobile-placeholder",
     category: "application",
     defaultEnabled: true,

@@ -85,7 +85,7 @@ public class Hs256ExternalIamAuthenticationAdapter implements AuthenticateExtern
       if (!"HS256".equalsIgnoreCase(header.path("alg").asText())) {
         return ExternalAuthenticationResult.info(
           "UNSUPPORTED_TOKEN_ALGORITHM",
-          "Only HS256 tokens are supported by the generated baseline.",
+          "Only HS256 tokens are supported by the generated implementation.",
           safeProviderId,
           null,
           null

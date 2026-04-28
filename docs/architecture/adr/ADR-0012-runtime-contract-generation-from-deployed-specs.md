@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-Step 12 requires a process runtime baseline.
+Generated applications require runtime-ready process contracts.
 
 At this stage, ProOWeb already stores BPMN + `spec-v1` in editor-side model versions and deploys generated source files only on explicit deployment action.
 The generated application still needs deterministic runtime-ready artifacts to bootstrap process execution features (task inbox, assignment orchestration, role-based start rules) without introducing an opaque BPMS coupling.

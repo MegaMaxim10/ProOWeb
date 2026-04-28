@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-After internal/external authentication flows, generated applications must provide baseline session protection:
+After internal/external authentication flows, generated applications must provide session protection:
 - session observation,
 - device awareness,
 - suspicious activity detection,
@@ -18,7 +18,7 @@ The behavior must remain source-owned, modular, and configurable from ProOWeb.
   - domain model: `UserSessionObservation`,
   - domain port: `ObserveUserSessionPort`,
   - application use case/service: `ObserveUserSessionUseCase`, `ObserveUserSessionService`,
-  - infrastructure baseline adapter: `InMemorySessionObservationAdapter`,
+  - infrastructure starter adapter: `InMemorySessionObservationAdapter`,
   - configuration: `SessionSecurityProperties`,
   - gateway API: `SessionSecurityController`.
 - Wire successful authentications (internal and external) to session observation when the pack is enabled.
@@ -33,6 +33,5 @@ The behavior must remain source-owned, modular, and configurable from ProOWeb.
 
 ## Consequences
 - Generated projects include practical session risk controls by configuration, not by manual bootstrap.
-- The baseline remains evolvable: projects can replace in-memory observation with persistent/session-store adapters.
+- The generated implementation remains evolvable: projects can replace in-memory observation with persistent/session-store adapters.
 - Migration behavior remains deterministic because all generated files are managed by feature-pack ownership metadata.
-

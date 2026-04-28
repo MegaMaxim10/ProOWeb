@@ -1,10 +1,10 @@
-# ADR-0009: Notifications and Liquibase Baseline Pack
+# ADR-0009: Notifications and Liquibase Capability Pack
 
 ## Status
 Accepted
 
 ## Context
-Step 9 requires two production-oriented capabilities in generated projects:
+Generated projects require two production-oriented capabilities:
 - operational notification workflows (template-driven email dispatch with audit visibility),
 - reproducible schema migration discipline with Liquibase.
 
@@ -17,8 +17,8 @@ These capabilities must remain source-owned, feature-pack managed, and compatibl
   - frontend notification operations panel with adapter/use-case/domain split,
   - integration coverage through `NotificationWorkflowsIT`.
 - Introduce and wire `database-liquibase` as a dedicated feature pack:
-  - generated changelog baseline under `src/main/resources/db/changelog`,
-  - master changelog + schema baseline + reference data changesets,
+  - generated changelog structure under `src/main/resources/db/changelog`,
+  - master changelog + schema initialization + reference data changesets,
   - Liquibase conventions README in generated resources,
   - integration coverage through `LiquibaseBaselineIT`.
 - Keep generation togglable through wizard/runtime configuration:
@@ -29,4 +29,3 @@ These capabilities must remain source-owned, feature-pack managed, and compatibl
 - Generated applications now include a ready-to-use notification workflow surface for operational checks and extension.
 - Schema evolution is deterministic and reproducible across environments through generated Liquibase assets.
 - Feature-pack ownership remains explicit in managed manifests, preserving migration traceability and controlled reconfiguration.
-

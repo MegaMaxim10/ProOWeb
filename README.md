@@ -15,7 +15,7 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
   backend Swagger UI options, backend base package, external IAM auth configuration,
   session/device security preferences, and organization hierarchy preferences.
 - Generates the target project at repository root:
-  - `src/backend/springboot` with strict Njangui-inspired modular structure:
+  - `src/backend/springboot` with strict modular hexagonal structure:
     - `gateway`,
     - `kernel` (`*-domain`, `*-application`, `*-infrastructure`),
     - `common` (`*-domain`, `*-application`, `*-infrastructure`),
@@ -30,38 +30,38 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
 - Applies feature-pack driven generation with dependency validation and ownership metadata.
 - Exposes smart migration (`POST /api/migrate`) with conflict strategy,
   automatic backup, and detailed report.
-- Supports Step 6 external IAM authentication (OIDC-first, auth-only) while RBAC stays internal.
-- Supports Step 7 session/device security baseline (session observation, risk detection, revocation APIs).
-- Supports Step 8 organization hierarchy baseline (units, supervisors, members, hierarchy-aware assignment resolution).
-- Supports Step 9 notification workflows + Liquibase baseline (template-driven notification dispatch/audit, managed changelog generation).
-- Supports Step 10 dashboard-driven reconfiguration lifecycle with full smart-migration reporting (`POST /api/reconfigure`).
-- Supports Step 11 editor-side process modeling baseline:
+- Supports external IAM authentication (OIDC-first, auth-only) while RBAC stays internal.
+- Supports session/device security capabilities (session observation, risk detection, revocation APIs).
+- Supports organization hierarchy capabilities (units, supervisors, members, hierarchy-aware assignment resolution).
+- Supports notification workflows + Liquibase generation (template-driven notification dispatch/audit, managed changelog generation).
+- Supports dashboard-driven reconfiguration lifecycle with full smart-migration reporting (`POST /api/reconfigure`).
+- Supports editor-side process modeling:
   - BPMN models and versions stored in `.prooweb/process-models`,
   - version lifecycle (`DRAFT`, `VALIDATED`, `DEPLOYED`, `RETIRED`) and version diff,
   - deployment action that generates backend/frontend source files only when a version is deployed,
   - managed conflict strategy with automatic backup and detailed deployment report.
-- Supports Step 12 runtime baseline:
+- Supports runtime contract generation:
   - runtime contract projection generated from deployed process versions (`spec-v1` + BPMN),
   - backend/frontend runtime catalogs generated for process execution bootstrap.
-- Supports Step 13 deployment compiler baseline:
+- Supports deployment compiler behavior:
   - deployment compiles process specs into managed backend/frontend source artifacts,
   - generated runtime catalogs/contracts and handler stubs remain source-owned and undeploy-safe.
-- Supports Step 14 runtime engine core:
+- Supports runtime engine core:
   - generated runtime engine classes and APIs per deployment (state machine, BPMN main transitions, guided start, task creation/completion),
   - runtime instance stop/archive lifecycle with timeline.
-- Supports Step 15 assignment and resolution engine:
+- Supports assignment and resolution engine:
   - strategy-aware automatic/manual assignment (`ROLE_QUEUE`, `SUPERVISOR_ONLY`, `SUPERVISOR_THEN_ANCESTORS`, `UNIT_MEMBERS`, `SINGLE_MATCH_ONLY`, `MANUAL_ONLY`, `ROUND_ROBIN`),
   - RBAC + hierarchy aware candidate resolution with rule `allowPreviouslyAssignedAssignee`,
   - runtime task assignment/reassignment API (`POST /api/process-runtime/tasks/{taskId}/assign`) with monitor/admin force mode.
-- Supports Step 16 process data and forms baseline:
+- Supports process data and forms:
   - generated activity form catalog from deployed specs (manual activities, mapped input fields, output storage strategy),
   - runtime engine support for input-source resolution (`PROCESS_CONTEXT`, `PREVIOUS_ACTIVITY`, `SHARED_DATA`, backend/external stubs),
   - runtime output storage projection (`INSTANCE` / `SHARED` / `BOTH`) and role-based task/instance data filtering.
-- Supports Step 17 generated runtime workbench baseline:
+- Supports generated runtime workbench:
   - React runtime panel with task views (`to process`, `to assign`, `all visible`),
   - instance views (`participating`, `consultation`, status filter),
   - assignment actions (`assign`, `force assign`) + process start, completion, timeline, monitor operations.
-- Supports Step 18 PROCESS_MONITOR operations:
+- Supports PROCESS_MONITOR operations:
   - strict monitor/admin governance checks for force assignment, stop, archive, and monitor audit visibility,
   - generated monitor audit stream endpoint (`GET /api/process-runtime/monitor/events`) with instance/action filters,
   - generated React PROCESS_MONITOR console with auditable governance history.
@@ -89,14 +89,14 @@ When enabled, ProOWeb:
 The wizard captures a backend `basePackage` (for example `com.acme.procurement`).
 ProOWeb applies it across generated Java source paths and Maven `groupId` references so each project has its own package namespace.
 
-## External IAM Policy (Step 6)
+## External IAM Policy
 
 - External IAM support is generated through the `external-iam-auth` feature pack.
 - The generated endpoint is `POST /api/auth/external/oidc/login`.
 - Authentication can use configured provider settings from the wizard (`issuer`, `client`, claim mapping, secrets).
 - Authorization remains internal: external users must match an active local account to be authenticated.
 
-## Session & Device Security Policy (Step 7)
+## Session & Device Security Policy
 
 - Session/device security is generated through `session-device-security` feature pack.
 - Successful internal/external authentication events are observed with device metadata.
@@ -107,7 +107,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `GET /api/account/sessions`
   - `POST /api/account/sessions/revoke`
 
-## Organization Hierarchy Policy (Step 8)
+## Organization Hierarchy Policy
 
 - Organization hierarchy is generated through `organization-hierarchy` feature pack.
 - The generated backend includes a strict `organization` module (`organization-domain`, `organization-application`, `organization-infrastructure`).
@@ -122,7 +122,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `POST /api/admin/organization/units/{unitCode}/members/{username}`
   - `GET /api/admin/organization/assignment/resolve`
 
-## Notifications and Liquibase Policy (Step 9)
+## Notifications and Liquibase Policy
 
 - Notification workflows are generated through `notifications-email` feature pack.
 - Wizard/runtime options:
@@ -134,7 +134,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `POST /api/admin/notifications/dispatch`
   - `GET /api/admin/notifications/audit`
 
-- Liquibase baseline is generated through `database-liquibase` feature pack.
+- Liquibase assets are generated through `database-liquibase` feature pack.
 - Wizard/runtime options:
   - `liquibaseEnabled`
   - `liquibaseChangelogPath`
@@ -159,7 +159,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - per-file details,
   - backup root path.
 
-## Reconfiguration Lifecycle (Step 10)
+## Reconfiguration Lifecycle
 
 - `POST /api/reconfigure` applies configuration changes captured from dashboard forms.
 - Default mode is `full` (application + infrastructure regeneration); `infra` mode is still available.
@@ -168,7 +168,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - per-file actions (`created`, `updated`, `conflictsResolved`, `collisionsResolved`, `staleManagedFiles`),
   - backup traceability.
 
-## Process Modeling and Deployment (Step 11)
+## Process Modeling and Deployment
 
 - Process definitions are authored and versioned in ProOWeb, not inside generated app runtime modules.
 - Storage location: `.prooweb/process-models/models/*.json`.
@@ -229,7 +229,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
 - If a managed generated file was manually modified, deployment creates backup before overwrite:
   - `.prooweb/backups/process-deploy-<id>/...`
 
-## Process Runtime Contract Baseline (Step 12)
+## Process Runtime Contract
 
 - Runtime behavior is generated as source-owned contracts from deployed model versions.
 - Runtime contract preview API:
@@ -240,7 +240,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - startable roles,
   - monitor roles.
 
-## Process Data and Forms Baseline (Step 16)
+## Process Data and Forms
 
 - Data contract preview API:
   - `GET /api/process-models/{modelKey}/versions/{version}/data-contract`
@@ -261,7 +261,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `GET /api/process-runtime/instances/{instanceId}?actor=...&roles=...`
   - task completion payload accepts `roleCodes` for filtered runtime responses.
 
-## Process Runtime Engine Core (Step 14)
+## Process Runtime Engine Core
 
 - Deployment now compiles runtime engine source modules (hexagonal split) and base runtime tests:
   - domain runtime state/task/instance model,
@@ -280,7 +280,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `POST /api/process-runtime/instances/{instanceId}/stop`
   - `POST /api/process-runtime/instances/{instanceId}/archive`
 
-## Assignment and Resolution Engine (Step 15)
+## Assignment and Resolution Engine
 
 - Generated runtime uses assignment policy from deployed process specification:
   - assignment mode (`AUTOMATIC`, `MANUAL`),
@@ -293,13 +293,13 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
 - Runtime task views now expose assignment metadata:
   - `assignmentStatus`, `assignmentMode`, `assignmentStrategy`, `candidateRoles`, `manualAssignerRoles`.
 
-## Runtime Workbench Baseline (Step 17)
+## Runtime Workbench
 
 - Generated React app now includes runtime operations UI (`ProcessRuntimeWorkbench`) when process modeling is enabled.
 - Scaffold includes safe placeholder runtime catalogs/APIs so initial generation compiles even before first process deployment.
 - Once a process version is deployed, generated runtime catalogs and API module are overwritten with deployed runtime metadata and live backend calls.
 
-## PROCESS_MONITOR Operations (Step 18)
+## PROCESS_MONITOR Operations
 
 - Runtime governance actions are now monitor-governed and auditable:
   - force assignment requires `PROCESS_MONITOR` or `ADMINISTRATOR`,
@@ -369,4 +369,4 @@ ProOWeb code is split into explicit layers:
 
 ## Documentation
 
-English baseline docs are available in [docs/README.md](docs/README.md).
+English product docs are available in [docs/README.md](docs/README.md).

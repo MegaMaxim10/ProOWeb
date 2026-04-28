@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-Step 11 introduces process modeling and version management.
+Process modeling and version management are first-class editor responsibilities.
 
 The generated application should not become the primary source of truth for process definitions.
 Process models must be authored and versioned in ProOWeb itself, persisted in repository storage, and transformed into application source code only when developers explicitly deploy a process version.

@@ -10,7 +10,7 @@
 - Business Process Definition: versioned model describing activities, transitions, and data behavior.
 
 ## C
-- Capability Pack: configurable feature set generated into the baseline application (for example identity, notifications).
+- Capability Pack: configurable feature set generated into the application core (for example identity, notifications).
 - Conflict (Migration): detected difference where a managed file was manually changed and would be overwritten.
 
 ## D
@@ -36,7 +36,7 @@
 - Integration Test (IT): test validating behavior across module boundaries and runtime wiring.
 
 ## L
-- Liquibase Baseline: initial database changelog and migration discipline for generated applications.
+- Liquibase Foundation: initial database changelog and migration discipline for generated applications.
 
 ## M
 - Managed File: generated file tracked by `.prooweb-managed.json`.

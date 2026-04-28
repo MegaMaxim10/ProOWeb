@@ -39,6 +39,8 @@ export function extractWizardFormPayload(form) {
     processVersioningStrategy: formData.get("processVersioningStrategy") || "",
     processMaxVersionsPerModel: formData.get("processMaxVersionsPerModel") || "",
     processAllowDirectDeployment: formData.get("processAllowDirectDeployment") === "on",
+    backendBddCucumberEnabled: formData.get("backendBddCucumberEnabled") === "on",
+    frontendE2eCypressEnabled: formData.get("frontendE2eCypressEnabled") === "on",
     featurePacksEnabled: formData.getAll("featurePacksEnabled"),
   };
 }

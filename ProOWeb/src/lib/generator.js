@@ -123,6 +123,11 @@ const {
   buildBackendVanillaUnitTestsPomXml,
   buildBackendSystemApplicationUtPomXml,
   buildBackendSystemInfrastructureItPomXml,
+  buildBackendProcessRuntimeCucumberItJava,
+  buildBackendProcessRuntimeCucumberSpringConfigurationJava,
+  buildBackendProcessRuntimeBddStepsJava,
+  buildBackendProcessRuntimeFeatureFile,
+  buildBackendProcessRuntimeJunitPlatformProperties,
   buildBackendApplicationJava,
   buildBackendApplicationYaml,
   buildBackendSwaggerProfileYaml,
@@ -164,6 +169,7 @@ const {
   buildGatewayOrganizationHierarchyControllerJava,
   buildGatewayNotificationWorkflowControllerJava,
   buildGatewaySecurityConfigJava,
+  buildGatewayRequestAuditFilterJava,
   buildGatewayPbkdf2WorkspacePasswordEncoderJava,
   buildTestSupportMarkerJava,
   buildSystemApplicationUtJava,
@@ -258,6 +264,8 @@ const {
   buildFrontendGeneratedProcessRuntimeApiJs,
   buildFrontendUseProcessRuntimeHookJs,
   buildFrontendProcessRuntimeWorkbenchJsx,
+  buildFrontendUseProcessRuntimeHookTestJsx,
+  buildFrontendProcessRuntimeWorkbenchTestJsx,
   buildFrontendIdentityUserModelJs,
   buildFrontendIdentityRoleModelJs,
   buildFrontendLoadIdentityUsersPortJs,
@@ -301,6 +309,10 @@ const {
   buildFrontendNotificationWorkflowPanelJsx,
   buildFrontendCss,
   buildFrontendViteConfig,
+  buildFrontendVitestConfigJs,
+  buildFrontendTestSetupJs,
+  buildFrontendCypressConfigJs,
+  buildFrontendCypressRuntimeWorkbenchCyJs,
   buildComposeFile,
   buildBackendDockerfile,
   buildFrontendDockerfile,
@@ -369,6 +381,7 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
   const organizationEnabled = generationPlan.isEnabled("organization-hierarchy");
   const notificationsEnabled = generationPlan.isEnabled("notifications-email");
   const liquibaseEnabled = generationPlan.isEnabled("database-liquibase");
+  const backendCucumberBddEnabled = generationPlan.isEnabled("backend-cucumber-bdd");
 
   writeFiles(
     backendRoot,
@@ -431,9 +444,17 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       },
       {
         relativePath: "tests/system-infrastructure-it/pom.xml",
-        content: buildBackendSystemInfrastructureItPomXml(projectSlug, { identityEnabled }),
+        content: buildBackendSystemInfrastructureItPomXml(projectSlug, {
+          identityEnabled,
+          cucumberBddEnabled: backendCucumberBddEnabled,
+        }),
       },
-      { relativePath: "tests/coverage/pom.xml", content: buildBackendCoveragePomXml(projectSlug) },
+      {
+        relativePath: "tests/coverage/pom.xml",
+        content: buildBackendCoveragePomXml(projectSlug, {
+          cucumberBddEnabled: backendCucumberBddEnabled,
+        }),
+      },
     ],
     writeManagedFile,
     {
@@ -642,6 +663,11 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
             },
             {
               relativePath:
+                "gateway/src/main/java/com/prooweb/generated/gateway/logging/GatewayRequestAuditFilter.java",
+              content: buildGatewayRequestAuditFilterJava(),
+            },
+            {
+              relativePath:
                 "gateway/src/main/java/com/prooweb/generated/gateway/security/Pbkdf2WorkspacePasswordEncoder.java",
               content: buildGatewayPbkdf2WorkspacePasswordEncoderJava(),
             },
@@ -762,6 +788,49 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       buildLiquibaseBaselineItJava(),
       {
         owners: ["database-liquibase"],
+        category: "backend-tests",
+      },
+    );
+  }
+
+  if (backendCucumberBddEnabled) {
+    writeFiles(
+      backendRoot,
+      [
+        {
+          relativePath: "tests/system-infrastructure-it/src/test/java/com/prooweb/generated/tests/system/CucumberIT.java",
+          content: buildBackendProcessRuntimeCucumberItJava({
+            basePackage: DEFAULT_BASE_PACKAGE,
+          }),
+        },
+        {
+          relativePath:
+            "tests/system-infrastructure-it/src/test/java/com/prooweb/generated/tests/system/ProcessRuntimeCucumberSpringConfiguration.java",
+          content: buildBackendProcessRuntimeCucumberSpringConfigurationJava({
+            basePackage: DEFAULT_BASE_PACKAGE,
+          }),
+        },
+        {
+          relativePath:
+            "tests/system-infrastructure-it/src/test/java/com/prooweb/generated/tests/system/steps/ProcessRuntimeBddSteps.java",
+          content: buildBackendProcessRuntimeBddStepsJava({
+            basePackage: DEFAULT_BASE_PACKAGE,
+          }),
+        },
+        {
+          relativePath: "tests/system-infrastructure-it/src/test/resources/junit-platform.properties",
+          content: buildBackendProcessRuntimeJunitPlatformProperties({
+            basePackage: DEFAULT_BASE_PACKAGE,
+          }),
+        },
+        {
+          relativePath: "tests/system-infrastructure-it/src/test/resources/features/process_runtime_baseline.feature",
+          content: buildBackendProcessRuntimeFeatureFile(),
+        },
+      ],
+      writeManagedFile,
+      {
+        owners: ["backend-cucumber-bdd"],
         category: "backend-tests",
       },
     );
@@ -1233,6 +1302,7 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
   const organizationEnabled = generationPlan.isEnabled("organization-hierarchy");
   const notificationsEnabled = generationPlan.isEnabled("notifications-email");
   const processModelingEnabled = generationPlan.isEnabled("process-modeling-core");
+  const frontendCypressE2eEnabled = generationPlan.isEnabled("frontend-cypress-e2e");
   const defaultExternalIamProviderId = Array.isArray(config?.backendOptions?.externalIam?.providers)
     && config.backendOptions.externalIam.providers.length > 0
     ? config.backendOptions.externalIam.providers[0].id
@@ -1242,9 +1312,17 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
     category: "frontend",
   };
 
-  writeManagedFile(path.join(frontendRoot, "package.json"), buildFrontendPackageJson(config.project.slug), metadata);
+  writeManagedFile(
+    path.join(frontendRoot, "package.json"),
+    buildFrontendPackageJson(config.project.slug, {
+      cypressE2eEnabled: frontendCypressE2eEnabled,
+    }),
+    metadata,
+  );
   writeManagedFile(path.join(frontendRoot, "index.html"), buildFrontendIndexHtml(), metadata);
   writeManagedFile(path.join(frontendRoot, "src/main.jsx"), buildFrontendMainJsx(), metadata);
+  writeManagedFile(path.join(frontendRoot, "vitest.config.js"), buildFrontendVitestConfigJs(), metadata);
+  writeManagedFile(path.join(frontendRoot, "src/test/setup.js"), buildFrontendTestSetupJs(), metadata);
   writeManagedFile(
     path.join(frontendRoot, "src/modules/system/domain/model/SystemSnapshot.js"),
     buildFrontendSystemSnapshotModelJs(config.project.title),
@@ -1318,6 +1396,16 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
     writeManagedFile(
       path.join(frontendRoot, "src/modules/processes/ui/ProcessRuntimeWorkbench.jsx"),
       buildFrontendProcessRuntimeWorkbenchJsx(),
+      processModelingMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/processes/ui/useProcessRuntime.test.jsx"),
+      buildFrontendUseProcessRuntimeHookTestJsx(),
+      processModelingMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/processes/ui/ProcessRuntimeWorkbench.test.jsx"),
+      buildFrontendProcessRuntimeWorkbenchTestJsx(),
       processModelingMetadata,
     );
   }
@@ -1572,6 +1660,19 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
 
   writeManagedFile(path.join(frontendRoot, "src/shared/ui/app-shell.css"), buildFrontendCss(), metadata);
   writeManagedFile(path.join(frontendRoot, "vite.config.js"), buildFrontendViteConfig(), metadata);
+
+  if (frontendCypressE2eEnabled) {
+    const cypressMetadata = {
+      owners: ["frontend-cypress-e2e"],
+      category: "frontend-tests",
+    };
+    writeManagedFile(path.join(frontendRoot, "cypress.config.js"), buildFrontendCypressConfigJs(), cypressMetadata);
+    writeManagedFile(
+      path.join(frontendRoot, "cypress/e2e/runtime-workbench.cy.js"),
+      buildFrontendCypressRuntimeWorkbenchCyJs(),
+      cypressMetadata,
+    );
+  }
 }
 
 function generateMobilePlaceholder(mobileRoot, writeManagedFile) {

@@ -1,6 +1,33 @@
 const { escapeXml } = require("../../_shared/escape");
 
-function buildBackendCoveragePomXml(projectSlug) {
+function buildBackendCoveragePomXml(projectSlug, options = {}) {
+  const cucumberAggregatePlugin = options.cucumberBddEnabled
+    ? `
+      <plugin>
+        <groupId>net.masterthought</groupId>
+        <artifactId>maven-cucumber-reporting</artifactId>
+        <version>5.7.8</version>
+        <executions>
+          <execution>
+            <id>cucumber-aggregate</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+            <configuration>
+              <projectName>ProOWeb Generated Platform</projectName>
+              <outputDirectory>\${project.basedir}/../../target/site/cucumber-report</outputDirectory>
+              <inputDirectory>\${project.basedir}/../..</inputDirectory>
+              <jsonFiles>
+                <param>**/target/cucumber/cucumber.json</param>
+              </jsonFiles>
+              <skip>\${skipTests}</skip>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>`
+    : "";
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -66,7 +93,7 @@ function buildBackendCoveragePomXml(projectSlug) {
             </configuration>
           </execution>
         </executions>
-      </plugin>
+      </plugin>${cucumberAggregatePlugin}
     </plugins>
   </build>
 </project>

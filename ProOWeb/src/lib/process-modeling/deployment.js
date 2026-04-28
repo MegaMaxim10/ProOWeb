@@ -97,6 +97,13 @@ function toCamelCase(value) {
   return pascal.charAt(0).toLowerCase() + pascal.slice(1);
 }
 
+function toFileSegment(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "process";
+}
+
 function escapeJavaSingle(value) {
   return String(value || "")
     .replace(/\\/g, "\\\\")
@@ -1138,6 +1145,9 @@ import ${basePackage}.system.domain.process.runtime.ProcessRuntimeInstance;
 import ${basePackage}.system.domain.process.runtime.ProcessRuntimeState;
 import ${basePackage}.system.domain.process.runtime.ProcessRuntimeTask;
 import ${basePackage}.system.domain.process.runtime.ProcessRuntimeTaskState;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -1150,8 +1160,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase {
+  private static final Logger PROCESS_EVENT_LOGGER = LoggerFactory.getLogger("PROCESS_RUNTIME_AUDIT");
   private final ProcessRuntimeStorePort processRuntimeStorePort;
 
   public ProcessRuntimeEngineService(ProcessRuntimeStorePort processRuntimeStorePort) {
@@ -1206,6 +1219,7 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     );
     instance.addTimelineEntry("INSTANCE_STARTED:" + command.actor());
     createOrAdvanceTasks(instance, descriptor, startActivityId, command.actor(), command.initialPayload(), true);
+    logProcessEvent("INSTANCE_STARTED", instance, startActivityId, command.actor(), null, "startActivityId=" + startActivityId);
 
     processRuntimeStorePort.save(instance);
     return toInstanceView(instance, descriptor, actorRoles);
@@ -1345,6 +1359,14 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
 
     task.assign(resolution.assignee(), command.actor());
     instance.addTimelineEntry("TASK_ASSIGNED:" + task.activityId() + ":" + resolution.assignee() + ":" + resolution.reason());
+    logProcessEvent(
+      "TASK_ASSIGNED",
+      instance,
+      task.activityId(),
+      command.actor(),
+      resolution.assignee(),
+      "reason=" + resolution.reason()
+    );
     processRuntimeStorePort.save(instance);
     if (monitorPrivileges || forceMode) {
       appendMonitorEvent(
@@ -1418,6 +1440,14 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     instance.recordActivityOutput(task.activityId(), mappedOutput);
     applyOutputStorage(instance, activityDescriptor, mappedOutput);
     instance.addTimelineEntry("TASK_COMPLETED:" + task.activityId() + ":" + command.actor());
+    logProcessEvent(
+      "TASK_COMPLETED",
+      instance,
+      task.activityId(),
+      command.actor(),
+      task.assignee(),
+      "activityType=" + normalizeUpper(task.activityType(), "MANUAL")
+    );
 
     createOrAdvanceTasks(instance, descriptor, task.activityId(), command.actor(), command.payload(), false);
 
@@ -1462,6 +1492,14 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     ensureMonitorPrivilege(command.actor(), roles, "stop runtime instances");
     instance.stop(command.actor(), command.reason());
     instance.addTimelineEntry("INSTANCE_STOPPED:" + command.actor() + ":" + command.reason());
+    logProcessEvent(
+      "INSTANCE_STOPPED",
+      instance,
+      null,
+      command.actor(),
+      null,
+      "reason=" + normalizeBlank(command.reason())
+    );
     processRuntimeStorePort.save(instance);
     appendMonitorEvent(
       "INSTANCE_STOP",
@@ -1486,6 +1524,7 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     ensureMonitorPrivilege(command.actor(), roles, "archive runtime instances");
     instance.archive(command.actor());
     instance.addTimelineEntry("INSTANCE_ARCHIVED:" + command.actor());
+    logProcessEvent("INSTANCE_ARCHIVED", instance, null, command.actor(), null, "archiveRequested=true");
     processRuntimeStorePort.save(instance);
     appendMonitorEvent(
       "INSTANCE_ARCHIVE",
@@ -1714,6 +1753,14 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
             + ":"
             + (assignee == null ? "SYSTEM" : assignee)
         );
+        logProcessEvent(
+          "AUTOMATIC_ACTIVITY_EXECUTED",
+          instance,
+          descriptorActivity.activityId(),
+          actor,
+          assignee,
+          "policy=" + executionPlan.policy()
+        );
       } else {
         ProcessRuntimeTask automaticTask = new ProcessRuntimeTask(
           "tsk-" + UUID.randomUUID(),
@@ -1734,6 +1781,14 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
             + executionPlan.policy()
             + ":"
             + (executionPlan.autoExecuteAt() == null ? "NO_DEADLINE" : executionPlan.autoExecuteAt())
+        );
+        logProcessEvent(
+          "AUTOMATIC_TASK_CREATED",
+          instance,
+          descriptorActivity.activityId(),
+          actor,
+          assignee,
+          "policy=" + executionPlan.policy()
         );
       }
 
@@ -1777,6 +1832,14 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       "TASK_CREATED:" + descriptorActivity.activityId()
       + ":" + (assignee == null ? "UNASSIGNED" : assignee)
       + ":" + assignmentResolution.reason()
+    );
+    logProcessEvent(
+      "TASK_CREATED",
+      instance,
+      descriptorActivity.activityId(),
+      actor,
+      assignee,
+      "assignmentReason=" + assignmentResolution.reason()
     );
   }
 
@@ -2127,7 +2190,7 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       String targetId,
       String details,
       boolean forced) {
-    processRuntimeStorePort.appendMonitorEvent(
+    ProcessRuntimeStorePort.RuntimeMonitorEvent event =
       new ProcessRuntimeStorePort.RuntimeMonitorEvent(
         "evt-" + UUID.randomUUID(),
         Instant.now(),
@@ -2138,8 +2201,74 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
         normalizeBlank(targetId),
         normalizeBlank(details),
         forced
-      )
+      );
+    processRuntimeStorePort.appendMonitorEvent(
+      event
     );
+    PROCESS_EVENT_LOGGER.info(
+      "MONITOR_EVENT eventId={} actionType={} actorHash={} targetType={} targetIdHash={} forced={} details={}",
+      event.eventId(),
+      event.actionType(),
+      anonymizeIdentity(event.actor()),
+      event.targetType(),
+      anonymizeIdentity(event.targetId()),
+      Boolean.valueOf(event.forced()),
+      sanitizeLogText(event.details())
+    );
+  }
+
+  private void logProcessEvent(
+      String eventType,
+      ProcessRuntimeInstance instance,
+      String activityId,
+      String actor,
+      String assignee,
+      String details) {
+    if (instance == null) {
+      return;
+    }
+    PROCESS_EVENT_LOGGER.info(
+      "PROCESS_EVENT eventType={} modelKey={} version={} instanceIdHash={} activityId={} actorHash={} assigneeHash={} state={} details={}",
+      sanitizeLogText(eventType),
+      sanitizeLogText(instance.modelKey()),
+      Integer.valueOf(instance.versionNumber()),
+      anonymizeIdentity(instance.instanceId()),
+      sanitizeLogText(activityId),
+      anonymizeIdentity(actor),
+      anonymizeIdentity(assignee),
+      sanitizeLogText(String.valueOf(instance.state())),
+      sanitizeLogText(details)
+    );
+  }
+
+  private String anonymizeIdentity(String value) {
+    String normalized = normalizeBlank(value);
+    if (normalized.isBlank()) {
+      return "anonymous";
+    }
+
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      byte[] hash = digest.digest(normalized.getBytes(StandardCharsets.UTF_8));
+      StringBuilder builder = new StringBuilder();
+      int maxBytes = Math.min(hash.length, 8);
+      for (int index = 0; index < maxBytes; index += 1) {
+        builder.append(String.format("%02x", Integer.valueOf(hash[index] & 0xff)));
+      }
+      return builder.toString();
+    } catch (NoSuchAlgorithmException exception) {
+      return "hash_error";
+    }
+  }
+
+  private String sanitizeLogText(String value) {
+    String normalized = normalizeBlank(value)
+      .replace("\\r", " ")
+      .replace("\\n", " ");
+    if (normalized.length() <= 240) {
+      return normalized;
+    }
+    return normalized.substring(0, 240);
   }
 
   private ProcessRuntimeStorePort.RuntimeUserPreferences loadUserPreferences(String userId) {
@@ -2393,6 +2522,14 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
         + ":"
         + normalizeBlank(actor)
     );
+    logProcessEvent(
+      "AUTOMATIC_TASK_COMPLETED",
+      instance,
+      task.activityId(),
+      actor,
+      task.assignee(),
+      "completionMode=" + normalizeUpper(completionMode, "MANUAL_TRIGGER")
+    );
     createOrAdvanceTasks(instance, descriptor, task.activityId(), actor, mappedOutput, false);
   }
 
@@ -2425,6 +2562,7 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     if (!hasPendingTasks) {
       instance.markCompleted();
       instance.addTimelineEntry("INSTANCE_COMPLETED");
+      logProcessEvent("INSTANCE_COMPLETED", instance, null, "SYSTEM", null, "state=COMPLETED");
     }
   }
 
@@ -4235,10 +4373,373 @@ function buildVersionMetadata(model, version, runtimeContract, dataContract) {
   ) + "\n";
 }
 
+function buildHappyPathActivityIds(runtimeContract) {
+  const activities = Array.isArray(runtimeContract?.activities) ? runtimeContract.activities : [];
+  const activityIds = activities
+    .map((entry) => normalizeString(entry?.activityId))
+    .filter(Boolean);
+  if (activityIds.length === 0) {
+    return [];
+  }
+
+  const outgoingBySource = new Map();
+  const transitions = Array.isArray(runtimeContract?.flow?.transitions) ? runtimeContract.flow.transitions : [];
+  for (const transition of transitions) {
+    const source = normalizeString(transition?.sourceActivityId);
+    const target = normalizeString(transition?.targetActivityId);
+    if (!source || !target) {
+      continue;
+    }
+    if (!outgoingBySource.has(source)) {
+      outgoingBySource.set(source, new Set());
+    }
+    outgoingBySource.get(source).add(target);
+  }
+
+  const configuredStarts = Array.isArray(runtimeContract?.start?.startActivities)
+    ? runtimeContract.start.startActivities.map((entry) => normalizeString(entry)).filter(Boolean)
+    : [];
+  const startActivity = configuredStarts.find((entry) => activityIds.includes(entry)) || activityIds[0];
+  const path = [];
+  const visited = new Set();
+  let cursor = startActivity;
+
+  while (cursor && !visited.has(cursor)) {
+    visited.add(cursor);
+    path.push(cursor);
+    const nextTargets = Array.from(outgoingBySource.get(cursor) || []);
+    if (nextTargets.length === 0) {
+      break;
+    }
+    nextTargets.sort((left, right) => left.localeCompare(right));
+    const nextCursor = nextTargets.find((entry) => !visited.has(entry)) || null;
+    if (!nextCursor) {
+      break;
+    }
+    cursor = nextCursor;
+  }
+
+  return path;
+}
+
+function resolveBusinessStartRoles(runtimeContract) {
+  const startableByRoles = Array.isArray(runtimeContract?.start?.startableByRoles)
+    ? runtimeContract.start.startableByRoles.map((entry) => normalizeString(entry)).filter(Boolean)
+    : [];
+  if (startableByRoles.length > 0) {
+    return startableByRoles;
+  }
+  return ["PROCESS_USER"];
+}
+
+function resolveBusinessActor(roleCodes) {
+  const roles = Array.isArray(roleCodes) ? roleCodes : [];
+  if (roles.includes("ADMINISTRATOR")) {
+    return "runtime.admin";
+  }
+  if (roles.includes("PROCESS_MONITOR")) {
+    return "runtime.supervisor";
+  }
+  return "runtime.user";
+}
+
+function buildBackendDeployedProcessFeatureFile({ modelKey, versionNumber, runtimeContract }) {
+  const happyPathActivityIds = buildHappyPathActivityIds(runtimeContract);
+  const startRoles = resolveBusinessStartRoles(runtimeContract);
+  const actor = resolveBusinessActor(startRoles);
+  const roleCsv = startRoles.join(",");
+  const activityAssertions = happyPathActivityIds
+    .map((activityId) => `    And the deployed process timeline contains activity "${activityId}"`)
+    .join("\n");
+  const activitySection = activityAssertions ? `${activityAssertions}\n` : "";
+
+  return `Feature: Deployed process ${modelKey} v${versionNumber} business runtime validation
+
+  Scenario: ${modelKey} v${versionNumber} executes end to end as modeled
+    Given deployed process "${modelKey}" version ${versionNumber} with actor "${actor}" and roles "${roleCsv}"
+    When I start the deployed process instance
+    Then the deployed process instance is created
+    When I drive the deployed process instance to completion as monitor
+    Then the deployed process instance reaches terminal status "COMPLETED"
+    And the deployed process timeline contains marker "INSTANCE_STARTED"
+${activitySection}    And the deployed process timeline contains marker "INSTANCE_COMPLETED"
+`;
+}
+
+function buildFrontendDeployedProcessCypressSpec({ modelKey, versionNumber, runtimeContract }) {
+  const happyPathActivityIds = buildHappyPathActivityIds(runtimeContract);
+  const activityTypeById = {};
+  const activities = Array.isArray(runtimeContract?.activities) ? runtimeContract.activities : [];
+  for (const activity of activities) {
+    const activityId = normalizeString(activity?.activityId);
+    if (!activityId) {
+      continue;
+    }
+    activityTypeById[activityId] = normalizeString(activity?.activityType || "MANUAL").toUpperCase() || "MANUAL";
+  }
+  const firstActivityId = happyPathActivityIds[0] || "";
+
+  return `describe("Deployed process ${modelKey} v${versionNumber} business flow", () => {
+  const modelKey = ${JSON.stringify(modelKey)};
+  const versionNumber = ${versionNumber};
+  const happyPathActivityIds = ${JSON.stringify(happyPathActivityIds)};
+  const activityTypeById = ${JSON.stringify(activityTypeById, null, 2)};
+  const firstActivityId = ${JSON.stringify(firstActivityId)};
+
+  let started = false;
+  let instanceId = "prc-cypress-generated";
+  let instanceStatus = "RUNNING";
+  let timeline = [];
+  let pendingTasks = [];
+  let pathCursor = 0;
+
+  function buildTask(activityId) {
+    const activityType = String(activityTypeById[activityId] || "MANUAL").toUpperCase();
+    return {
+      taskId: "tsk-" + activityId + "-" + String(pathCursor),
+      instanceId,
+      activityId,
+      assignee: "process.user",
+      activityType,
+      assignmentStatus: "ASSIGNED",
+      assignmentMode: "AUTOMATIC",
+      assignmentStrategy: "ROLE_QUEUE",
+      candidateRoles: ["PROCESS_USER"],
+      manualAssignerRoles: ["PROCESS_MONITOR"],
+      automaticTaskPolicy: activityType === "AUTOMATIC" ? "AUTO_IMMEDIATE" : "NONE",
+    };
+  }
+
+  function advancePathUntilPendingOrCompleted() {
+    while (pathCursor < happyPathActivityIds.length) {
+      const activityId = happyPathActivityIds[pathCursor];
+      const activityType = String(activityTypeById[activityId] || "MANUAL").toUpperCase();
+      if (activityType === "AUTOMATIC") {
+        timeline.push("AUTOMATIC_ACTIVITY_EXECUTED:" + activityId + ":AUTO_IMMEDIATE:process.user");
+        pathCursor += 1;
+        continue;
+      }
+
+      pendingTasks = [buildTask(activityId)];
+      timeline.push("TASK_CREATED:" + activityId + ":process.user:AUTO_ASSIGNED_ROLE_QUEUE");
+      return;
+    }
+
+    pendingTasks = [];
+    instanceStatus = "COMPLETED";
+    timeline.push("INSTANCE_COMPLETED");
+  }
+
+  function buildInstancePayload() {
+    return {
+      instanceId,
+      modelKey,
+      versionNumber,
+      status: instanceStatus,
+      startedBy: "process.user",
+      tasks: pendingTasks.map((task) => ({
+        taskId: task.taskId,
+        activityId: task.activityId,
+        assignee: task.assignee,
+        status: "PENDING",
+      })),
+    };
+  }
+
+  beforeEach(() => {
+    started = false;
+    instanceId = "prc-cypress-generated";
+    instanceStatus = "RUNNING";
+    timeline = [];
+    pendingTasks = [];
+    pathCursor = 0;
+
+    cy.intercept("GET", "**/api/meta*", {
+      statusCode: 200,
+      body: {
+        siteTitle: "Generated ProOWeb App",
+        backend: "springboot",
+        database: "postgresql",
+        swaggerEnabled: true,
+        swaggerProfiles: ["dev", "test"],
+      },
+    });
+
+    cy.intercept("GET", "**/api/system-health*", {
+      statusCode: 200,
+      body: {
+        status: "UP",
+      },
+    });
+
+    cy.intercept("GET", "**/api/process-runtime/start-options*", {
+      statusCode: 200,
+      body: {
+        startOptions: [
+          {
+            modelKey,
+            versionNumber,
+            allowedStartActivities: firstActivityId ? [firstActivityId] : [],
+            startableByRoles: ["PROCESS_USER"],
+          },
+        ],
+      },
+    }).as("runtimeStartOptions");
+
+    cy.intercept("GET", "**/api/process-runtime/tasks*", (request) => {
+      request.reply({
+        statusCode: 200,
+        body: {
+          tasks: started ? pendingTasks : [],
+        },
+      });
+    });
+
+    cy.intercept("GET", "**/api/process-runtime/instances/*/timeline*", (request) => {
+      request.reply({
+        statusCode: 200,
+        body: {
+          timeline: started ? timeline : [],
+        },
+      });
+    });
+
+    cy.intercept("GET", "**/api/process-runtime/instances/*", (request) => {
+      request.reply({
+        statusCode: 200,
+        body: {
+          instance: started
+            ? buildInstancePayload()
+            : null,
+        },
+      });
+    });
+
+    cy.intercept("GET", "**/api/process-runtime/instances*", (request) => {
+      request.reply({
+        statusCode: 200,
+        body: {
+          instances: started ? [buildInstancePayload()] : [],
+        },
+      });
+    });
+
+    cy.intercept("GET", "**/api/process-runtime/preferences*", {
+      statusCode: 200,
+      body: {
+        preferences: {
+          userId: "process.user",
+          profileDisplayName: "Process User",
+          profilePhotoUrl: "",
+          preferredLanguage: "en",
+          preferredTheme: "SYSTEM",
+          notificationChannel: "IN_APP_EMAIL",
+          notificationsEnabled: true,
+          automaticTaskPolicy: "MANUAL_TRIGGER",
+          automaticTaskDelaySeconds: 0,
+          automaticTaskNotifyOnly: true,
+        },
+      },
+    });
+
+    cy.intercept("GET", "**/api/process-runtime/monitor/events*", {
+      statusCode: 200,
+      body: {
+        events: [],
+      },
+    });
+
+    cy.intercept("POST", "**/api/process-runtime/instances/start", (request) => {
+      started = true;
+      instanceStatus = "RUNNING";
+      timeline = ["INSTANCE_STARTED:process.user"];
+      pendingTasks = [];
+      pathCursor = 0;
+      advancePathUntilPendingOrCompleted();
+      request.reply({
+        statusCode: 200,
+        body: {
+          instance: buildInstancePayload(),
+        },
+      });
+    });
+
+    cy.intercept("POST", "**/api/process-runtime/tasks/*/assign", (request) => {
+      const taskId = String(request.url.split("/tasks/")[1] || "").split("/")[0];
+      pendingTasks = pendingTasks.map((task) =>
+        task.taskId === taskId
+          ? {
+              ...task,
+              assignee: String(request.body?.assignee || "process.user"),
+            }
+          : task,
+      );
+      request.reply({
+        statusCode: 200,
+        body: {
+          task: pendingTasks[0] || null,
+        },
+      });
+    });
+
+    cy.intercept("POST", "**/api/process-runtime/tasks/*/complete", (request) => {
+      const currentTask = pendingTasks[0] || null;
+      if (currentTask) {
+        timeline.push("TASK_COMPLETED:" + currentTask.activityId + ":process.user");
+        pendingTasks = [];
+        pathCursor += 1;
+      }
+      advancePathUntilPendingOrCompleted();
+
+      request.reply({
+        statusCode: 200,
+        body: {
+          task: currentTask
+            ? {
+                ...currentTask,
+                status: "COMPLETED",
+              }
+            : null,
+        },
+      });
+    });
+  });
+
+  it("executes a modeled business flow end to end on the generated runtime workbench", () => {
+    cy.visit("/");
+    cy.contains("Process Runtime Workbench");
+    cy.contains("button", "Refresh runtime snapshot").click();
+    cy.wait("@runtimeStartOptions");
+    cy.contains("button", "Start process instance", { timeout: 10000 }).should("not.be.disabled").click();
+
+    const manualHappyPathSize = happyPathActivityIds.filter((activityId) =>
+      String(activityTypeById[activityId] || "MANUAL").toUpperCase() !== "AUTOMATIC",
+    ).length;
+
+    for (let index = 0; index < manualHappyPathSize; index += 1) {
+      cy.contains("button", "Complete task").should("be.enabled").click();
+    }
+
+    cy.contains("button", "Refresh runtime snapshot").click();
+    cy.wait("@runtimeStartOptions");
+    cy.contains("Selected status:");
+    cy.contains("COMPLETED");
+    cy.contains("INSTANCE_COMPLETED");
+    happyPathActivityIds.forEach((activityId) => {
+      cy.contains(activityId);
+    });
+  });
+});
+`;
+}
+
 function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords }) {
   const basePackage = normalizeBasePackage(workspaceConfig?.project?.basePackage || DEFAULT_BASE_PACKAGE);
   const basePackagePath = basePackage.replace(/\./g, "/");
   const processName = toPascalCase(model.modelKey);
+  const normalizedModelFileSegment = toFileSegment(model.modelKey);
+  const backendBddCucumberEnabled = Boolean(workspaceConfig?.backendOptions?.testAutomation?.backendBddCucumberEnabled);
+  const frontendCypressE2eEnabled = Boolean(workspaceConfig?.backendOptions?.testAutomation?.frontendE2eCypressEnabled);
   const runtimeContract = buildRuntimeContract({ model, version });
   const dataContract = buildDataContract({
     model,
@@ -4320,8 +4821,10 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
     "tests/system",
   );
   const backendResourcesRoot = path.join("src/backend/springboot/prooweb-application/src/main/resources/processes", model.modelKey);
+  const backendBddFeaturesRoot = "src/backend/springboot/tests/system-infrastructure-it/src/test/resources/features";
   const frontendProcessRoot = path.join("src/frontend/web/react/src/modules/processes", model.modelKey);
   const frontendRuntimeRoot = "src/frontend/web/react/src/modules/processes/runtime";
+  const frontendCypressE2eRoot = "src/frontend/web/react/cypress/e2e";
 
   const files = [
     {
@@ -4576,6 +5079,40 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
       modelKey: "_runtime_engine_",
       versionNumber: 1,
     },
+    ...(backendBddCucumberEnabled
+      ? [
+          {
+            relativePath: toPosixPath(
+              path.join(backendBddFeaturesRoot, `process_${normalizedModelFileSegment}_v${version.versionNumber}.feature`),
+            ),
+            content: buildBackendDeployedProcessFeatureFile({
+              modelKey: model.modelKey,
+              versionNumber: version.versionNumber,
+              runtimeContract,
+            }),
+            kind: "backend-cucumber-feature",
+            modelKey: model.modelKey,
+            versionNumber: version.versionNumber,
+          },
+        ]
+      : []),
+    ...(frontendCypressE2eEnabled
+      ? [
+          {
+            relativePath: toPosixPath(
+              path.join(frontendCypressE2eRoot, `process-${normalizedModelFileSegment}-v${version.versionNumber}.cy.js`),
+            ),
+            content: buildFrontendDeployedProcessCypressSpec({
+              modelKey: model.modelKey,
+              versionNumber: version.versionNumber,
+              runtimeContract,
+            }),
+            kind: "frontend-cypress-spec",
+            modelKey: model.modelKey,
+            versionNumber: version.versionNumber,
+          },
+        ]
+      : []),
   ];
 
   return {

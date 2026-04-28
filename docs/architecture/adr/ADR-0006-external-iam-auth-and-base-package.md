@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-Step 6 introduces external IAM authentication (OIDC-first) while preserving the platform rule that RBAC ownership remains internal.
+External IAM authentication (OIDC-first) must be supported while preserving the platform rule that RBAC ownership remains internal.
 In parallel, generated backend sources must no longer be hardcoded to a shared package (`com.prooweb.generated`) across all projects.
 
 Without this decision:
@@ -32,6 +32,5 @@ Without this decision:
 ## Consequences
 - Generated projects can use project-specific package/group identifiers.
 - External IAM capability can be enabled/disabled and migrated through feature-pack governance.
-- Step 6 behavior is verifiable through automated IT coverage.
+- This behavior is verifiable through automated IT coverage.
 - Existing workspaces remain compatible: missing `basePackage` defaults to `com.prooweb.generated`.
-

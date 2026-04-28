@@ -23,16 +23,16 @@ The product position is intentionally between:
 ### 4.1 In Scope
 - Web editor runtime and guided workspace wizard.
 - Post-initialization reconfiguration workflow with managed regeneration reports.
-- Configurable generation of backend/frontend baseline.
+- Configurable generation of backend/frontend core platform.
 - Strict modular backend architecture.
 - Managed file manifest, migration engine, and conflict strategy.
-- Foundation capability packs to be built in upcoming steps:
+- Foundation capability packs to be built in upcoming increments:
   - identity and RBAC,
   - authentication (internal + external IAM auth-only mode),
   - session/device security (observation, risk detection, revocation),
   - email notifications,
   - organization hierarchy and hierarchy-aware assignment strategies,
-  - Liquibase baseline and migration discipline.
+  - Liquibase schema and migration discipline.
 - Process modeling lifecycle to be built progressively:
   - modeling,
   - versioning,
@@ -57,7 +57,7 @@ The product position is intentionally between:
 - Smart migration must detect manual edits in managed files and resolve through backup + explicit reporting.
 - Unmanaged files remain untouched by regeneration.
 
-## 7. Security and Compliance Baseline
+## 7. Security and Compliance
 - Secure by default configuration for generated applications.
 - Authentication and authorization boundaries are explicit and testable.
 - External IAM support is authentication-only; authorization remains platform-owned (RBAC).

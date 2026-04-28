@@ -1,10 +1,10 @@
 # Delivery Roadmap
 
-This roadmap defines the step by step construction plan and acceptance criteria.
+This roadmap defines the phased construction plan and acceptance criteria.
 
-## Phase 1 - Product Contract and Baseline Documentation
+## Phase 1 - Product Contract and Documentation
 - Lock scope, vocabulary, architecture principles, and initial ADR set.
-- Deliver English documentation baseline and repository-level entry points.
+- Deliver English documentation and repository-level entry points.
 - Exit criteria: contract and roadmap validated.
 
 ## Phase 2 - Generator Platform v2 (Feature-Pack Ready)
@@ -12,8 +12,8 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 - Strengthen managed file boundaries and migration hooks.
 - Exit criteria: a feature pack can be toggled with deterministic regeneration behavior.
 
-## Phase 3 - Baseline Generated App Hardening
-- Keep backend/frontend baseline operational across profiles.
+## Phase 3 - Generated App Hardening
+- Keep backend/frontend core platform operational across profiles.
 - Ensure Docker, scripts, tests, and coverage aggregation remain stable.
 - Exit criteria: clean generation + build + verify on supported profiles.
 
@@ -25,7 +25,7 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 ## Phase 5 - Authentication Flows
 - Implement account creation, activation, login, password reset, MFA (OTP/TOTP).
 - Add frontend journeys and integration tests for each flow.
-- Implementation baseline: `auth-flows` feature pack (depends on `identity-rbac`).
+- Implementation scope: `auth-flows` feature pack (depends on `identity-rbac`).
 - Exit criteria: all auth flows pass automated tests.
 
 ## Phase 6 - External IAM (Authentication Only)
@@ -36,27 +36,27 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 
 ## Phase 7 - Session and Device Security
 - Add session observation, device awareness, suspicious behavior detection, and session revocation.
-- Expose configuration in wizard/runtime (`window`, `max distinct devices`) and generate enforcement baseline.
+- Expose configuration in wizard/runtime (`window`, `max distinct devices`) and generate enforcement rules.
 - Exit criteria: high-risk scenarios trigger expected controls and audit events.
 
 ## Phase 8 - Organization Hierarchy Management
 - Generate generic organization structure module (units, supervisors, assignments).
 - Support hierarchy-aware task assignment rules.
-- Implementation baseline: `organization-hierarchy` feature pack.
+- Implementation scope: `organization-hierarchy` feature pack.
 - Exit criteria: hierarchy model is editable and usable in assignment strategies.
 
 ## Phase 9 - Notifications and Database Migration Maturity
 - Expand email notification templates/channels.
-- Provide robust Liquibase baseline and migration conventions.
-- Implementation baseline:
+- Provide robust Liquibase generation and migration conventions.
+- Implementation scope:
   - `notifications-email` feature pack (backend + frontend + IT),
   - `database-liquibase` feature pack (generated changelogs + IT).
 - Exit criteria: notification workflows operational and Liquibase migrations reproducible.
 
 ## Phase 10 - Wizard v2 and Reconfiguration Lifecycle
-- Wizard captures preferences for all baseline capability packs.
+- Wizard captures preferences for all configured capability packs.
 - Reconfiguration regenerates, updates, or removes impacted code with migration reports.
-- Implementation baseline:
+- Implementation scope:
   - `POST /api/reconfigure` endpoint,
   - dashboard reconfiguration form prefilled from workspace config,
   - smart migration report rendering with feature-pack delta and per-file actions.
@@ -64,7 +64,7 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 
 ## Phase 11 - Process Modeling and Version Management
 - Add BPMN modeling, model repository, and version lifecycle.
-- Implementation baseline:
+- Implementation scope:
   - process models persisted in `.prooweb/process-models`,
   - editor APIs for create/version/diff/transition/deploy,
   - deployment generates backend/frontend source only on explicit deployment action,
@@ -74,7 +74,7 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 ## Phase 12 - Process Runtime Engine
 - Execute modeled processes with manual and automatic activities.
 - Enforce assignment strategies and runtime transitions.
-- Implementation baseline:
+- Implementation scope:
   - runtime contract projection generated from deployed process model versions,
   - editor preview API for runtime contract (`GET /api/process-models/{modelKey}/versions/{version}/runtime-contract`),
   - generated backend/frontend runtime catalogs as source-owned artifacts.
@@ -83,7 +83,7 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 ## Phase 13 - Deployment Compiler v1 (Spec -> Source Code)
 - On deployment of a process version, compile the specification into modular backend/frontend source code (strict hexagonal layout).
 - Generate automatic handler stubs and runtime API contracts.
-- Exit criteria: deployed version produces a compilable runtime baseline with basic tests and clean undeploy.
+- Exit criteria: deployed version produces compilable runtime artifacts with basic tests and clean undeploy.
 
 ## Phase 14 - Runtime Engine Core
 - Implement runtime execution core (state machine, BPMN main transitions, task creation, guided start, stop/archive lifecycle).

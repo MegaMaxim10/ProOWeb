@@ -33,6 +33,7 @@ mvn clean verify
 cd "$ROOT_DIR/src/frontend/web/react"
 npm install
 npm run test --if-present
+npm run test:e2e:ci --if-present
 npm run build
 
 profiles=(dev demo test preprod prod)

@@ -16,10 +16,10 @@ Each module keeps clear domain, application, and infrastructure responsibilities
 Managed files are tracked; smart migration detects conflicts, creates backups, and reports details.
 
 ## 6. Configurable Capability Packs
-Baseline features are implemented as configurable generation units and can evolve independently.
+Core capabilities are implemented as configurable generation units and can evolve independently.
 
 ## 7. Security by Default
-Authentication, authorization, session controls, and audit requirements are part of baseline architecture choices.
+Authentication, authorization, session controls, and audit requirements are built into architecture choices.
 
 ## 8. Testability and Observability
 Generated code must be testable through UT/IT suites and produce aggregate coverage reports.

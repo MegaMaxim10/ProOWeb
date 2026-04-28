@@ -4,7 +4,7 @@
 - Date: 2026-04-26
 
 ## Context
-ProOWeb must generate operational baseline capabilities (identity, auth, hierarchy, notifications, etc.) based on wizard choices and later reconfiguration.
+ProOWeb must generate operational core capabilities (identity, auth, hierarchy, notifications, etc.) based on wizard choices and later reconfiguration.
 
 ## Decision
 Generation will be organized around capability-oriented feature packs with explicit metadata:
@@ -13,7 +13,7 @@ Generation will be organized around capability-oriented feature packs with expli
 - managed file ownership,
 - migration handlers for enable/disable/reconfigure.
 
-Initial implementation baseline:
+Initial implementation scope:
 - feature-pack registry and dependency validation,
 - normalized workspace-level feature-pack configuration,
 - feature-pack aware generation plan by mode (`full`, `infra`),
