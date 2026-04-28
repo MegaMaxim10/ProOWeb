@@ -88,6 +88,16 @@ h1 {
   font-size: 0.92rem;
 }
 
+.inline-checkbox {
+  display: flex !important;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.inline-checkbox input[type="checkbox"] {
+  width: auto;
+}
+
 .identity-box input,
 .identity-box select,
 .identity-box textarea {

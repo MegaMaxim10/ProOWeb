@@ -615,24 +615,43 @@ import java.util.Map;
 public class ProcessRuntimeTask {
   private final String taskId;
   private final String activityId;
+  private final String activityType;
   private String assignee;
   private String assignedBy;
   private Instant assignedAt;
   private ProcessRuntimeTaskState state;
   private final Map<String, Object> inputData;
   private final Map<String, Object> outputData;
+  private final String automaticTaskPolicy;
+  private final Instant autoExecuteAt;
   private final Instant createdAt;
   private Instant completedAt;
 
   public ProcessRuntimeTask(String taskId, String activityId, String assignee, Map<String, Object> inputData) {
+    this(taskId, activityId, "MANUAL", assignee, inputData, "NONE", null);
+  }
+
+  public ProcessRuntimeTask(
+      String taskId,
+      String activityId,
+      String activityType,
+      String assignee,
+      Map<String, Object> inputData,
+      String automaticTaskPolicy,
+      Instant autoExecuteAt) {
     this.taskId = taskId;
     this.activityId = activityId;
+    this.activityType = activityType == null || activityType.isBlank() ? "MANUAL" : activityType;
     this.assignee = assignee;
     this.assignedBy = assignee == null || assignee.isBlank() ? null : "SYSTEM";
     this.assignedAt = assignee == null || assignee.isBlank() ? null : Instant.now();
     this.state = ProcessRuntimeTaskState.PENDING;
     this.inputData = new HashMap<>(inputData == null ? Map.of() : inputData);
     this.outputData = new HashMap<>();
+    this.automaticTaskPolicy = automaticTaskPolicy == null || automaticTaskPolicy.isBlank()
+      ? "NONE"
+      : automaticTaskPolicy;
+    this.autoExecuteAt = autoExecuteAt;
     this.createdAt = Instant.now();
   }
 
@@ -642,6 +661,10 @@ public class ProcessRuntimeTask {
 
   public String activityId() {
     return activityId;
+  }
+
+  public String activityType() {
+    return activityType;
   }
 
   public String assignee() {
@@ -666,6 +689,14 @@ public class ProcessRuntimeTask {
 
   public Map<String, Object> outputData() {
     return Map.copyOf(outputData);
+  }
+
+  public String automaticTaskPolicy() {
+    return automaticTaskPolicy;
+  }
+
+  public Instant autoExecuteAt() {
+    return autoExecuteAt;
   }
 
   public Instant createdAt() {
@@ -875,6 +906,10 @@ public interface ProcessRuntimeStorePort {
 
   List<RuntimeMonitorEvent> listMonitorEvents();
 
+  RuntimeUserPreferences readUserPreferences(String userId);
+
+  void saveUserPreferences(RuntimeUserPreferences preferences);
+
   record RuntimeUserDescriptor(
       String userId,
       List<String> roleCodes,
@@ -903,6 +938,19 @@ public interface ProcessRuntimeStorePort {
       String targetId,
       String details,
       boolean forced) {
+  }
+
+  record RuntimeUserPreferences(
+      String userId,
+      String profileDisplayName,
+      String profilePhotoUrl,
+      String preferredLanguage,
+      String preferredTheme,
+      String notificationChannel,
+      boolean notificationsEnabled,
+      String automaticTaskPolicy,
+      int automaticTaskDelaySeconds,
+      boolean automaticTaskNotifyOnly) {
   }
 }
 `;
@@ -936,6 +984,10 @@ public interface ProcessRuntimeEngineUseCase {
 
   List<MonitorEventView> listMonitorEvents(MonitorEventsQuery query);
 
+  RuntimeUserPreferencesView readUserPreferences(UserPreferencesQuery query);
+
+  RuntimeUserPreferencesView updateUserPreferences(UpdateUserPreferencesCommand command);
+
   List<String> readTimeline(String instanceId);
 
   record StartOptionsQuery(String actor, List<String> roleCodes) {
@@ -967,6 +1019,12 @@ public interface ProcessRuntimeEngineUseCase {
       int limit) {
   }
 
+  record UserPreferencesQuery(
+      String actor,
+      List<String> roleCodes,
+      String targetUserId) {
+  }
+
   record CompleteTaskCommand(String instanceId, String taskId, String actor, List<String> roleCodes, Map<String, Object> payload) {
   }
 
@@ -985,6 +1043,21 @@ public interface ProcessRuntimeEngineUseCase {
   record ArchiveCommand(String instanceId, String actor, List<String> roleCodes) {
   }
 
+  record UpdateUserPreferencesCommand(
+      String actor,
+      List<String> roleCodes,
+      String targetUserId,
+      String profileDisplayName,
+      String profilePhotoUrl,
+      String preferredLanguage,
+      String preferredTheme,
+      String notificationChannel,
+      boolean notificationsEnabled,
+      String automaticTaskPolicy,
+      int automaticTaskDelaySeconds,
+      boolean automaticTaskNotifyOnly) {
+  }
+
   record StartOption(
       String modelKey,
       int versionNumber,
@@ -996,12 +1069,15 @@ public interface ProcessRuntimeEngineUseCase {
       String instanceId,
       String taskId,
       String activityId,
+      String activityType,
       String assignee,
       String assignmentStatus,
       String assignmentMode,
       String assignmentStrategy,
       List<String> candidateRoles,
       List<String> manualAssignerRoles,
+      String automaticTaskPolicy,
+      Instant autoExecuteAt,
       String status,
       Instant createdAt,
       Instant assignedAt,
@@ -1034,6 +1110,19 @@ public interface ProcessRuntimeEngineUseCase {
       String targetId,
       String details,
       boolean forced) {
+  }
+
+  record RuntimeUserPreferencesView(
+      String userId,
+      String profileDisplayName,
+      String profilePhotoUrl,
+      String preferredLanguage,
+      String preferredTheme,
+      String notificationChannel,
+      boolean notificationsEnabled,
+      String automaticTaskPolicy,
+      int automaticTaskDelaySeconds,
+      boolean automaticTaskNotifyOnly) {
   }
 }
 `;
@@ -1127,8 +1216,10 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     String actor = query.actor();
     List<String> roles = query.roleCodes() == null ? List.of() : query.roleCodes();
     boolean monitorPrivileges = hasMonitorPrivileges(roles);
+    List<ProcessRuntimeInstance> runtimeInstances = new ArrayList<>(processRuntimeStorePort.listInstances());
+    flushAutomaticTasksForInstances(runtimeInstances);
 
-    return processRuntimeStorePort.listInstances().stream()
+    return runtimeInstances.stream()
       .filter((instance) -> {
         if (monitorPrivileges) {
           return true;
@@ -1155,7 +1246,9 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     String actor = query.actor();
     List<String> roles = query.roleCodes() == null ? List.of() : query.roleCodes();
     boolean monitorPrivileges = hasMonitorPrivileges(roles);
-    return processRuntimeStorePort.listInstances().stream()
+    List<ProcessRuntimeInstance> runtimeInstances = new ArrayList<>(processRuntimeStorePort.listInstances());
+    flushAutomaticTasksForInstances(runtimeInstances);
+    return runtimeInstances.stream()
       .flatMap((instance) -> {
         GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
           .find(instance.modelKey(), instance.versionNumber())
@@ -1307,7 +1400,19 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     }
 
     Map<String, Object> payload = command.payload() == null ? Map.of() : command.payload();
-    Map<String, Object> mappedOutput = applyOutputMappings(payload, activityDescriptor.outputMappings());
+    Map<String, Object> mappedOutput;
+    if ("AUTOMATIC".equals(normalizeUpper(task.activityType(), "MANUAL"))) {
+      Map<String, Object> automaticOutput = executeAutomaticActivity(activityDescriptor, task.inputData(), instance);
+      mappedOutput = applyOutputMappings(automaticOutput, activityDescriptor.outputMappings());
+      instance.addTimelineEntry(
+        "AUTOMATIC_TASK_TRIGGERED:"
+          + task.activityId()
+          + ":"
+          + (actor == null ? "SYSTEM" : actor)
+      );
+    } else {
+      mappedOutput = applyOutputMappings(payload, activityDescriptor.outputMappings());
+    }
 
     task.complete(mappedOutput);
     instance.recordActivityOutput(task.activityId(), mappedOutput);
@@ -1327,6 +1432,9 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
       .find(instance.modelKey(), instance.versionNumber())
       .orElse(null);
+    if (descriptor != null) {
+      flushDueAutomaticTasks(instance, descriptor);
+    }
     List<String> roles = query.roleCodes() == null ? List.of() : query.roleCodes();
     boolean monitorPrivileges = hasMonitorPrivileges(roles);
     if (!monitorPrivileges) {
@@ -1421,9 +1529,78 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
   }
 
   @Override
+  public RuntimeUserPreferencesView readUserPreferences(UserPreferencesQuery query) {
+    String actor = normalizeActor(query.actor());
+    if (actor == null) {
+      throw new IllegalStateException("actor is required to read user preferences.");
+    }
+    List<String> roles = query.roleCodes() == null ? List.of() : query.roleCodes();
+    String targetUserId = normalizeActor(query.targetUserId());
+    String resolvedUserId = targetUserId == null ? actor : targetUserId;
+    if (!Objects.equals(actor, resolvedUserId) && !hasMonitorPrivileges(roles)) {
+      throw new IllegalStateException("Only PROCESS_MONITOR or ADMINISTRATOR can read another user's preferences.");
+    }
+
+    ProcessRuntimeStorePort.RuntimeUserPreferences preferences = loadUserPreferences(resolvedUserId);
+    return toUserPreferencesView(preferences);
+  }
+
+  @Override
+  public RuntimeUserPreferencesView updateUserPreferences(UpdateUserPreferencesCommand command) {
+    String actor = normalizeActor(command.actor());
+    if (actor == null) {
+      throw new IllegalStateException("actor is required to update user preferences.");
+    }
+    List<String> roles = command.roleCodes() == null ? List.of() : command.roleCodes();
+    String targetUserId = normalizeActor(command.targetUserId());
+    String resolvedUserId = targetUserId == null ? actor : targetUserId;
+    boolean updatingAnotherUser = !Objects.equals(actor, resolvedUserId);
+    if (updatingAnotherUser && !hasMonitorPrivileges(roles)) {
+      throw new IllegalStateException("Only PROCESS_MONITOR or ADMINISTRATOR can update another user's preferences.");
+    }
+
+    ProcessRuntimeStorePort.RuntimeUserPreferences previous = loadUserPreferences(resolvedUserId);
+    ProcessRuntimeStorePort.RuntimeUserPreferences updated = normalizeUserPreferences(
+      resolvedUserId,
+      command.profileDisplayName(),
+      command.profilePhotoUrl(),
+      command.preferredLanguage(),
+      command.preferredTheme(),
+      command.notificationChannel(),
+      command.notificationsEnabled(),
+      command.automaticTaskPolicy(),
+      command.automaticTaskDelaySeconds(),
+      command.automaticTaskNotifyOnly(),
+      previous
+    );
+    processRuntimeStorePort.saveUserPreferences(updated);
+
+    if (updatingAnotherUser) {
+      appendMonitorEvent(
+        "USER_PREFERENCES_UPDATE",
+        actor,
+        roles,
+        "USER",
+        resolvedUserId,
+        "updatedByMonitor=true,automaticTaskPolicy="
+          + normalizeUpper(updated.automaticTaskPolicy(), "MANUAL_TRIGGER"),
+        false
+      );
+    }
+
+    return toUserPreferencesView(updated);
+  }
+
+  @Override
   public List<String> readTimeline(String instanceId) {
     ProcessRuntimeInstance instance = processRuntimeStorePort.findById(instanceId)
       .orElseThrow(() -> new IllegalArgumentException("Unknown process instance"));
+    GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
+      .find(instance.modelKey(), instance.versionNumber())
+      .orElse(null);
+    if (descriptor != null) {
+      flushDueAutomaticTasks(instance, descriptor);
+    }
     return instance.timeline();
   }
 
@@ -1505,13 +1682,63 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     nextVisited.add(activityId);
 
     if ("AUTOMATIC".equals(descriptorActivity.activityType())) {
+      if (hasActiveOrCompletedTaskForActivity(instance, activityId)) {
+        instance.addTimelineEntry("AUTOMATIC_TASK_ALREADY_TRACKED:" + descriptorActivity.activityId());
+        return;
+      }
+      String normalizedActor = normalizeActor(actor);
+      List<String> actorRoles = resolveActorRoles(normalizedActor);
+      AssignmentResolution assignmentResolution = resolveAssignment(
+        instance,
+        descriptorActivity,
+        normalizedActor,
+        actorRoles,
+        false
+      );
+      String assignee = assignmentResolution.assignee();
       Map<String, Object> automaticInput = resolveActivityInput(descriptorActivity, instance);
-      Map<String, Object> automaticOutput = executeAutomaticActivity(descriptorActivity, automaticInput, instance);
-      instance.recordActivityOutput(descriptorActivity.activityId(), automaticOutput);
-      applyOutputStorage(instance, descriptorActivity, automaticOutput);
-      instance.addTimelineEntry("AUTOMATIC_ACTIVITY_EXECUTED:" + descriptorActivity.activityId() + ":stub");
+      AutomaticExecutionPlan executionPlan = resolveAutomaticExecutionPlan(assignee);
+      if (executionPlan.executeImmediately()) {
+        Map<String, Object> automaticOutput = executeAutomaticActivity(descriptorActivity, automaticInput, instance);
+        Map<String, Object> mappedAutomaticOutput = applyOutputMappings(
+          automaticOutput,
+          descriptorActivity.outputMappings()
+        );
+        instance.recordActivityOutput(descriptorActivity.activityId(), mappedAutomaticOutput);
+        applyOutputStorage(instance, descriptorActivity, mappedAutomaticOutput);
+        instance.addTimelineEntry(
+          "AUTOMATIC_ACTIVITY_EXECUTED:"
+            + descriptorActivity.activityId()
+            + ":"
+            + executionPlan.policy()
+            + ":"
+            + (assignee == null ? "SYSTEM" : assignee)
+        );
+      } else {
+        ProcessRuntimeTask automaticTask = new ProcessRuntimeTask(
+          "tsk-" + UUID.randomUUID(),
+          descriptorActivity.activityId(),
+          "AUTOMATIC",
+          assignee,
+          automaticInput,
+          executionPlan.policy(),
+          executionPlan.autoExecuteAt()
+        );
+        instance.addTask(automaticTask);
+        instance.addTimelineEntry(
+          "AUTOMATIC_TASK_CREATED:"
+            + descriptorActivity.activityId()
+            + ":"
+            + (assignee == null ? "UNASSIGNED" : assignee)
+            + ":"
+            + executionPlan.policy()
+            + ":"
+            + (executionPlan.autoExecuteAt() == null ? "NO_DEADLINE" : executionPlan.autoExecuteAt())
+        );
+      }
+
       List<String> nextActivityIds = nextActivityIds(descriptor, activityId);
-      if (nextActivityIds.isEmpty()) {
+      if (!executionPlan.executeImmediately() || nextActivityIds.isEmpty()) {
         return;
       }
       for (String nextActivityId : nextActivityIds) {
@@ -1539,8 +1766,11 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     ProcessRuntimeTask task = new ProcessRuntimeTask(
       "tsk-" + UUID.randomUUID(),
       descriptorActivity.activityId(),
+      "MANUAL",
       assignee,
-      inputData
+      inputData,
+      "NONE",
+      null
     );
     instance.addTask(task);
     instance.addTimelineEntry(
@@ -1910,6 +2140,260 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
         forced
       )
     );
+  }
+
+  private ProcessRuntimeStorePort.RuntimeUserPreferences loadUserPreferences(String userId) {
+    String normalizedUserId = normalizeActor(userId);
+    if (normalizedUserId == null) {
+      normalizedUserId = "anonymous";
+    }
+    ProcessRuntimeStorePort.RuntimeUserPreferences loaded = processRuntimeStorePort.readUserPreferences(normalizedUserId);
+    if (loaded != null) {
+      return normalizeUserPreferences(
+        normalizedUserId,
+        loaded.profileDisplayName(),
+        loaded.profilePhotoUrl(),
+        loaded.preferredLanguage(),
+        loaded.preferredTheme(),
+        loaded.notificationChannel(),
+        loaded.notificationsEnabled(),
+        loaded.automaticTaskPolicy(),
+        loaded.automaticTaskDelaySeconds(),
+        loaded.automaticTaskNotifyOnly(),
+        null
+      );
+    }
+
+    return normalizeUserPreferences(
+      normalizedUserId,
+      normalizedUserId,
+      "",
+      "en",
+      "system",
+      "IN_APP_EMAIL",
+      true,
+      "MANUAL_TRIGGER",
+      0,
+      true,
+      null
+    );
+  }
+
+  private ProcessRuntimeStorePort.RuntimeUserPreferences normalizeUserPreferences(
+      String userId,
+      String profileDisplayName,
+      String profilePhotoUrl,
+      String preferredLanguage,
+      String preferredTheme,
+      String notificationChannel,
+      boolean notificationsEnabled,
+      String automaticTaskPolicy,
+      int automaticTaskDelaySeconds,
+      boolean automaticTaskNotifyOnly,
+      ProcessRuntimeStorePort.RuntimeUserPreferences fallback) {
+    String normalizedUserId = normalizeActor(userId);
+    if (normalizedUserId == null) {
+      normalizedUserId = fallback == null ? "anonymous" : normalizeActor(fallback.userId());
+    }
+    String normalizedDisplayName = normalizeBlank(profileDisplayName);
+    if (normalizedDisplayName.isBlank()) {
+      normalizedDisplayName = fallback == null
+        ? normalizedUserId
+        : normalizeBlank(fallback.profileDisplayName());
+    }
+    if (normalizedDisplayName.isBlank()) {
+      normalizedDisplayName = normalizedUserId;
+    }
+
+    String normalizedPhotoUrl = normalizeBlank(profilePhotoUrl);
+    if (normalizedPhotoUrl.isBlank() && fallback != null) {
+      normalizedPhotoUrl = normalizeBlank(fallback.profilePhotoUrl());
+    }
+
+    String normalizedLanguage = normalizeBlank(preferredLanguage).toLowerCase();
+    if (normalizedLanguage.isBlank()) {
+      normalizedLanguage = fallback == null ? "en" : normalizeBlank(fallback.preferredLanguage()).toLowerCase();
+    }
+    if (normalizedLanguage.isBlank()) {
+      normalizedLanguage = "en";
+    }
+
+    String normalizedTheme = normalizeUpper(preferredTheme, "");
+    if (normalizedTheme.isBlank()) {
+      normalizedTheme = fallback == null ? "SYSTEM" : normalizeUpper(fallback.preferredTheme(), "SYSTEM");
+    }
+    if (!Set.of("SYSTEM", "LIGHT", "DARK").contains(normalizedTheme)) {
+      normalizedTheme = "SYSTEM";
+    }
+
+    String normalizedChannel = normalizeUpper(notificationChannel, "");
+    if (normalizedChannel.isBlank()) {
+      normalizedChannel = fallback == null ? "IN_APP_EMAIL" : normalizeUpper(fallback.notificationChannel(), "IN_APP_EMAIL");
+    }
+    if (!Set.of("IN_APP", "EMAIL", "IN_APP_EMAIL", "DISABLED").contains(normalizedChannel)) {
+      normalizedChannel = "IN_APP_EMAIL";
+    }
+
+    String normalizedPolicy = normalizeUpper(automaticTaskPolicy, "");
+    if (normalizedPolicy.isBlank()) {
+      normalizedPolicy = fallback == null ? "MANUAL_TRIGGER" : normalizeUpper(fallback.automaticTaskPolicy(), "MANUAL_TRIGGER");
+    }
+    if (!Set.of("MANUAL_TRIGGER", "AUTO_IMMEDIATE", "AUTO_AFTER_DELAY").contains(normalizedPolicy)) {
+      normalizedPolicy = "MANUAL_TRIGGER";
+    }
+
+    int normalizedDelay = automaticTaskDelaySeconds;
+    if (normalizedDelay < 0 && fallback != null) {
+      normalizedDelay = fallback.automaticTaskDelaySeconds();
+    }
+    if (normalizedDelay < 0) {
+      normalizedDelay = 0;
+    }
+    if (normalizedDelay > 86400) {
+      normalizedDelay = 86400;
+    }
+
+    boolean normalizedNotificationsEnabled = notificationsEnabled;
+    if ("DISABLED".equals(normalizedChannel)) {
+      normalizedNotificationsEnabled = false;
+    }
+
+    return new ProcessRuntimeStorePort.RuntimeUserPreferences(
+      normalizedUserId,
+      normalizedDisplayName,
+      normalizedPhotoUrl,
+      normalizedLanguage,
+      normalizedTheme,
+      normalizedChannel,
+      normalizedNotificationsEnabled,
+      normalizedPolicy,
+      normalizedDelay,
+      automaticTaskNotifyOnly
+    );
+  }
+
+  private RuntimeUserPreferencesView toUserPreferencesView(ProcessRuntimeStorePort.RuntimeUserPreferences preferences) {
+    return new RuntimeUserPreferencesView(
+      preferences.userId(),
+      preferences.profileDisplayName(),
+      preferences.profilePhotoUrl(),
+      preferences.preferredLanguage(),
+      preferences.preferredTheme(),
+      preferences.notificationChannel(),
+      preferences.notificationsEnabled(),
+      preferences.automaticTaskPolicy(),
+      preferences.automaticTaskDelaySeconds(),
+      preferences.automaticTaskNotifyOnly()
+    );
+  }
+
+  private AutomaticExecutionPlan resolveAutomaticExecutionPlan(String assignee) {
+    if (assignee == null || assignee.isBlank()) {
+      return new AutomaticExecutionPlan("AUTO_IMMEDIATE", null, true);
+    }
+    ProcessRuntimeStorePort.RuntimeUserPreferences preferences = loadUserPreferences(assignee);
+    String policy = normalizeUpper(preferences.automaticTaskPolicy(), "MANUAL_TRIGGER");
+    if ("AUTO_IMMEDIATE".equals(policy)) {
+      return new AutomaticExecutionPlan(policy, null, true);
+    }
+    if ("AUTO_AFTER_DELAY".equals(policy)) {
+      int delaySeconds = Math.max(0, preferences.automaticTaskDelaySeconds());
+      if (delaySeconds <= 0) {
+        return new AutomaticExecutionPlan("AUTO_IMMEDIATE", null, true);
+      }
+      return new AutomaticExecutionPlan(policy, Instant.now().plusSeconds(delaySeconds), false);
+    }
+    return new AutomaticExecutionPlan("MANUAL_TRIGGER", null, false);
+  }
+
+  private void flushAutomaticTasksForInstances(List<ProcessRuntimeInstance> instances) {
+    if (instances == null || instances.isEmpty()) {
+      return;
+    }
+    for (ProcessRuntimeInstance instance : instances) {
+      GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor = GeneratedProcessRuntimeCatalog
+        .find(instance.modelKey(), instance.versionNumber())
+        .orElse(null);
+      if (descriptor == null) {
+        continue;
+      }
+      flushDueAutomaticTasks(instance, descriptor);
+    }
+  }
+
+  private void flushDueAutomaticTasks(
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor) {
+    if (instance.state() != ProcessRuntimeState.RUNNING) {
+      return;
+    }
+
+    boolean changed = false;
+    boolean progressed = true;
+    while (progressed && instance.state() == ProcessRuntimeState.RUNNING) {
+      progressed = false;
+      for (ProcessRuntimeTask task : instance.tasks()) {
+        if (task.state() != ProcessRuntimeTaskState.PENDING) {
+          continue;
+        }
+        if (!"AUTOMATIC".equals(normalizeUpper(task.activityType(), "MANUAL"))) {
+          continue;
+        }
+        if (!"AUTO_AFTER_DELAY".equals(normalizeUpper(task.automaticTaskPolicy(), "NONE"))) {
+          continue;
+        }
+        Instant deadline = task.autoExecuteAt();
+        if (deadline == null || deadline.isAfter(Instant.now())) {
+          continue;
+        }
+
+        GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor = findActivity(descriptor, task.activityId())
+          .orElse(null);
+        if (activityDescriptor == null) {
+          continue;
+        }
+
+        completeAutomaticTask(
+          instance,
+          descriptor,
+          task,
+          activityDescriptor,
+          "SYSTEM_DELAY",
+          "AUTO_AFTER_DELAY"
+        );
+        changed = true;
+        progressed = true;
+        break;
+      }
+    }
+
+    if (changed) {
+      maybeCompleteInstance(instance);
+      processRuntimeStorePort.save(instance);
+    }
+  }
+
+  private void completeAutomaticTask(
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor,
+      ProcessRuntimeTask task,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor,
+      String actor,
+      String completionMode) {
+    Map<String, Object> automaticOutput = executeAutomaticActivity(activityDescriptor, task.inputData(), instance);
+    Map<String, Object> mappedOutput = applyOutputMappings(automaticOutput, activityDescriptor.outputMappings());
+    task.complete(mappedOutput);
+    instance.recordActivityOutput(task.activityId(), mappedOutput);
+    applyOutputStorage(instance, activityDescriptor, mappedOutput);
+    instance.addTimelineEntry(
+      "AUTOMATIC_TASK_COMPLETED:"
+        + task.activityId()
+        + ":"
+        + normalizeUpper(completionMode, "MANUAL_TRIGGER")
+        + ":"
+        + normalizeBlank(actor)
+    );
+    createOrAdvanceTasks(instance, descriptor, task.activityId(), actor, mappedOutput, false);
   }
 
   private boolean hasRoleIntersection(List<String> sourceRoles, List<String> requiredRoles) {
@@ -2381,12 +2865,15 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       instanceId,
       task.taskId(),
       task.activityId(),
+      task.activityType(),
       task.assignee(),
       task.isAssigned() ? "ASSIGNED" : "UNASSIGNED",
       activityDescriptor == null ? "AUTOMATIC" : normalizeUpper(activityDescriptor.assignmentMode(), "AUTOMATIC"),
       activityDescriptor == null ? "ROLE_QUEUE" : normalizeUpper(activityDescriptor.assignmentStrategy(), "ROLE_QUEUE"),
       activityDescriptor == null || activityDescriptor.candidateRoles() == null ? List.of() : activityDescriptor.candidateRoles(),
       activityDescriptor == null || activityDescriptor.manualAssignerRoles() == null ? List.of() : activityDescriptor.manualAssignerRoles(),
+      task.automaticTaskPolicy(),
+      task.autoExecuteAt(),
       task.state().name(),
       task.createdAt(),
       task.assignedAt(),
@@ -2429,6 +2916,9 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
 
   private record AssignmentResolution(String assignee, List<String> candidateIds, String reason) {
   }
+
+  private record AutomaticExecutionPlan(String policy, Instant autoExecuteAt, boolean executeImmediately) {
+  }
 }
 `;
 }
@@ -2453,6 +2943,7 @@ public class InMemoryProcessRuntimeStoreAdapter implements ProcessRuntimeStorePo
   private final Map<String, ProcessRuntimeInstance> byInstanceId = new ConcurrentHashMap<>();
   private final Map<String, Map<String, Object>> sharedDataByEntity = new ConcurrentHashMap<>();
   private final List<ProcessRuntimeStorePort.RuntimeMonitorEvent> monitorEvents = new CopyOnWriteArrayList<>();
+  private final Map<String, ProcessRuntimeStorePort.RuntimeUserPreferences> userPreferencesByUserId = new ConcurrentHashMap<>();
   private final List<ProcessRuntimeStorePort.RuntimeUserDescriptor> users = List.of(
     new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.user", List.of("PROCESS_USER"), "unit.operations", "runtime.supervisor"),
     new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.supervisor", List.of("PROCESS_MONITOR", "PROCESS_USER"), "unit.operations", "runtime.admin"),
@@ -2467,6 +2958,41 @@ public class InMemoryProcessRuntimeStoreAdapter implements ProcessRuntimeStorePo
       new ProcessRuntimeStorePort.RuntimeOrganizationUnitDescriptor("unit.finance", "unit.executive", "runtime.supervisor", List.of("runtime.approverA", "runtime.approverB"))
     )
   );
+
+  public InMemoryProcessRuntimeStoreAdapter() {
+    registerDefaultPreference("runtime.user", "Runtime User", "en", "SYSTEM", "IN_APP_EMAIL", true, "MANUAL_TRIGGER", 0, true);
+    registerDefaultPreference("runtime.supervisor", "Runtime Supervisor", "en", "SYSTEM", "IN_APP_EMAIL", true, "AUTO_IMMEDIATE", 0, true);
+    registerDefaultPreference("runtime.approverA", "Runtime Approver A", "en", "SYSTEM", "IN_APP_EMAIL", true, "AUTO_AFTER_DELAY", 30, true);
+    registerDefaultPreference("runtime.approverB", "Runtime Approver B", "en", "SYSTEM", "IN_APP_EMAIL", true, "MANUAL_TRIGGER", 0, true);
+    registerDefaultPreference("runtime.admin", "Runtime Administrator", "en", "SYSTEM", "IN_APP_EMAIL", true, "AUTO_IMMEDIATE", 0, true);
+  }
+
+  private void registerDefaultPreference(
+      String userId,
+      String displayName,
+      String language,
+      String theme,
+      String channel,
+      boolean notificationsEnabled,
+      String automaticTaskPolicy,
+      int automaticTaskDelaySeconds,
+      boolean automaticTaskNotifyOnly) {
+    userPreferencesByUserId.put(
+      userId,
+      new ProcessRuntimeStorePort.RuntimeUserPreferences(
+        userId,
+        displayName,
+        "",
+        language,
+        theme,
+        channel,
+        notificationsEnabled,
+        automaticTaskPolicy,
+        automaticTaskDelaySeconds,
+        automaticTaskNotifyOnly
+      )
+    );
+  }
 
   @Override
   public List<ProcessRuntimeInstance> listInstances() {
@@ -2539,6 +3065,36 @@ public class InMemoryProcessRuntimeStoreAdapter implements ProcessRuntimeStorePo
   @Override
   public List<ProcessRuntimeStorePort.RuntimeMonitorEvent> listMonitorEvents() {
     return List.copyOf(monitorEvents);
+  }
+
+  @Override
+  public ProcessRuntimeStorePort.RuntimeUserPreferences readUserPreferences(String userId) {
+    if (userId == null || userId.isBlank()) {
+      return null;
+    }
+    return userPreferencesByUserId.get(userId);
+  }
+
+  @Override
+  public void saveUserPreferences(ProcessRuntimeStorePort.RuntimeUserPreferences preferences) {
+    if (preferences == null || preferences.userId() == null || preferences.userId().isBlank()) {
+      return;
+    }
+    userPreferencesByUserId.put(
+      preferences.userId(),
+      new ProcessRuntimeStorePort.RuntimeUserPreferences(
+        preferences.userId(),
+        preferences.profileDisplayName(),
+        preferences.profilePhotoUrl(),
+        preferences.preferredLanguage(),
+        preferences.preferredTheme(),
+        preferences.notificationChannel(),
+        preferences.notificationsEnabled(),
+        preferences.automaticTaskPolicy(),
+        preferences.automaticTaskDelaySeconds(),
+        preferences.automaticTaskNotifyOnly()
+      )
+    );
   }
 }
 `;
@@ -2746,6 +3302,45 @@ public class ProcessRuntimeController {
     );
   }
 
+  @Operation(summary = "Read runtime user preferences")
+  @GetMapping("/preferences")
+  public Map<String, Object> readUserPreferences(
+    @RequestParam(name = "actor", required = false) String actor,
+    @RequestParam(name = "roles", required = false) List<String> roles,
+    @RequestParam(name = "targetUserId", required = false) String targetUserId
+  ) {
+    return Map.of(
+      "preferences",
+      processRuntimeEngineUseCase.readUserPreferences(
+        new ProcessRuntimeEngineUseCase.UserPreferencesQuery(actor, roles, targetUserId)
+      )
+    );
+  }
+
+  @Operation(summary = "Update runtime user preferences")
+  @PostMapping("/preferences")
+  public Map<String, Object> updateUserPreferences(@RequestBody UpdateUserPreferencesPayload payload) {
+    return Map.of(
+      "preferences",
+      processRuntimeEngineUseCase.updateUserPreferences(
+        new ProcessRuntimeEngineUseCase.UpdateUserPreferencesCommand(
+          payload.actor(),
+          payload.roleCodes(),
+          payload.targetUserId(),
+          payload.profileDisplayName(),
+          payload.profilePhotoUrl(),
+          payload.preferredLanguage(),
+          payload.preferredTheme(),
+          payload.notificationChannel(),
+          payload.notificationsEnabled(),
+          payload.automaticTaskPolicy(),
+          payload.automaticTaskDelaySeconds(),
+          payload.automaticTaskNotifyOnly()
+        )
+      )
+    );
+  }
+
   public record StartInstancePayload(
     String modelKey,
     int versionNumber,
@@ -2783,6 +3378,22 @@ public class ProcessRuntimeController {
   public record ArchiveInstancePayload(
     String actor,
     List<String> roleCodes
+  ) {
+  }
+
+  public record UpdateUserPreferencesPayload(
+    String actor,
+    List<String> roleCodes,
+    String targetUserId,
+    String profileDisplayName,
+    String profilePhotoUrl,
+    String preferredLanguage,
+    String preferredTheme,
+    String notificationChannel,
+    boolean notificationsEnabled,
+    String automaticTaskPolicy,
+    int automaticTaskDelaySeconds,
+    boolean automaticTaskNotifyOnly
   ) {
   }
 }
@@ -2951,10 +3562,43 @@ class ProcessRuntimeEngineUT {
     assertThat(events).anyMatch((entry) -> "INSTANCE_ARCHIVE".equals(entry.actionType()));
   }
 
+  @Test
+  void shouldReadAndUpdateUserPreferences() {
+    ProcessRuntimeEngineUseCase useCase = new ProcessRuntimeEngineService(new InMemoryStore());
+
+    ProcessRuntimeEngineUseCase.RuntimeUserPreferencesView current = useCase.readUserPreferences(
+      new ProcessRuntimeEngineUseCase.UserPreferencesQuery("alice", List.of("PROCESS_USER"), null)
+    );
+    assertThat(current.userId()).isEqualTo("alice");
+
+    ProcessRuntimeEngineUseCase.RuntimeUserPreferencesView updated = useCase.updateUserPreferences(
+      new ProcessRuntimeEngineUseCase.UpdateUserPreferencesCommand(
+        "alice",
+        List.of("PROCESS_USER"),
+        null,
+        "Alice Cooper",
+        "",
+        "fr",
+        "LIGHT",
+        "IN_APP",
+        true,
+        "AUTO_AFTER_DELAY",
+        30,
+        true
+      )
+    );
+
+    assertThat(updated.profileDisplayName()).isEqualTo("Alice Cooper");
+    assertThat(updated.preferredLanguage()).isEqualTo("fr");
+    assertThat(updated.automaticTaskPolicy()).isEqualTo("AUTO_AFTER_DELAY");
+    assertThat(updated.automaticTaskDelaySeconds()).isEqualTo(30);
+  }
+
   private static final class InMemoryStore implements ProcessRuntimeStorePort {
     private final Map<String, ProcessRuntimeInstance> byId = new HashMap<>();
     private final Map<String, Map<String, Object>> sharedDataByEntity = new HashMap<>();
     private final List<ProcessRuntimeStorePort.RuntimeMonitorEvent> monitorEvents = new ArrayList<>();
+    private final Map<String, ProcessRuntimeStorePort.RuntimeUserPreferences> preferencesByUserId = new HashMap<>();
     private final List<ProcessRuntimeStorePort.RuntimeUserDescriptor> users = List.of(
       new ProcessRuntimeStorePort.RuntimeUserDescriptor("alice", List.of("PROCESS_USER"), "unit.operations", "manager"),
       new ProcessRuntimeStorePort.RuntimeUserDescriptor("manager", List.of("PROCESS_MONITOR", "PROCESS_USER"), "unit.operations", "admin"),
@@ -2966,6 +3610,39 @@ class ProcessRuntimeEngineUT {
         new ProcessRuntimeStorePort.RuntimeOrganizationUnitDescriptor("unit.operations", "unit.executive", "manager", List.of("alice", "manager"))
       )
     );
+
+    private InMemoryStore() {
+      preferencesByUserId.put(
+        "alice",
+        new ProcessRuntimeStorePort.RuntimeUserPreferences(
+          "alice",
+          "Alice",
+          "",
+          "en",
+          "SYSTEM",
+          "IN_APP_EMAIL",
+          true,
+          "MANUAL_TRIGGER",
+          0,
+          true
+        )
+      );
+      preferencesByUserId.put(
+        "manager",
+        new ProcessRuntimeStorePort.RuntimeUserPreferences(
+          "manager",
+          "Manager",
+          "",
+          "en",
+          "SYSTEM",
+          "IN_APP_EMAIL",
+          true,
+          "AUTO_IMMEDIATE",
+          0,
+          true
+        )
+      );
+    }
 
     @Override
     public List<ProcessRuntimeInstance> listInstances() {
@@ -3033,6 +3710,19 @@ class ProcessRuntimeEngineUT {
     @Override
     public List<ProcessRuntimeStorePort.RuntimeMonitorEvent> listMonitorEvents() {
       return List.copyOf(monitorEvents);
+    }
+
+    @Override
+    public ProcessRuntimeStorePort.RuntimeUserPreferences readUserPreferences(String userId) {
+      return preferencesByUserId.get(userId);
+    }
+
+    @Override
+    public void saveUserPreferences(ProcessRuntimeStorePort.RuntimeUserPreferences preferences) {
+      if (preferences == null || preferences.userId() == null || preferences.userId().isBlank()) {
+        return;
+      }
+      preferencesByUserId.put(preferences.userId(), preferences);
     }
   }
 }
@@ -3226,6 +3916,36 @@ class ProcessRuntimeEngineIT {
       .andExpect(status().isOk())
       .andExpect(jsonPath("$.events").isArray())
       .andExpect(jsonPath("$.events[0].actionType").isNotEmpty());
+
+    mockMvc.perform(
+      get("/api/process-runtime/preferences")
+        .queryParam("actor", "runtime.user")
+        .queryParam("roles", "PROCESS_USER")
+    )
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.preferences.userId").value("runtime.user"));
+
+    mockMvc.perform(
+      post("/api/process-runtime/preferences")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("""
+          {
+            "actor": "runtime.user",
+            "roleCodes": ["PROCESS_USER"],
+            "preferredLanguage": "fr",
+            "preferredTheme": "LIGHT",
+            "notificationChannel": "IN_APP",
+            "notificationsEnabled": true,
+            "automaticTaskPolicy": "AUTO_AFTER_DELAY",
+            "automaticTaskDelaySeconds": 12,
+            "automaticTaskNotifyOnly": true
+          }
+          """)
+    )
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.preferences.preferredLanguage").value("fr"))
+      .andExpect(jsonPath("$.preferences.automaticTaskPolicy").value("AUTO_AFTER_DELAY"))
+      .andExpect(jsonPath("$.preferences.automaticTaskDelaySeconds").value(12));
   }
 }
 `;
@@ -3250,6 +3970,27 @@ async function requestJson(url, options = {}) {
   }
 
   return payload;
+}
+
+function buildBasicHeader(username, password) {
+  const raw = String(username || "") + ":" + String(password || "");
+  if (typeof globalThis.btoa !== "function") {
+    throw new Error("Browser runtime does not support Base64 encoding.");
+  }
+  return "Basic " + globalThis.btoa(raw);
+}
+
+function requestJsonWithBasic(url, payload = {}, basicAuth = null) {
+  const headers = basicAuth
+    ? {
+        Authorization: buildBasicHeader(basicAuth.username, basicAuth.password),
+      }
+    : {};
+  return requestJson(url, {
+    method: "POST",
+    body: payload,
+    headers,
+  });
 }
 
 export function fetchProcessRuntimeStartOptions({ actor = "", roles = [] } = {}) {
@@ -3353,6 +4094,51 @@ export function listProcessRuntimeMonitorEvents(
     query.set("limit", String(limit));
   }
   return requestJson(PROCESS_RUNTIME_API_ROOT + "/monitor/events?" + query.toString());
+}
+
+export function readProcessRuntimeUserPreferences({ actor = "", roles = [], targetUserId = "" } = {}) {
+  const query = new URLSearchParams();
+  if (actor) {
+    query.set("actor", actor);
+  }
+  for (const role of roles) {
+    if (role) {
+      query.append("roles", role);
+    }
+  }
+  if (targetUserId) {
+    query.set("targetUserId", targetUserId);
+  }
+  return requestJson(PROCESS_RUNTIME_API_ROOT + "/preferences?" + query.toString());
+}
+
+export function updateProcessRuntimeUserPreferences(payload) {
+  return requestJson(PROCESS_RUNTIME_API_ROOT + "/preferences", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function setupOtpMfaWithBasicAuth({ username, password }) {
+  return requestJsonWithBasic("/api/account/mfa/otp/setup", {}, { username, password });
+}
+
+export function setupTotpMfaWithBasicAuth({ username, password }) {
+  return requestJsonWithBasic("/api/account/mfa/totp/setup", {}, { username, password });
+}
+
+export function requestPasswordReset(payload) {
+  return requestJson("/api/auth/password-reset/request", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function confirmPasswordReset(payload) {
+  return requestJson("/api/auth/password-reset/confirm", {
+    method: "POST",
+    body: payload,
+  });
 }
 
 export function stopProcessRuntimeInstance(instanceId, payload) {

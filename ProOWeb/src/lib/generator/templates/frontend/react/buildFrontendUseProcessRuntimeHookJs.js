@@ -13,6 +13,12 @@ import {
   readProcessRuntimeInstance,
   readProcessRuntimeTimeline,
   listProcessRuntimeMonitorEvents,
+  readProcessRuntimeUserPreferences,
+  updateProcessRuntimeUserPreferences,
+  setupOtpMfaWithBasicAuth,
+  setupTotpMfaWithBasicAuth,
+  requestPasswordReset,
+  confirmPasswordReset,
   stopProcessRuntimeInstance,
   archiveProcessRuntimeInstance,
 } from "../runtime/generatedProcessRuntimeApi";
@@ -98,6 +104,24 @@ export function useProcessRuntime() {
   const [instances, setInstances] = useState([]);
   const [timeline, setTimeline] = useState([]);
   const [monitorEvents, setMonitorEvents] = useState([]);
+  const [preferencesTargetUserId, setPreferencesTargetUserId] = useState("");
+  const [userPreferences, setUserPreferences] = useState({
+    userId: "process.user",
+    profileDisplayName: "Process User",
+    profilePhotoUrl: "",
+    preferredLanguage: "en",
+    preferredTheme: "SYSTEM",
+    notificationChannel: "IN_APP_EMAIL",
+    notificationsEnabled: true,
+    automaticTaskPolicy: "MANUAL_TRIGGER",
+    automaticTaskDelaySeconds: 0,
+    automaticTaskNotifyOnly: true,
+  });
+  const [securityUsername, setSecurityUsername] = useState("");
+  const [securityPassword, setSecurityPassword] = useState("");
+  const [passwordResetPrincipal, setPasswordResetPrincipal] = useState("");
+  const [passwordResetToken, setPasswordResetToken] = useState("");
+  const [passwordResetNewPassword, setPasswordResetNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState(null);
@@ -284,6 +308,12 @@ export function useProcessRuntime() {
         : [];
       const nextTasks = Array.isArray(tasksPayload?.tasks) ? tasksPayload.tasks : [];
       const nextInstances = Array.isArray(instancesPayload?.instances) ? instancesPayload.instances : [];
+      const preferencesPayload = await readProcessRuntimeUserPreferences({
+        actor: trimmedActor,
+        roles: roleCodes,
+        targetUserId: preferencesTargetUserId.trim(),
+      });
+      const nextPreferences = preferencesPayload?.preferences || null;
       let nextMonitorEvents = [];
 
       if (hasMonitorPrivilege) {
@@ -301,6 +331,12 @@ export function useProcessRuntime() {
       setTasks(nextTasks);
       setInstances(nextInstances);
       setMonitorEvents(nextMonitorEvents);
+      if (nextPreferences && typeof nextPreferences === "object") {
+        setUserPreferences((previous) => ({
+          ...previous,
+          ...nextPreferences,
+        }));
+      }
 
       if (!selectedStartKey && nextStartOptions.length > 0) {
         const defaultStart = nextStartOptions[0];
@@ -509,6 +545,112 @@ export function useProcessRuntime() {
     }
   }
 
+  async function saveUserPreferences() {
+    setWorking(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const payload = {
+        actor: actor.trim(),
+        roleCodes,
+        targetUserId: preferencesTargetUserId.trim() || undefined,
+        profileDisplayName: String(userPreferences.profileDisplayName || "").trim(),
+        profilePhotoUrl: String(userPreferences.profilePhotoUrl || "").trim(),
+        preferredLanguage: String(userPreferences.preferredLanguage || "").trim(),
+        preferredTheme: String(userPreferences.preferredTheme || "").trim(),
+        notificationChannel: String(userPreferences.notificationChannel || "").trim(),
+        notificationsEnabled: Boolean(userPreferences.notificationsEnabled),
+        automaticTaskPolicy: String(userPreferences.automaticTaskPolicy || "").trim(),
+        automaticTaskDelaySeconds: Number(userPreferences.automaticTaskDelaySeconds || 0),
+        automaticTaskNotifyOnly: Boolean(userPreferences.automaticTaskNotifyOnly),
+      };
+      const response = await updateProcessRuntimeUserPreferences(payload);
+      if (response?.preferences) {
+        setUserPreferences((previous) => ({
+          ...previous,
+          ...response.preferences,
+        }));
+      }
+      await refreshRuntimeData();
+      setSuccess("User preferences updated.");
+    } catch (cause) {
+      setError(cause?.message || "Unable to update user preferences.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function setupOtpMfa() {
+    setWorking(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await setupOtpMfaWithBasicAuth({
+        username: securityUsername.trim(),
+        password: securityPassword,
+      });
+      setSuccess("OTP MFA setup completed.");
+    } catch (cause) {
+      setError(cause?.message || "Unable to setup OTP MFA.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function setupTotpMfa() {
+    setWorking(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await setupTotpMfaWithBasicAuth({
+        username: securityUsername.trim(),
+        password: securityPassword,
+      });
+      setSuccess("TOTP MFA setup completed.");
+    } catch (cause) {
+      setError(cause?.message || "Unable to setup TOTP MFA.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function requestPasswordResetToken() {
+    setWorking(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const principal = String(passwordResetPrincipal || securityUsername || actor).trim();
+      await requestPasswordReset({ principal });
+      setSuccess("Password reset token requested. Check backend response/logs.");
+    } catch (cause) {
+      setError(cause?.message || "Unable to request password reset token.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function confirmPasswordResetToken() {
+    setWorking(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await confirmPasswordReset({
+        resetToken: String(passwordResetToken || "").trim(),
+        newPassword: String(passwordResetNewPassword || ""),
+      });
+      setSuccess("Password reset confirmed.");
+    } catch (cause) {
+      setError(cause?.message || "Unable to confirm password reset.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
   return {
     actor,
     rolesRaw,
@@ -527,6 +669,13 @@ export function useProcessRuntime() {
     taskViewMode,
     monitorInstanceFilter,
     monitorActionFilter,
+    preferencesTargetUserId,
+    userPreferences,
+    securityUsername,
+    securityPassword,
+    passwordResetPrincipal,
+    passwordResetToken,
+    passwordResetNewPassword,
     startOptions,
     startableFromRegistry,
     manualTaskCatalog,
@@ -555,6 +704,13 @@ export function useProcessRuntime() {
     setTaskViewMode,
     setMonitorInstanceFilter,
     setMonitorActionFilter,
+    setPreferencesTargetUserId,
+    setUserPreferences,
+    setSecurityUsername,
+    setSecurityPassword,
+    setPasswordResetPrincipal,
+    setPasswordResetToken,
+    setPasswordResetNewPassword,
     getTaskFormDefinition,
     refreshRuntimeData,
     startInstance,
@@ -563,6 +719,11 @@ export function useProcessRuntime() {
     inspectInstance,
     stopInstance,
     archiveInstance,
+    saveUserPreferences,
+    setupOtpMfa,
+    setupTotpMfa,
+    requestPasswordResetToken,
+    confirmPasswordResetToken,
   };
 }
 `;

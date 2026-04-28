@@ -25,6 +25,13 @@ export function ProcessRuntimeWorkbench() {
     taskViewMode,
     monitorInstanceFilter,
     monitorActionFilter,
+    preferencesTargetUserId,
+    userPreferences,
+    securityUsername,
+    securityPassword,
+    passwordResetPrincipal,
+    passwordResetToken,
+    passwordResetNewPassword,
     startOptions,
     startableFromRegistry,
     manualTaskCatalog,
@@ -53,6 +60,13 @@ export function ProcessRuntimeWorkbench() {
     setTaskViewMode,
     setMonitorInstanceFilter,
     setMonitorActionFilter,
+    setPreferencesTargetUserId,
+    setUserPreferences,
+    setSecurityUsername,
+    setSecurityPassword,
+    setPasswordResetPrincipal,
+    setPasswordResetToken,
+    setPasswordResetNewPassword,
     getTaskFormDefinition,
     refreshRuntimeData,
     startInstance,
@@ -61,6 +75,11 @@ export function ProcessRuntimeWorkbench() {
     inspectInstance,
     stopInstance,
     archiveInstance,
+    saveUserPreferences,
+    setupOtpMfa,
+    setupTotpMfa,
+    requestPasswordResetToken,
+    confirmPasswordResetToken,
   } = useProcessRuntime();
 
   const selectedStartActivities = useMemo(
@@ -209,8 +228,13 @@ export function ProcessRuntimeWorkbench() {
                 <span>Task: {task.taskId}</span>
                 <small>Instance: {task.instanceId}</small>
                 <small>Assignee: {task.assignee || "-"}</small>
+                <small>Activity type: {task.activityType || "-"}</small>
                 <small>
                   Assignment: {task.assignmentStatus || "-"} ({task.assignmentMode || "-"} / {task.assignmentStrategy || "-"})
+                </small>
+                <small>
+                  Automatic policy: {task.automaticTaskPolicy || "-"}
+                  {task.autoExecuteAt ? " (deadline: " + task.autoExecuteAt + ")" : ""}
                 </small>
                 <small>Candidate roles: {(task.candidateRoles || []).join(", ") || "-"}</small>
                 {getTaskFormDefinition(task) ? (
@@ -361,6 +385,217 @@ export function ProcessRuntimeWorkbench() {
 
       <div className="identity-grid">
         <div className="identity-box">
+          <h3>User settings</h3>
+          <label>
+            Target user (monitor/admin can manage another user)
+            <input
+              type="text"
+              value={preferencesTargetUserId}
+              onChange={(event) => setPreferencesTargetUserId(event.target.value)}
+              placeholder="leave empty for current actor"
+            />
+          </label>
+          <label>
+            Profile display name
+            <input
+              type="text"
+              value={userPreferences.profileDisplayName || ""}
+              onChange={(event) =>
+                setUserPreferences((previous) => ({
+                  ...previous,
+                  profileDisplayName: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label>
+            Profile photo URL
+            <input
+              type="text"
+              value={userPreferences.profilePhotoUrl || ""}
+              onChange={(event) =>
+                setUserPreferences((previous) => ({
+                  ...previous,
+                  profilePhotoUrl: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label>
+            Preferred language
+            <input
+              type="text"
+              value={userPreferences.preferredLanguage || ""}
+              onChange={(event) =>
+                setUserPreferences((previous) => ({
+                  ...previous,
+                  preferredLanguage: event.target.value,
+                }))
+              }
+              placeholder="en, fr, ... "
+            />
+          </label>
+          <label>
+            Theme
+            <select
+              value={String(userPreferences.preferredTheme || "SYSTEM").toUpperCase()}
+              onChange={(event) =>
+                setUserPreferences((previous) => ({
+                  ...previous,
+                  preferredTheme: event.target.value,
+                }))
+              }
+            >
+              <option value="SYSTEM">SYSTEM</option>
+              <option value="LIGHT">LIGHT</option>
+              <option value="DARK">DARK</option>
+            </select>
+          </label>
+          <label>
+            Notification channel
+            <select
+              value={String(userPreferences.notificationChannel || "IN_APP_EMAIL").toUpperCase()}
+              onChange={(event) =>
+                setUserPreferences((previous) => ({
+                  ...previous,
+                  notificationChannel: event.target.value,
+                }))
+              }
+            >
+              <option value="IN_APP_EMAIL">IN_APP_EMAIL</option>
+              <option value="IN_APP">IN_APP</option>
+              <option value="EMAIL">EMAIL</option>
+              <option value="DISABLED">DISABLED</option>
+            </select>
+          </label>
+          <label className="inline-checkbox">
+            <input
+              type="checkbox"
+              checked={Boolean(userPreferences.notificationsEnabled)}
+              onChange={(event) =>
+                setUserPreferences((previous) => ({
+                  ...previous,
+                  notificationsEnabled: event.target.checked,
+                }))
+              }
+            />
+            Notifications enabled
+          </label>
+          <label>
+            Automatic task policy
+            <select
+              value={String(userPreferences.automaticTaskPolicy || "MANUAL_TRIGGER").toUpperCase()}
+              onChange={(event) =>
+                setUserPreferences((previous) => ({
+                  ...previous,
+                  automaticTaskPolicy: event.target.value,
+                }))
+              }
+            >
+              <option value="MANUAL_TRIGGER">MANUAL_TRIGGER</option>
+              <option value="AUTO_IMMEDIATE">AUTO_IMMEDIATE</option>
+              <option value="AUTO_AFTER_DELAY">AUTO_AFTER_DELAY</option>
+            </select>
+          </label>
+          <label>
+            Automatic delay (seconds)
+            <input
+              type="number"
+              min={0}
+              max={86400}
+              value={Number(userPreferences.automaticTaskDelaySeconds || 0)}
+              onChange={(event) =>
+                setUserPreferences((previous) => ({
+                  ...previous,
+                  automaticTaskDelaySeconds: Number(event.target.value || 0),
+                }))
+              }
+            />
+          </label>
+          <label className="inline-checkbox">
+            <input
+              type="checkbox"
+              checked={Boolean(userPreferences.automaticTaskNotifyOnly)}
+              onChange={(event) =>
+                setUserPreferences((previous) => ({
+                  ...previous,
+                  automaticTaskNotifyOnly: event.target.checked,
+                }))
+              }
+            />
+            Notify-only when automatic execution happens
+          </label>
+          <button type="button" disabled={loading || working} onClick={saveUserPreferences}>
+            Save user settings
+          </button>
+        </div>
+
+        <div className="identity-box">
+          <h3>Credentials and MFA quick actions</h3>
+          <label>
+            Username (Basic auth)
+            <input
+              type="text"
+              value={securityUsername}
+              onChange={(event) => setSecurityUsername(event.target.value)}
+              placeholder="runtime.user"
+            />
+          </label>
+          <label>
+            Password (Basic auth)
+            <input
+              type="password"
+              value={securityPassword}
+              onChange={(event) => setSecurityPassword(event.target.value)}
+              placeholder="current password"
+            />
+          </label>
+          <div className="runtime-actions">
+            <button type="button" disabled={loading || working} onClick={setupOtpMfa}>
+              Setup OTP MFA
+            </button>
+            <button type="button" disabled={loading || working} onClick={setupTotpMfa}>
+              Setup TOTP MFA
+            </button>
+          </div>
+          <label>
+            Password reset principal
+            <input
+              type="text"
+              value={passwordResetPrincipal}
+              onChange={(event) => setPasswordResetPrincipal(event.target.value)}
+              placeholder="email or username"
+            />
+          </label>
+          <button type="button" disabled={loading || working} onClick={requestPasswordResetToken}>
+            Request password reset token
+          </button>
+          <label>
+            Reset token
+            <input
+              type="text"
+              value={passwordResetToken}
+              onChange={(event) => setPasswordResetToken(event.target.value)}
+              placeholder="token"
+            />
+          </label>
+          <label>
+            New password
+            <input
+              type="password"
+              value={passwordResetNewPassword}
+              onChange={(event) => setPasswordResetNewPassword(event.target.value)}
+              placeholder="new password"
+            />
+          </label>
+          <button type="button" disabled={loading || working} onClick={confirmPasswordResetToken}>
+            Confirm password reset
+          </button>
+        </div>
+      </div>
+
+      <div className="identity-grid">
+        <div className="identity-box">
           <h3>Timeline {selectedInstanceId ? "(" + selectedInstanceId + ")" : ""}</h3>
           {selectedInstance ? (
             <small>
@@ -400,6 +635,7 @@ export function ProcessRuntimeWorkbench() {
                   <option value="TASK_ASSIGN">TASK_ASSIGN</option>
                   <option value="INSTANCE_STOP">INSTANCE_STOP</option>
                   <option value="INSTANCE_ARCHIVE">INSTANCE_ARCHIVE</option>
+                  <option value="USER_PREFERENCES_UPDATE">USER_PREFERENCES_UPDATE</option>
                 </select>
               </label>
               <button type="button" onClick={refreshRuntimeData} disabled={loading || working}>
