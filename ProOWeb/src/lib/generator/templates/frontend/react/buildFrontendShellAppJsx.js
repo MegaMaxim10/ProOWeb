@@ -14,11 +14,15 @@ function buildFrontendShellAppJsx(options = {}) {
   const notificationsImport = options.notificationsEnabled
     ? `import { NotificationWorkflowPanel } from "../../notifications/ui/NotificationWorkflowPanel";\n`
     : "";
+  const processRuntimeImport = options.processRuntimeEnabled
+    ? `import { ProcessRuntimeWorkbench } from "../../processes/ui/ProcessRuntimeWorkbench";\n`
+    : "";
   const identitySection = options.identityEnabled ? "\n      <IdentityAdminPanel />" : "";
   const authSection = options.authEnabled ? "\n      <AuthenticationWorkbench />" : "";
   const sessionSecuritySection = options.sessionSecurityEnabled ? "\n      <SessionSecurityPanel />" : "";
   const organizationSection = options.organizationEnabled ? "\n      <OrganizationHierarchyPanel />" : "";
   const notificationsSection = options.notificationsEnabled ? "\n      <NotificationWorkflowPanel />" : "";
+  const processRuntimeSection = options.processRuntimeEnabled ? "\n      <ProcessRuntimeWorkbench />" : "";
 
   return `import { useSystemSnapshot } from "./useSystemSnapshot";
 ${identityImport}
@@ -26,6 +30,7 @@ ${authImport}
 ${sessionSecurityImport}
 ${organizationImport}
 ${notificationsImport}
+${processRuntimeImport}
 export function ShellApp() {
   const { snapshot, loading, error, healthLabel } = useSystemSnapshot();
   const meta = snapshot?.meta;
@@ -55,7 +60,7 @@ export function ShellApp() {
             Healthcheck: <span className={healthLabel === "UP" ? "ok" : "warn"}>{healthLabel}</span>
           </p>
         ) : null}
-      </section>${identitySection}${authSection}${sessionSecuritySection}${organizationSection}${notificationsSection}
+      </section>${identitySection}${authSection}${sessionSecuritySection}${organizationSection}${notificationsSection}${processRuntimeSection}
     </main>
   );
 }

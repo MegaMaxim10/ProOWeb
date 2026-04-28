@@ -46,6 +46,11 @@ ProOWeb is a web editor (IDE) that helps engineering teams build business applic
 - Supports Step 13 data and mapping baseline:
   - data contract projection generated from deployed versions (input/output mappings, lineage edges, shared data entities),
   - backend/frontend data catalogs generated for process data lineage tooling.
+- Supports Step 14 runtime engine core:
+  - generated runtime engine classes and APIs per deployment (state machine, BPMN main transitions, guided start, task creation/completion),
+  - runtime instance stop/archive lifecycle with timeline.
+- Supports Step 15 generated runtime workbench:
+  - React runtime operations panel generated with actor context, guided start, pending task completion, instance inspection, and monitor actions.
 
 ## Wizard Git Policy
 
@@ -166,6 +171,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `GET /api/process-models/{modelKey}/diff?sourceVersion=...&targetVersion=...`
   - `POST /api/process-models/{modelKey}/versions/{version}/transition`
   - `POST /api/process-models/{modelKey}/versions/{version}/deploy`
+  - `POST /api/process-models/{modelKey}/versions/{version}/undeploy`
   - `GET /api/process-models/{modelKey}/history`
   - `POST /api/process-models/{modelKey}/history/snapshots`
   - `POST /api/process-models/{modelKey}/history/undo`
@@ -189,10 +195,16 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
     - `src/backend/springboot/prooweb-application/src/main/resources/processes/<modelKey>/v<version>.runtime.json`
   - backend runtime catalog:
     - `src/backend/springboot/prooweb-application/src/main/resources/processes/runtime-catalog.json`
+  - backend runtime engine generated modules:
+    - `src/backend/springboot/system/system-domain/src/main/java/.../process/runtime/*`
+    - `src/backend/springboot/system/system-application/src/main/java/.../process/runtime/*`
+    - `src/backend/springboot/system/system-infrastructure/src/main/java/.../process/runtime/*`
+    - `src/backend/springboot/gateway/src/main/java/.../gateway/api/ProcessRuntimeController.java`
   - frontend runtime modules:
     - `src/frontend/web/react/src/modules/processes/<modelKey>/Process<ProcessName>V<version>RuntimeContract.js`
     - `src/frontend/web/react/src/modules/processes/generatedProcessRegistry.js`
     - `src/frontend/web/react/src/modules/processes/generatedTaskInboxCatalog.js`
+    - `src/frontend/web/react/src/modules/processes/runtime/generatedProcessRuntimeApi.js`
 - Data/mapping deployment assets include:
   - backend:
     - `src/backend/springboot/prooweb-application/src/main/resources/processes/<modelKey>/v<version>.data.json`
@@ -224,6 +236,30 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - shared data entity catalog (produced/consumed activities),
   - summary counters (input/output mappings, lineage edges, shared entities, warnings).
 - Deployment metadata now includes data summary details and shared data entities.
+
+## Process Runtime Engine Core (Step 14)
+
+- Deployment now compiles runtime engine source modules (hexagonal split) and base runtime tests:
+  - domain runtime state/task/instance model,
+  - application runtime use case and service orchestration,
+  - infrastructure in-memory store adapter + module config,
+  - gateway runtime controller endpoints.
+- Runtime API endpoints include:
+  - `GET /api/process-runtime/start-options`
+  - `POST /api/process-runtime/instances/start`
+  - `GET /api/process-runtime/instances`
+  - `GET /api/process-runtime/tasks`
+  - `POST /api/process-runtime/tasks/{taskId}/complete`
+  - `GET /api/process-runtime/instances/{instanceId}`
+  - `GET /api/process-runtime/instances/{instanceId}/timeline`
+  - `POST /api/process-runtime/instances/{instanceId}/stop`
+  - `POST /api/process-runtime/instances/{instanceId}/archive`
+
+## Runtime Workbench Baseline (Step 15)
+
+- Generated React app now includes runtime operations UI (`ProcessRuntimeWorkbench`) when process modeling is enabled.
+- Scaffold includes safe placeholder runtime catalogs/APIs so initial generation compiles even before first process deployment.
+- Once a process version is deployed, generated runtime catalogs and API module are overwritten with deployed runtime metadata and live backend calls.
 
 ## Usage
 

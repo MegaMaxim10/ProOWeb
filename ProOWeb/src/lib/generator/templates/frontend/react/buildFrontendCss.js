@@ -205,6 +205,28 @@ h1 {
   padding: 0.75rem;
   overflow: auto;
 }
+
+.runtime-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+.runtime-actions button {
+  margin-top: 0;
+}
+
+.runtime-json {
+  font-family: "Consolas", "Courier New", monospace;
+}
+
+.runtime-timeline {
+  margin: 0.75rem 0 0;
+  padding-left: 1.05rem;
+  display: grid;
+  gap: 0.45rem;
+}
 `;
 }
 

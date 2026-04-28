@@ -92,6 +92,15 @@ This roadmap defines the step by step construction plan and acceptance criteria.
 - Add simulation mode, scenario testing, deployment, rollback, and retirement workflows.
 - Exit criteria: developers can model, test, deploy, and evolve process versions with generated source code.
 
+## Phase 15 - Runtime Operations Workbench
+- Generate runtime-facing user operations baseline in the generated app.
+- Implementation baseline:
+  - generated React runtime workbench (guided start, task completion, instance inspection timeline),
+  - monitor actions (`stop`, `archive`) exposed in UI and backed by runtime APIs,
+  - generated placeholder runtime catalogs/APIs for compile-safe bootstrapping before first deployment,
+  - undeploy action keeps generated runtime artifacts synchronized and removable.
+- Exit criteria: generated app users can operate and monitor deployed process instances end-to-end.
+
 ## Program-Wide Cross-Cutting Tracks
 - Documentation in English only.
 - Security and auditability by default.

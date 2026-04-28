@@ -725,6 +725,8 @@ public interface ProcessRuntimeEngineUseCase {
 
   RuntimeInstanceView startInstance(StartCommand command);
 
+  List<RuntimeInstanceView> listInstances(InstanceQuery query);
+
   List<RuntimeTaskView> listTasks(TaskQuery query);
 
   RuntimeTaskView completeTask(CompleteTaskCommand command);
@@ -750,6 +752,9 @@ public interface ProcessRuntimeEngineUseCase {
   }
 
   record TaskQuery(String actor) {
+  }
+
+  record InstanceQuery(String actor, List<String> roleCodes) {
   }
 
   record CompleteTaskCommand(String instanceId, String taskId, String actor, Map<String, Object> payload) {
@@ -876,6 +881,31 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
 
     processRuntimeStorePort.save(instance);
     return toInstanceView(instance);
+  }
+
+  @Override
+  public List<RuntimeInstanceView> listInstances(InstanceQuery query) {
+    String actor = query.actor();
+    List<String> roles = query.roleCodes() == null ? List.of() : query.roleCodes();
+    boolean monitorPrivileges = roles.stream().anyMatch((role) ->
+      "PROCESS_MONITOR".equals(role) || "ADMINISTRATOR".equals(role)
+    );
+
+    return processRuntimeStorePort.listInstances().stream()
+      .filter((instance) -> {
+        if (monitorPrivileges) {
+          return true;
+        }
+        if (actor == null || actor.isBlank()) {
+          return false;
+        }
+        if (Objects.equals(instance.startedBy(), actor)) {
+          return true;
+        }
+        return instance.tasks().stream().anyMatch((task) -> Objects.equals(task.assignee(), actor));
+      })
+      .map(this::toInstanceView)
+      .toList();
   }
 
   @Override
@@ -1305,6 +1335,18 @@ public class ProcessRuntimeController {
     );
   }
 
+  @Operation(summary = "List runtime instances visible to actor roles")
+  @GetMapping("/instances")
+  public Map<String, Object> listInstances(
+    @RequestParam(name = "actor", required = false) String actor,
+    @RequestParam(name = "roles", required = false) List<String> roles
+  ) {
+    return Map.of(
+      "instances",
+      processRuntimeEngineUseCase.listInstances(new ProcessRuntimeEngineUseCase.InstanceQuery(actor, roles))
+    );
+  }
+
   @Operation(summary = "List pending tasks for actor")
   @GetMapping("/tasks")
   public Map<String, Object> listTasks(@RequestParam(name = "actor", required = false) String actor) {
@@ -1556,6 +1598,14 @@ class ProcessRuntimeEngineIT {
     String taskId = startPayload.path("instance").path("tasks").get(0).path("taskId").asText();
 
     mockMvc.perform(
+      get("/api/process-runtime/instances")
+        .queryParam("actor", "runtime.user")
+        .queryParam("roles", "PROCESS_USER")
+    )
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.instances").isArray());
+
+    mockMvc.perform(
       post("/api/process-runtime/tasks/" + taskId + "/complete")
         .contentType(MediaType.APPLICATION_JSON)
         .content("""
@@ -1628,6 +1678,19 @@ export function listProcessRuntimeTasks(actor = "") {
     query.set("actor", actor);
   }
   return requestJson(PROCESS_RUNTIME_API_ROOT + "/tasks?" + query.toString());
+}
+
+export function listProcessRuntimeInstances({ actor = "", roles = [] } = {}) {
+  const query = new URLSearchParams();
+  if (actor) {
+    query.set("actor", actor);
+  }
+  for (const role of roles) {
+    if (role) {
+      query.append("roles", role);
+    }
+  }
+  return requestJson(PROCESS_RUNTIME_API_ROOT + "/instances?" + query.toString());
 }
 
 export function completeProcessRuntimeTask(taskId, payload) {

@@ -251,6 +251,12 @@ const {
   buildFrontendHttpSystemSnapshotAdapterJs,
   buildFrontendUseSystemSnapshotHookJs,
   buildFrontendShellAppJsx,
+  buildFrontendGeneratedProcessRegistryJs,
+  buildFrontendGeneratedTaskInboxCatalogJs,
+  buildFrontendGeneratedProcessDataLineageCatalogJs,
+  buildFrontendGeneratedProcessRuntimeApiJs,
+  buildFrontendUseProcessRuntimeHookJs,
+  buildFrontendProcessRuntimeWorkbenchJsx,
   buildFrontendIdentityUserModelJs,
   buildFrontendIdentityRoleModelJs,
   buildFrontendLoadIdentityUsersPortJs,
@@ -1225,6 +1231,7 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
   const sessionSecurityEnabled = generationPlan.isEnabled("session-device-security");
   const organizationEnabled = generationPlan.isEnabled("organization-hierarchy");
   const notificationsEnabled = generationPlan.isEnabled("notifications-email");
+  const processModelingEnabled = generationPlan.isEnabled("process-modeling-core");
   const defaultExternalIamProviderId = Array.isArray(config?.backendOptions?.externalIam?.providers)
     && config.backendOptions.externalIam.providers.length > 0
     ? config.backendOptions.externalIam.providers[0].id
@@ -1266,9 +1273,48 @@ function generateFrontendScaffold(frontendRoot, config, writeManagedFile, genera
       sessionSecurityEnabled,
       organizationEnabled,
       notificationsEnabled,
+      processRuntimeEnabled: processModelingEnabled,
     }),
     metadata,
   );
+
+  if (processModelingEnabled) {
+    const processModelingMetadata = {
+      owners: ["process-modeling-core"],
+      category: "frontend",
+    };
+
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/processes/generatedProcessRegistry.js"),
+      buildFrontendGeneratedProcessRegistryJs(),
+      processModelingMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/processes/generatedTaskInboxCatalog.js"),
+      buildFrontendGeneratedTaskInboxCatalogJs(),
+      processModelingMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/processes/generatedProcessDataLineageCatalog.js"),
+      buildFrontendGeneratedProcessDataLineageCatalogJs(),
+      processModelingMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/processes/runtime/generatedProcessRuntimeApi.js"),
+      buildFrontendGeneratedProcessRuntimeApiJs(),
+      processModelingMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/processes/ui/useProcessRuntime.js"),
+      buildFrontendUseProcessRuntimeHookJs(),
+      processModelingMetadata,
+    );
+    writeManagedFile(
+      path.join(frontendRoot, "src/modules/processes/ui/ProcessRuntimeWorkbench.jsx"),
+      buildFrontendProcessRuntimeWorkbenchJsx(),
+      processModelingMetadata,
+    );
+  }
 
   if (identityEnabled) {
     const identityMetadata = {

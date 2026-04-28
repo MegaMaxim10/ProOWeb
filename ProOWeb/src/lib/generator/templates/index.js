@@ -156,6 +156,12 @@ const { buildFrontendReadSystemSnapshotUseCaseJs } = require("./frontend/react/b
 const { buildFrontendHttpSystemSnapshotAdapterJs } = require("./frontend/react/buildFrontendHttpSystemSnapshotAdapterJs");
 const { buildFrontendUseSystemSnapshotHookJs } = require("./frontend/react/buildFrontendUseSystemSnapshotHookJs");
 const { buildFrontendShellAppJsx } = require("./frontend/react/buildFrontendShellAppJsx");
+const { buildFrontendGeneratedProcessRegistryJs } = require("./frontend/react/buildFrontendGeneratedProcessRegistryJs");
+const { buildFrontendGeneratedTaskInboxCatalogJs } = require("./frontend/react/buildFrontendGeneratedTaskInboxCatalogJs");
+const { buildFrontendGeneratedProcessDataLineageCatalogJs } = require("./frontend/react/buildFrontendGeneratedProcessDataLineageCatalogJs");
+const { buildFrontendGeneratedProcessRuntimeApiJs } = require("./frontend/react/buildFrontendGeneratedProcessRuntimeApiJs");
+const { buildFrontendUseProcessRuntimeHookJs } = require("./frontend/react/buildFrontendUseProcessRuntimeHookJs");
+const { buildFrontendProcessRuntimeWorkbenchJsx } = require("./frontend/react/buildFrontendProcessRuntimeWorkbenchJsx");
 const { buildFrontendIdentityUserModelJs } = require("./frontend/react/buildFrontendIdentityUserModelJs");
 const { buildFrontendIdentityRoleModelJs } = require("./frontend/react/buildFrontendIdentityRoleModelJs");
 const { buildFrontendLoadIdentityUsersPortJs } = require("./frontend/react/buildFrontendLoadIdentityUsersPortJs");
@@ -373,6 +379,12 @@ module.exports = {
   buildFrontendHttpSystemSnapshotAdapterJs,
   buildFrontendUseSystemSnapshotHookJs,
   buildFrontendShellAppJsx,
+  buildFrontendGeneratedProcessRegistryJs,
+  buildFrontendGeneratedTaskInboxCatalogJs,
+  buildFrontendGeneratedProcessDataLineageCatalogJs,
+  buildFrontendGeneratedProcessRuntimeApiJs,
+  buildFrontendUseProcessRuntimeHookJs,
+  buildFrontendProcessRuntimeWorkbenchJsx,
   buildFrontendIdentityUserModelJs,
   buildFrontendIdentityRoleModelJs,
   buildFrontendLoadIdentityUsersPortJs,
