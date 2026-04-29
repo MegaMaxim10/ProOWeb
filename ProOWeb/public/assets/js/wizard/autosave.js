@@ -2,8 +2,11 @@ const DRAFT_STORAGE_KEY = "prooweb:wizard-draft:v1";
 const AUTOSAVE_DELAY_MS = 420;
 const EXCLUDED_FIELDS = new Set([
   "superAdminPassword",
+  "superAdminPasswordConfirm",
   "externalIamClientSecret",
+  "externalIamClientSecretConfirm",
   "externalIamSharedSecret",
+  "externalIamSharedSecretConfirm",
 ]);
 
 function safeParseJson(raw) {

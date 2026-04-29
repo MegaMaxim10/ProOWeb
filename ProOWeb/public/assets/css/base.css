@@ -10,11 +10,15 @@ body {
   min-height: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: "IBM Plex Sans", "Aptos", "Segoe UI", sans-serif;
   color: var(--text);
   background:
-    radial-gradient(circle at top right, var(--bg-accent) 0%, #ecf6f2 20%, var(--bg) 58%, #f8fbfd 100%);
+    radial-gradient(circle at top right, var(--bg-accent) 0%, var(--bg) 58%, #0b111b 100%);
 }
 
 .page {
@@ -38,6 +42,27 @@ small {
 
 code {
   font-family: "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
+}
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.35rem;
+  min-width: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface-accent);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
+}
+
+::selection {
+  background: rgba(97, 181, 255, 0.35);
+  color: var(--text);
 }
 
 input,

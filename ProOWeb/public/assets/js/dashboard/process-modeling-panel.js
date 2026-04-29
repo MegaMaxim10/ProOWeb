@@ -25,7 +25,6 @@ import {
   undeployProcessModelVersion,
 } from "./process-modeling-api.js";
 import { initializeBpmnStudio } from "./bpmn-studio.js";
-import { initializeSpecificationStudio } from "./specification-studio.js";
 import { initializeAutomaticTaskCatalogStudio } from "./automatic-task-catalog-studio.js";
 
 function byVersionNumber(left, right) {
@@ -577,19 +576,13 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
       createProcessModelSnapshot,
       undoProcessModelSnapshot,
       redoProcessModelSnapshot,
-    },
-  });
-  const specificationStudio = await initializeSpecificationStudio({
-    documentRef,
-    api: {
+      fetchAutomaticTaskCatalog,
       fetchProcessModelSpecification,
       validateProcessModelSpecification,
       saveProcessModelSpecification,
     },
-    onReport(action, payload) {
-      reportView.textContent = renderSpecificationReport(action, payload);
-    },
   });
+  let latestAutomaticTaskTypes = [];
   const automaticTaskCatalogStudio = await initializeAutomaticTaskCatalogStudio({
     documentRef,
     api: {
@@ -600,8 +593,15 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
     },
     onReport(action, payload) {
       reportView.textContent = renderAutomaticTaskCatalogReport(action, payload);
+      latestAutomaticTaskTypes = Array.isArray(payload?.catalog?.taskTypes)
+        ? payload.catalog.taskTypes
+        : latestAutomaticTaskTypes;
+      if (typeof bpmnStudio?.setAutomaticTaskTypes === "function") {
+        bpmnStudio.setAutomaticTaskTypes(latestAutomaticTaskTypes);
+      }
     },
   });
+  latestAutomaticTaskTypes = automaticTaskCatalogStudio?.getTaskTypes?.() || [];
 
   let models = [];
   const modelSelectors = [
@@ -680,8 +680,9 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
     if (typeof bpmnStudio?.setCatalog === "function") {
       bpmnStudio.setCatalog(models);
     }
-    if (typeof specificationStudio?.setCatalog === "function") {
-      specificationStudio.setCatalog(models);
+    if (typeof bpmnStudio?.setAutomaticTaskTypes === "function") {
+      latestAutomaticTaskTypes = automaticTaskCatalogStudio?.getTaskTypes?.() || latestAutomaticTaskTypes;
+      bpmnStudio.setAutomaticTaskTypes(latestAutomaticTaskTypes);
     }
   }
 

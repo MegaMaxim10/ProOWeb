@@ -6,6 +6,9 @@
   position: sticky;
   top: 1.25rem;
   align-self: start;
+  background:
+    linear-gradient(155deg, rgba(233, 247, 240, 0.68) 0%, rgba(234, 243, 255, 0.6) 100%),
+    var(--panel);
 }
 
 .hero-panel p {
@@ -22,6 +25,12 @@
   justify-content: space-between;
   gap: 0.8rem;
   margin-bottom: 0.35rem;
+}
+
+.wizard-meta-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
 }
 
 .wizard-breadcrumbs {
@@ -68,6 +77,20 @@
   white-space: nowrap;
 }
 
+.wizard-theme-toggle {
+  margin: 0;
+  min-height: 2.1rem;
+  padding: 0.42rem 0.72rem;
+  border: 1px solid #b7cbe3;
+  background: #eef4fb;
+  color: #1d4b78;
+  font-size: 0.82rem;
+}
+
+.wizard-theme-toggle:hover {
+  background: #e3edf8;
+}
+
 .wizard-autosave-indicator.is-saving {
   color: #1d4f7f;
 }
@@ -107,10 +130,23 @@
   text-align: left;
   font-size: 0.85rem;
   font-weight: 600;
+  padding-left: 2rem;
 }
 
 .wizard-step-track button:hover {
   background: #e8eff8;
+}
+
+.wizard-step-track button::before {
+  content: "";
+  position: absolute;
+  left: 0.62rem;
+  top: calc(50% - 0.28rem);
+  width: 0.56rem;
+  height: 0.56rem;
+  border-radius: 999px;
+  border: 2px solid #8da8c7;
+  background: #ffffff;
 }
 
 .wizard-step-track button.is-active {
@@ -123,6 +159,16 @@
   border-color: #91c7b7;
   background: #ecf8f3;
   color: #0f5f4c;
+}
+
+.wizard-step-track button.is-active::before {
+  border-color: #187c64;
+  background: #d7f0e6;
+}
+
+.wizard-step-track button.is-complete::before {
+  border-color: #15906f;
+  background: #15906f;
 }
 
 .wizard-step-track button[data-draft-status="saved"]::after {
@@ -148,6 +194,8 @@
 .form-panel fieldset {
   background: #f7fbff;
   border-radius: 12px;
+  border-color: #d2deeb;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .form-panel fieldset legend {
@@ -184,6 +232,31 @@
 
 .wizard-navigation #submit-button {
   margin-left: auto;
+  min-width: 220px;
+}
+
+:root[data-theme="dark"] .wizard-page .hero-panel,
+:root[data-theme="dark"] .wizard-page .form-panel fieldset,
+:root[data-theme="dark"] .wizard-page .wizard-step-track button,
+:root[data-theme="dark"] .wizard-page .wizard-nav-button,
+:root[data-theme="dark"] .wizard-page .wizard-theme-toggle {
+  background: var(--panel-soft);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+:root[data-theme="dark"] .wizard-page .wizard-step-track button:hover,
+:root[data-theme="dark"] .wizard-page .wizard-nav-button:hover,
+:root[data-theme="dark"] .wizard-page .wizard-theme-toggle:hover {
+  background: #243a54;
+}
+
+:root[data-theme="dark"] .wizard-page .wizard-step-track button.is-active {
+  background: linear-gradient(135deg, #1f3a58 0%, #1d463d 100%);
+}
+
+:root[data-theme="dark"] .wizard-page .wizard-step-track button.is-complete {
+  background: linear-gradient(135deg, #1d3f37 0%, #1f3b4f 100%);
 }
 
 @media (max-width: 1120px) {
@@ -201,6 +274,11 @@
   .wizard-autosave-indicator {
     white-space: normal;
     text-align: left;
+  }
+
+  .wizard-meta-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .wizard-step-track {

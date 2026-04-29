@@ -30,6 +30,11 @@ const SUPPORTED_STACK = {
 };
 
 const SWAGGER_ALLOWED_PROFILES = ["dev", "demo", "test"];
+const ALWAYS_ENABLED_MODULES = Object.freeze({
+  organizationHierarchy: true,
+  notifications: true,
+  processModeling: true,
+});
 
 function normalizeString(value) {
   return String(value || "").trim();
@@ -508,7 +513,7 @@ function readWorkspaceConfig() {
       defaultAssignmentStrategy: organizationHierarchy.defaultAssignmentStrategy,
       maxTraversalDepth: organizationHierarchy.maxTraversalDepth,
     },
-    { strict: false },
+    { strict: false, forceEnabled: ALWAYS_ENABLED_MODULES.organizationHierarchy },
   );
   parsed.backendOptions.notifications = normalizeNotificationsConfig(
     {
@@ -516,7 +521,7 @@ function readWorkspaceConfig() {
       senderAddress: notifications.senderAddress,
       auditEnabled: notifications.auditEnabled,
     },
-    { strict: false },
+    { strict: false, forceEnabled: ALWAYS_ENABLED_MODULES.notifications },
   );
   parsed.backendOptions.databaseMigration = normalizeDatabaseMigrationConfig(
     {
@@ -533,7 +538,7 @@ function readWorkspaceConfig() {
       maxVersionsPerModel: processModeling.maxVersionsPerModel,
       allowDirectDeployment: processModeling.allowDirectDeployment,
     },
-    { strict: false },
+    { strict: false, forceEnabled: ALWAYS_ENABLED_MODULES.processModeling },
   );
   parsed.backendOptions.testAutomation = normalizeTestAutomationConfig(
     {
@@ -656,7 +661,7 @@ function toPublicWorkspaceConfig(config) {
       defaultAssignmentStrategy: organizationHierarchy.defaultAssignmentStrategy,
       maxTraversalDepth: organizationHierarchy.maxTraversalDepth,
     },
-    { strict: false },
+    { strict: false, forceEnabled: ALWAYS_ENABLED_MODULES.organizationHierarchy },
   );
   backendOptions.notifications = normalizeNotificationsConfig(
     {
@@ -664,7 +669,7 @@ function toPublicWorkspaceConfig(config) {
       senderAddress: notifications.senderAddress,
       auditEnabled: notifications.auditEnabled,
     },
-    { strict: false },
+    { strict: false, forceEnabled: ALWAYS_ENABLED_MODULES.notifications },
   );
   backendOptions.databaseMigration = normalizeDatabaseMigrationConfig(
     {
@@ -681,7 +686,7 @@ function toPublicWorkspaceConfig(config) {
       maxVersionsPerModel: processModeling.maxVersionsPerModel,
       allowDirectDeployment: processModeling.allowDirectDeployment,
     },
-    { strict: false },
+    { strict: false, forceEnabled: ALWAYS_ENABLED_MODULES.processModeling },
   );
   backendOptions.testAutomation = normalizeTestAutomationConfig(
     {
@@ -736,27 +741,23 @@ function buildWorkspaceConfig(payload) {
     },
     { strict: true, forceEnabled: sessionSecurityEnabled },
   );
-  const organizationHierarchyEnabled = Object.prototype.hasOwnProperty.call(payload, "organizationHierarchyEnabled")
-    ? normalizeBool(payload.organizationHierarchyEnabled)
-    : true;
+  const organizationHierarchyEnabled = ALWAYS_ENABLED_MODULES.organizationHierarchy;
   const organizationHierarchyConfig = normalizeOrganizationHierarchyConfig(
     {
       enabled: organizationHierarchyEnabled,
       defaultAssignmentStrategy: payload.organizationDefaultAssignmentStrategy,
       maxTraversalDepth: payload.organizationMaxTraversalDepth,
     },
-    { strict: true, forceEnabled: organizationHierarchyEnabled },
+    { strict: true, forceEnabled: ALWAYS_ENABLED_MODULES.organizationHierarchy },
   );
-  const notificationsEnabled = Object.prototype.hasOwnProperty.call(payload, "notificationsEnabled")
-    ? normalizeBool(payload.notificationsEnabled)
-    : true;
+  const notificationsEnabled = ALWAYS_ENABLED_MODULES.notifications;
   const notificationsConfig = normalizeNotificationsConfig(
     {
       enabled: notificationsEnabled,
       senderAddress: payload.notificationsSenderAddress,
       auditEnabled: payload.notificationsAuditEnabled,
     },
-    { strict: true, forceEnabled: notificationsEnabled },
+    { strict: true, forceEnabled: ALWAYS_ENABLED_MODULES.notifications },
   );
   const liquibaseEnabled = Object.prototype.hasOwnProperty.call(payload, "liquibaseEnabled")
     ? normalizeBool(payload.liquibaseEnabled)
@@ -769,9 +770,7 @@ function buildWorkspaceConfig(payload) {
     },
     { strict: true, forceEnabled: liquibaseEnabled },
   );
-  const processModelingEnabled = Object.prototype.hasOwnProperty.call(payload, "processModelingEnabled")
-    ? normalizeBool(payload.processModelingEnabled)
-    : true;
+  const processModelingEnabled = ALWAYS_ENABLED_MODULES.processModeling;
   const processModelingConfig = normalizeProcessModelingConfig(
     {
       enabled: processModelingEnabled,
@@ -779,7 +778,7 @@ function buildWorkspaceConfig(payload) {
       maxVersionsPerModel: payload.processMaxVersionsPerModel,
       allowDirectDeployment: payload.processAllowDirectDeployment,
     },
-    { strict: true, forceEnabled: processModelingEnabled },
+    { strict: true, forceEnabled: ALWAYS_ENABLED_MODULES.processModeling },
   );
   const backendBddCucumberEnabled = Object.prototype.hasOwnProperty.call(payload, "backendBddCucumberEnabled")
     ? normalizeBool(payload.backendBddCucumberEnabled)
@@ -991,14 +990,8 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
     },
     { strict: true, forceEnabled: sessionSecurityEnabled },
   );
-  const hasOrganizationHierarchyEnabledOverride = Object.prototype.hasOwnProperty.call(
-    safePayload,
-    "organizationHierarchyEnabled",
-  );
   const currentOrganizationHierarchy = currentConfig?.backendOptions?.organizationHierarchy || {};
-  const organizationHierarchyEnabled = hasOrganizationHierarchyEnabledOverride
-    ? normalizeBool(safePayload.organizationHierarchyEnabled)
-    : (currentOrganizationHierarchy.enabled === undefined ? true : Boolean(currentOrganizationHierarchy.enabled));
+  const organizationHierarchyEnabled = ALWAYS_ENABLED_MODULES.organizationHierarchy;
   const hasOrganizationDefaultStrategyOverride = Object.prototype.hasOwnProperty.call(
     safePayload,
     "organizationDefaultAssignmentStrategy",
@@ -1017,16 +1010,10 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
         ? safePayload.organizationMaxTraversalDepth
         : currentOrganizationHierarchy.maxTraversalDepth,
     },
-    { strict: true, forceEnabled: organizationHierarchyEnabled },
-  );
-  const hasNotificationsEnabledOverride = Object.prototype.hasOwnProperty.call(
-    safePayload,
-    "notificationsEnabled",
+    { strict: true, forceEnabled: ALWAYS_ENABLED_MODULES.organizationHierarchy },
   );
   const currentNotifications = currentConfig?.backendOptions?.notifications || {};
-  const notificationsEnabled = hasNotificationsEnabledOverride
-    ? normalizeBool(safePayload.notificationsEnabled)
-    : (currentNotifications.enabled === undefined ? true : Boolean(currentNotifications.enabled));
+  const notificationsEnabled = ALWAYS_ENABLED_MODULES.notifications;
   const hasNotificationsSenderAddressOverride = Object.prototype.hasOwnProperty.call(
     safePayload,
     "notificationsSenderAddress",
@@ -1045,7 +1032,7 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
         ? safePayload.notificationsAuditEnabled
         : currentNotifications.auditEnabled,
     },
-    { strict: true, forceEnabled: notificationsEnabled },
+    { strict: true, forceEnabled: ALWAYS_ENABLED_MODULES.notifications },
   );
   const hasLiquibaseEnabledOverride = Object.prototype.hasOwnProperty.call(
     safePayload,
@@ -1077,14 +1064,8 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
     },
     { strict: true, forceEnabled: liquibaseEnabled },
   );
-  const hasProcessModelingEnabledOverride = Object.prototype.hasOwnProperty.call(
-    safePayload,
-    "processModelingEnabled",
-  );
   const currentProcessModeling = currentConfig?.backendOptions?.processModeling || {};
-  const processModelingEnabled = hasProcessModelingEnabledOverride
-    ? normalizeBool(safePayload.processModelingEnabled)
-    : (currentProcessModeling.enabled === undefined ? true : Boolean(currentProcessModeling.enabled));
+  const processModelingEnabled = ALWAYS_ENABLED_MODULES.processModeling;
   const hasProcessVersioningStrategyOverride = Object.prototype.hasOwnProperty.call(
     safePayload,
     "processVersioningStrategy",
@@ -1110,7 +1091,7 @@ function buildWorkspaceMigrationTargetConfig(currentConfig, payload) {
         ? safePayload.processAllowDirectDeployment
         : currentProcessModeling.allowDirectDeployment,
     },
-    { strict: true, forceEnabled: processModelingEnabled },
+    { strict: true, forceEnabled: ALWAYS_ENABLED_MODULES.processModeling },
   );
   const currentTestAutomation = currentConfig?.backendOptions?.testAutomation || {};
   const hasBackendBddOverride = Object.prototype.hasOwnProperty.call(
@@ -1198,18 +1179,12 @@ function markWorkspaceMigrated(config) {
       {
         externalIamEnabled: Boolean(config?.backendOptions?.externalIam?.enabled),
         sessionSecurityEnabled: Boolean(config?.backendOptions?.sessionSecurity?.enabled),
-        organizationHierarchyEnabled: config?.backendOptions?.organizationHierarchy?.enabled === undefined
-          ? true
-          : Boolean(config?.backendOptions?.organizationHierarchy?.enabled),
-        notificationsEnabled: config?.backendOptions?.notifications?.enabled === undefined
-          ? true
-          : Boolean(config?.backendOptions?.notifications?.enabled),
+        organizationHierarchyEnabled: ALWAYS_ENABLED_MODULES.organizationHierarchy,
+        notificationsEnabled: ALWAYS_ENABLED_MODULES.notifications,
         liquibaseEnabled: config?.backendOptions?.databaseMigration?.liquibaseEnabled === undefined
           ? true
           : Boolean(config?.backendOptions?.databaseMigration?.liquibaseEnabled),
-        processModelingEnabled: config?.backendOptions?.processModeling?.enabled === undefined
-          ? true
-          : Boolean(config?.backendOptions?.processModeling?.enabled),
+        processModelingEnabled: ALWAYS_ENABLED_MODULES.processModeling,
         backendBddCucumberEnabled: Boolean(config?.backendOptions?.testAutomation?.backendBddCucumberEnabled),
         frontendE2eCypressEnabled: Boolean(config?.backendOptions?.testAutomation?.frontendE2eCypressEnabled),
       },

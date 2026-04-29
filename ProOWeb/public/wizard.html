@@ -27,7 +27,10 @@
         <h2>Workspace Configuration</h2>
         <div class="wizard-meta-row">
           <nav id="wizard-breadcrumbs" class="wizard-breadcrumbs" aria-label="Wizard location"></nav>
-          <p id="wizard-autosave-indicator" class="wizard-autosave-indicator muted" aria-live="polite"></p>
+          <div class="wizard-meta-actions">
+            <p id="wizard-autosave-indicator" class="wizard-autosave-indicator muted" aria-live="polite"></p>
+            <button id="theme-toggle-button" type="button" class="wizard-theme-toggle">Dark theme</button>
+          </div>
         </div>
         <form id="init-form" class="wizard-form" novalidate>
           <ol id="wizard-step-track" class="wizard-step-track" aria-label="Initialization steps">
@@ -142,8 +145,24 @@
                   <input type="password" name="externalIamClientSecret" />
                 </label>
                 <label>
+                  Confirm Client Secret (optional)
+                  <input
+                    type="password"
+                    name="externalIamClientSecretConfirm"
+                    data-confirm-for="externalIamClientSecret"
+                  />
+                </label>
+                <label>
                   Shared Secret HS256 (optional)
                   <input type="password" name="externalIamSharedSecret" />
+                </label>
+                <label>
+                  Confirm Shared Secret HS256 (optional)
+                  <input
+                    type="password"
+                    name="externalIamSharedSecretConfirm"
+                    data-confirm-for="externalIamSharedSecret"
+                  />
                 </label>
                 <label>
                   Username claim
@@ -319,6 +338,16 @@
               <label>
                 Password
                 <input type="password" name="superAdminPassword" required minlength="8" />
+              </label>
+              <label>
+                Confirm password
+                <input
+                  type="password"
+                  name="superAdminPasswordConfirm"
+                  required
+                  minlength="8"
+                  data-confirm-for="superAdminPassword"
+                />
               </label>
             </fieldset>
           </section>

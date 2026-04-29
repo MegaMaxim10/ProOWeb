@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ProOWeb - Dashboard</title>
-    <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.9.2/dist/assets/diagram-js.css" />
-    <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.9.2/dist/assets/bpmn-font/css/bpmn.css" />
+    <link rel="stylesheet" href="/assets/vendor/bpmn/assets/diagram-js.css" />
+    <link rel="stylesheet" href="/assets/vendor/bpmn/assets/bpmn-font/css/bpmn.css" />
     <link rel="stylesheet" href="/assets/css/main.css" />
   </head>
   <body class="page dashboard-page">
@@ -19,14 +19,17 @@
           <input id="workspace-nav-filter" type="search" placeholder="Search: process, migration, templates..." />
         </label>
         <nav id="workspace-nav">
-          <a class="nav-link" href="#workspace-overview">Overview</a>
-          <a class="nav-link" href="#management">Migration Center</a>
-          <a class="nav-link" href="#reconfigure">Platform Configuration</a>
-          <a class="nav-link" href="#template-governance">Template Governance</a>
-          <a class="nav-link" href="#process-model">Process Studio</a>
-          <a class="nav-link" href="#codegen">Developer Commands</a>
-          <a class="nav-link" href="#deployment">Generated Layout</a>
+          <a class="nav-link" data-page-link href="/dashboard/overview">Overview</a>
+          <a class="nav-link" data-page-link href="/dashboard/platform">Platform Configuration</a>
+          <a class="nav-link" data-page-link href="/dashboard/process">Process Studio</a>
+          <a class="nav-link" data-page-link href="/dashboard/developer">Developer Commands</a>
         </nav>
+        <div class="sidebar-actions">
+          <button id="collapse-sections-button" type="button" class="sidebar-action">Compact View</button>
+          <button id="expand-sections-button" type="button" class="sidebar-action">Expand All</button>
+          <button id="theme-toggle-button" type="button" class="sidebar-action">Dark theme</button>
+        </div>
+        <p class="sidebar-hint muted">Shortcuts: <kbd>Ctrl/Cmd + K</kbd> command center, <kbd>/</kbd> section filter.</p>
       </aside>
 
       <main id="main-content" class="content">
@@ -39,7 +42,7 @@
           <div class="workspace-header-actions">
             <button id="command-center-open" type="button" class="secondary-action">Command Center</button>
             <button id="header-migrate-button" type="button" class="secondary-action hidden">Run smart migration</button>
-            <a class="secondary-link" href="#process-model">Open process studio</a>
+            <a class="secondary-link" href="/dashboard/process">Open process studio</a>
           </div>
           <div class="workspace-kpi-grid">
             <article>
@@ -129,8 +132,24 @@
                   <input type="password" name="externalIamClientSecret" />
                 </label>
                 <label>
+                  Confirm Client Secret (optional)
+                  <input
+                    type="password"
+                    name="externalIamClientSecretConfirm"
+                    data-confirm-for="externalIamClientSecret"
+                  />
+                </label>
+                <label>
                   Shared Secret HS256 (optional)
                   <input type="password" name="externalIamSharedSecret" />
+                </label>
+                <label>
+                  Confirm Shared Secret HS256 (optional)
+                  <input
+                    type="password"
+                    name="externalIamSharedSecretConfirm"
+                    data-confirm-for="externalIamSharedSecret"
+                  />
                 </label>
                 <label>
                   Username claim
@@ -358,13 +377,15 @@
           <div class="process-studio panel">
             <h4>BPMN Studio (graphical + XML)</h4>
             <p class="muted">
-              Graphically model BPMN, import/export files, and edit XML with IDE-like features (highlight + syntax checks).
+              Model processes graphically. Configure each selected activity from the side panel. XML and specification JSON are optional advanced views.
             </p>
             <div class="process-studio-toolbar">
               <button id="process-bpmn-new" type="button">New diagram</button>
               <button id="process-bpmn-import-trigger" type="button">Import BPMN</button>
               <button id="process-bpmn-export" type="button">Export BPMN</button>
               <button id="process-bpmn-validate" type="button">Validate XML</button>
+              <button id="process-bpmn-toggle-xml" type="button">Show BPMN XML</button>
+              <button id="process-bpmn-toggle-spec-json" type="button">Show specification JSON</button>
               <label class="studio-select">
                 Model
                 <select id="process-bpmn-load-model"></select>
@@ -377,63 +398,212 @@
               <button id="process-bpmn-save-snapshot" type="button">Save snapshot</button>
               <button id="process-bpmn-undo" type="button">Undo</button>
               <button id="process-bpmn-redo" type="button">Redo</button>
+              <button id="process-bpmn-validate-spec" type="button">Validate specification</button>
+              <button id="process-bpmn-save-spec" type="button">Save specification</button>
               <button id="process-bpmn-fill-create" type="button">Use in Create Model</button>
               <button id="process-bpmn-fill-version" type="button">Use in Create Version</button>
               <input id="process-bpmn-import-file" type="file" accept=".bpmn,.xml,text/xml,application/xml" class="hidden" />
             </div>
-            <div class="process-studio-grid">
+            <div class="process-studio-grid process-bpmn-grid">
               <div id="process-bpmn-canvas" class="process-bpmn-canvas"></div>
+              <div class="process-activity-panel">
+                <h5>Selected Activity Configuration</h5>
+                <p id="process-selected-activity-line" class="muted">
+                  Select a BPMN activity to configure assignment, automatic execution, and data mappings.
+                </p>
+                <form id="process-activity-config-form" class="wizard-form process-inline-form" novalidate>
+                  <label>
+                    Activity ID
+                    <input id="process-activity-id" name="processActivityId" type="text" readonly />
+                  </label>
+                  <label>
+                    BPMN element type
+                    <input id="process-activity-kind" name="processActivityKind" type="text" readonly />
+                  </label>
+                  <label>
+                    Activity type
+                    <select id="process-activity-type" name="processActivityType"></select>
+                  </label>
+                  <label>
+                    Candidate roles (comma-separated)
+                    <input id="process-candidate-roles" name="processCandidateRoles" type="text" placeholder="PROCESS_USER, MANAGER" />
+                  </label>
+
+                  <fieldset>
+                    <legend>Assignment</legend>
+                    <label>
+                      Assignment mode
+                      <select id="process-assignment-mode" name="processAssignmentMode"></select>
+                    </label>
+                    <label>
+                      Assignment strategy
+                      <select id="process-assignment-strategy" name="processAssignmentStrategy"></select>
+                    </label>
+                    <label class="inline-row">
+                      <input id="process-allow-prev-assigned" name="processAllowPreviouslyAssigned" type="checkbox" checked />
+                      Allow previously assigned user in this instance
+                    </label>
+                    <label>
+                      Manual assigner roles (comma-separated)
+                      <input id="process-manual-assigner-roles" name="processManualAssignerRoles" type="text" placeholder="PROCESS_MONITOR, ADMINISTRATOR" />
+                    </label>
+                    <label>
+                      Max assignees
+                      <input id="process-max-assignees" name="processMaxAssignees" type="number" min="1" value="1" />
+                    </label>
+                  </fieldset>
+
+                  <fieldset id="process-automatic-config">
+                    <legend>Automatic task behavior</legend>
+                    <label>
+                      Task type
+                      <select id="process-automatic-task-type" name="processAutomaticTaskType"></select>
+                    </label>
+                    <label>
+                      Handler reference
+                      <input id="process-automatic-handler-ref" name="processAutomaticHandlerRef" type="text" placeholder="handlers.sendApprovalEmail" />
+                    </label>
+                    <label>
+                      Trigger mode
+                      <select id="process-automatic-trigger-mode" name="processAutomaticTriggerMode"></select>
+                    </label>
+                    <label>
+                      Deferred delay (minutes, optional)
+                      <input id="process-automatic-delay-minutes" name="processAutomaticDelayMinutes" type="number" min="1" />
+                    </label>
+                    <label>
+                      Task configuration (JSON object)
+                      <textarea id="process-automatic-config-json" name="processAutomaticConfigurationJson" rows="5" placeholder="{ &quot;template&quot;: &quot;approval&quot; }"></textarea>
+                    </label>
+                  </fieldset>
+
+                  <fieldset>
+                    <legend>Input and Output data mappings</legend>
+                    <label>
+                      Input sources
+                      <textarea
+                        id="process-input-sources"
+                        name="processInputSources"
+                        rows="4"
+                        placeholder="SOURCE_TYPE|sourceRef|from->to,from2->to2&#10;PROCESS_CONTEXT|context.request|request.amount->payload.amount"
+                      ></textarea>
+                    </label>
+                    <label>
+                      Output storage
+                      <select id="process-output-storage" name="processOutputStorage"></select>
+                    </label>
+                    <label>
+                      Output mappings
+                      <textarea id="process-output-mappings" name="processOutputMappings" rows="4" placeholder="result.id -> context.lastResultId"></textarea>
+                    </label>
+                  </fieldset>
+
+                  <fieldset>
+                    <legend>Visibility by role</legend>
+                    <label>
+                      Activity viewer roles
+                      <input id="process-activity-viewer-roles" name="processActivityViewerRoles" type="text" placeholder="PROCESS_USER, PROCESS_MONITOR" />
+                    </label>
+                    <label>
+                      Data viewer roles
+                      <input id="process-data-viewer-roles" name="processDataViewerRoles" type="text" placeholder="PROCESS_USER, PROCESS_MONITOR" />
+                    </label>
+                  </fieldset>
+
+                  <div class="inline-row">
+                    <button id="process-activity-apply" type="button">Apply configuration</button>
+                    <button id="process-activity-reload" type="button">Reload</button>
+                  </div>
+                  <p id="process-activity-feedback" class="feedback" aria-live="polite"></p>
+                </form>
+              </div>
+            </div>
+            <div id="process-bpmn-editor-shell" class="hidden">
+              <p class="muted">Advanced BPMN XML editor</p>
               <div id="process-bpmn-editor" class="process-bpmn-editor"></div>
+            </div>
+            <div id="process-spec-editor-shell" class="hidden">
+              <p class="muted">Advanced specification JSON editor (spec-v1)</p>
+              <div id="process-spec-editor" class="process-spec-editor"></div>
             </div>
             <p id="process-bpmn-feedback" class="feedback" aria-live="polite"></p>
           </div>
 
           <div class="process-studio panel">
-            <h4>Process Specification Studio (spec-v1 JSON)</h4>
-            <p class="muted">
-              Edit, validate, and save versioned process behavior rules linked to BPMN activities.
-            </p>
-            <div class="process-studio-toolbar">
-              <label class="studio-select">
-                Model
-                <select id="process-spec-model"></select>
-              </label>
-              <label class="studio-select">
-                Version
-                <select id="process-spec-version"></select>
-              </label>
-              <button id="process-spec-load" type="button">Load specification</button>
-              <button id="process-spec-validate" type="button">Validate specification</button>
-              <button id="process-spec-save" type="button">Save specification</button>
-            </div>
-            <div id="process-spec-editor" class="process-spec-editor"></div>
-            <p id="process-spec-feedback" class="feedback" aria-live="polite"></p>
-          </div>
-
-          <div class="process-studio panel">
             <h4>Automatic Task Catalog Studio</h4>
             <p class="muted">
-              Maintain reusable automatic task types, centralize dependency versions, and edit custom Java handlers stored in <code>.prooweb</code>.
+              Maintain reusable automatic task types graphically and edit custom Java handlers stored in <code>.prooweb</code>.
             </p>
             <div class="process-studio-toolbar">
               <button id="process-auto-catalog-load" type="button">Load catalog</button>
               <button id="process-auto-catalog-save" type="button">Save catalog</button>
+              <button id="process-auto-catalog-toggle-json" type="button">Show catalog JSON</button>
               <label class="studio-select">
                 Task type
                 <select id="process-auto-task-type-select"></select>
               </label>
+              <button id="process-auto-task-new" type="button">New task type</button>
+              <button id="process-auto-task-apply" type="button">Apply details</button>
+              <button id="process-auto-task-remove" type="button">Remove custom task type</button>
               <button id="process-auto-task-source-load" type="button">Load custom source</button>
               <button id="process-auto-task-source-save" type="button">Save custom source</button>
             </div>
-            <div class="process-studio-grid process-auto-catalog-grid">
-              <div>
-                <p class="muted">Catalog JSON (task types + library registry)</p>
-                <div id="process-auto-catalog-editor" class="process-spec-editor"></div>
-              </div>
+            <div class="process-studio-grid process-auto-catalog-grid process-auto-catalog-form-grid">
+              <form id="process-auto-task-form" class="wizard-form process-inline-form" novalidate>
+                <label>
+                  Task type key
+                  <input id="process-auto-task-key" name="processAutoTaskKey" type="text" placeholder="core.integration.notify" required />
+                </label>
+                <label>
+                  Display name
+                  <input id="process-auto-task-display" name="processAutoTaskDisplay" type="text" placeholder="Notify external channel" required />
+                </label>
+                <label>
+                  Kind
+                  <select id="process-auto-task-kind" name="processAutoTaskKind"></select>
+                </label>
+                <label>
+                  Category
+                  <input id="process-auto-task-category" name="processAutoTaskCategory" type="text" placeholder="communication" />
+                </label>
+                <label class="inline-row">
+                  <input id="process-auto-task-enabled" name="processAutoTaskEnabled" type="checkbox" checked />
+                  Enabled
+                </label>
+                <label>
+                  Description
+                  <textarea id="process-auto-task-description" name="processAutoTaskDescription" rows="3"></textarea>
+                </label>
+                <label>
+                  Dependencies (library keys)
+                  <input id="process-auto-task-dependencies" name="processAutoTaskDependencies" type="text" placeholder="spring-web, spring-boot-mail" />
+                </label>
+                <label>
+                  Allowed input source types
+                  <input id="process-auto-task-input-sources" name="processAutoTaskInputSources" type="text" placeholder="PROCESS_CONTEXT, SHARED_DATA" />
+                </label>
+                <label>
+                  Minimum input sources
+                  <input id="process-auto-task-min-sources" name="processAutoTaskMinSources" type="number" min="0" value="0" />
+                </label>
+                <label>
+                  Default output storage
+                  <select id="process-auto-task-output-storage" name="processAutoTaskOutputStorage"></select>
+                </label>
+                <label>
+                  Configuration schema (JSON object)
+                  <textarea id="process-auto-task-config-schema" name="processAutoTaskConfigSchema" rows="6"></textarea>
+                </label>
+                <p id="process-auto-task-form-feedback" class="feedback" aria-live="polite"></p>
+              </form>
               <div>
                 <p id="process-auto-task-source-path" class="muted">Custom source path: -</p>
                 <div id="process-auto-task-source-editor" class="process-spec-editor"></div>
               </div>
+            </div>
+            <div id="process-auto-catalog-editor-shell" class="hidden">
+              <p class="muted">Advanced catalog JSON editor</p>
+              <div id="process-auto-catalog-editor" class="process-spec-editor"></div>
             </div>
             <p id="process-auto-catalog-feedback" class="feedback" aria-live="polite"></p>
           </div>
@@ -726,6 +896,7 @@ deployment/docker/
         <ul id="command-center-results" class="command-center-results"></ul>
       </div>
     </div>
+    <button id="back-to-top-button" type="button" class="back-to-top hidden" aria-label="Back to top">Top</button>
 
     <script type="module" src="/assets/js/dashboard/index.js"></script>
   </body>

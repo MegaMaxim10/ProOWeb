@@ -72,7 +72,9 @@ function initializeFormValues(form, workspace) {
   setInputValue(form, "externalIamIssuerUri", provider.issuerUri || "");
   setInputValue(form, "externalIamClientId", provider.clientId || "");
   setInputValue(form, "externalIamClientSecret", "");
+  setInputValue(form, "externalIamClientSecretConfirm", "");
   setInputValue(form, "externalIamSharedSecret", "");
+  setInputValue(form, "externalIamSharedSecretConfirm", "");
   setInputValue(form, "externalIamUsernameClaim", provider.usernameClaim || "preferred_username");
   setInputValue(form, "externalIamEmailClaim", provider.emailClaim || "email");
 

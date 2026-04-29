@@ -432,6 +432,18 @@ function createAppRouter({
       return;
     }
 
+    if (
+      method === "GET"
+      && /^\/dashboard\/(overview|platform|process|developer)$/.test(url.pathname)
+    ) {
+      const page = url.pathname.split("/")[2];
+      response.writeHead(302, {
+        Location: `/dashboard?page=${encodeURIComponent(page)}`,
+      });
+      response.end();
+      return;
+    }
+
     if (method === "GET") {
       publicFileHandler.sendFile(response, publicFileHandler.resolvePublicPath(url.pathname));
       return;

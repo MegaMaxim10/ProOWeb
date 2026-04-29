@@ -1,8 +1,5 @@
 import { setFeedback } from "../shared/feedback.js";
-
-const BPMN_MODELER_SCRIPT_URL = "https://unpkg.com/bpmn-js@17.9.2/dist/bpmn-modeler.production.min.js";
-const MONACO_LOADER_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js";
-const MONACO_BASE_URL = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs";
+import { loadBpmnModelerConstructor, loadMonacoEditor } from "../shared/ide-libs.js";
 
 const DEFAULT_BPMN_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -23,6 +20,19 @@ const DEFAULT_BPMN_XML = `<?xml version="1.0" encoding="UTF-8"?>
 </bpmn:definitions>
 `;
 
+const DEFAULT_SPECIFICATION = Object.freeze({
+  schemaVersion: 1,
+  start: {
+    startableByRoles: ["PROCESS_USER"],
+    startActivities: [],
+    allowAutoStartWhenNoManualEntry: true,
+  },
+  monitors: {
+    monitorRoles: ["PROCESS_MONITOR"],
+  },
+  activities: {},
+});
+
 const TASK_TYPES = new Set([
   "task",
   "userTask",
@@ -32,87 +42,45 @@ const TASK_TYPES = new Set([
   "businessRuleTask",
   "receiveTask",
   "sendTask",
+  "callActivity",
+  "subProcess",
 ]);
 
-let bpmnConstructorPromise = null;
-let monacoPromise = null;
+const AUTOMATIC_TASK_TYPES = new Set([
+  "serviceTask",
+  "scriptTask",
+  "businessRuleTask",
+  "receiveTask",
+  "sendTask",
+  "callActivity",
+]);
 
-function loadScript(url) {
-  const existing = document.querySelector(`script[data-prooweb-lib="${url}"]`);
-  if (existing) {
-    return new Promise((resolve, reject) => {
-      if (existing.dataset.loaded === "true") {
-        resolve();
-        return;
-      }
+const INPUT_SOURCE_TYPES = [
+  "PREVIOUS_ACTIVITY",
+  "PROCESS_CONTEXT",
+  "SHARED_DATA",
+  "BACKEND_SERVICE",
+  "EXTERNAL_SERVICE",
+];
 
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error(`Failed to load script: ${url}`)), { once: true });
-    });
-  }
+const ASSIGNMENT_STRATEGIES = [
+  "ROLE_QUEUE",
+  "SUPERVISOR_ONLY",
+  "SUPERVISOR_THEN_ANCESTORS",
+  "UNIT_MEMBERS",
+  "SINGLE_MATCH_ONLY",
+  "MANUAL_ONLY",
+  "ROUND_ROBIN",
+];
 
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = url;
-    script.async = true;
-    script.dataset.proowebLib = url;
-    script.addEventListener("load", () => {
-      script.dataset.loaded = "true";
-      resolve();
-    }, { once: true });
-    script.addEventListener("error", () => reject(new Error(`Failed to load script: ${url}`)), { once: true });
-    document.head.appendChild(script);
-  });
-}
+const ASSIGNMENT_MODES = ["AUTOMATIC", "MANUAL"];
+const ACTIVITY_TYPES = ["MANUAL", "AUTOMATIC"];
+const OUTPUT_STORAGE_VALUES = ["INSTANCE", "SHARED", "BOTH"];
+const TRIGGER_MODES = ["MANUAL_TRIGGER", "IMMEDIATE", "DEFERRED"];
+const DEFAULT_AUTOMATIC_TASK_TYPE_KEY = "core.echo";
 
-function loadBpmnModelerConstructor() {
-  if (window.BpmnJS) {
-    return Promise.resolve(window.BpmnJS);
-  }
-
-  if (!bpmnConstructorPromise) {
-    bpmnConstructorPromise = loadScript(BPMN_MODELER_SCRIPT_URL)
-      .then(() => {
-        if (!window.BpmnJS) {
-          throw new Error("BPMN modeler library did not initialize.");
-        }
-
-        return window.BpmnJS;
-      });
-  }
-
-  return bpmnConstructorPromise;
-}
-
-function loadMonacoEditor() {
-  if (window.monaco?.editor) {
-    return Promise.resolve(window.monaco);
-  }
-
-  if (!monacoPromise) {
-    monacoPromise = loadScript(MONACO_LOADER_SCRIPT_URL)
-      .then(() => new Promise((resolve, reject) => {
-        const amdRequire = window.require;
-        if (!amdRequire) {
-          reject(new Error("Monaco AMD loader is not available."));
-          return;
-        }
-
-        amdRequire.config({ paths: { vs: MONACO_BASE_URL } });
-        window.MonacoEnvironment = {
-          getWorkerUrl() {
-            const workerSource =
-              `self.MonacoEnvironment={baseUrl:'${MONACO_BASE_URL}'};` +
-              `importScripts('${MONACO_BASE_URL}/base/worker/workerMain.js');`;
-            return `data:text/javascript;charset=utf-8,${encodeURIComponent(workerSource)}`;
-          },
-        };
-
-        amdRequire(["vs/editor/editor.main"], () => resolve(window.monaco), reject);
-      }));
-  }
-
-  return monacoPromise;
+function deepClone(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function toLineColumn(xml, index) {
@@ -407,8 +375,213 @@ function buildBpmnSemanticMarkers(xml) {
   return markers;
 }
 
+function normalizeRoleCode(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function parseRoleList(value) {
+  const rows = String(value || "")
+    .split(/[,\n]/)
+    .map((entry) => normalizeRoleCode(entry))
+    .filter((entry) => Boolean(entry));
+  return Array.from(new Set(rows));
+}
+
+function stringifyRoleList(values = []) {
+  return Array.isArray(values) ? values.join(", ") : "";
+}
+
+function normalizeBpmnType(bpmnType) {
+  const raw = String(bpmnType || "");
+  const normalized = raw.includes(":") ? raw.split(":")[1] : raw;
+  if (!normalized) {
+    return "";
+  }
+  return normalized.charAt(0).toLowerCase() + normalized.slice(1);
+}
+
+function parseMappings(multiline) {
+  const rows = String(multiline || "").split("\n");
+  const mappings = [];
+  for (const row of rows) {
+    const line = row.trim();
+    if (!line) {
+      continue;
+    }
+
+    const arrowIndex = line.indexOf("->");
+    if (arrowIndex < 0) {
+      continue;
+    }
+    const from = line.slice(0, arrowIndex).trim();
+    const to = line.slice(arrowIndex + 2).trim();
+    if (from && to) {
+      mappings.push({ from, to });
+    }
+  }
+  return mappings;
+}
+
+function stringifyMappings(mappings = []) {
+  if (!Array.isArray(mappings) || mappings.length === 0) {
+    return "";
+  }
+
+  return mappings
+    .map((entry) => `${String(entry?.from || "").trim()} -> ${String(entry?.to || "").trim()}`)
+    .filter((entry) => entry !== " -> ")
+    .join("\n");
+}
+
+function parseInputSources(multiline) {
+  const rows = String(multiline || "").split("\n");
+  const sources = [];
+  for (const row of rows) {
+    const line = row.trim();
+    if (!line) {
+      continue;
+    }
+
+    const parts = line.split("|").map((entry) => entry.trim());
+    const sourceType = String(parts[0] || "").toUpperCase();
+    if (!INPUT_SOURCE_TYPES.includes(sourceType)) {
+      continue;
+    }
+
+    const sourceRef = String(parts[1] || "");
+    const mappingsText = String(parts[2] || "");
+    const mappingRows = mappingsText
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => Boolean(entry));
+    const mappings = [];
+    for (const mappingRow of mappingRows) {
+      const arrowIndex = mappingRow.indexOf("->");
+      if (arrowIndex < 0) {
+        continue;
+      }
+      const from = mappingRow.slice(0, arrowIndex).trim();
+      const to = mappingRow.slice(arrowIndex + 2).trim();
+      if (from && to) {
+        mappings.push({ from, to });
+      }
+    }
+
+    sources.push({
+      sourceType,
+      sourceRef,
+      mappings,
+    });
+  }
+
+  return sources;
+}
+
+function stringifyInputSources(sources = []) {
+  if (!Array.isArray(sources) || sources.length === 0) {
+    return "";
+  }
+  return sources.map((entry) => {
+    const sourceType = String(entry?.sourceType || "PROCESS_CONTEXT").toUpperCase();
+    const sourceRef = String(entry?.sourceRef || "");
+    const mappings = Array.isArray(entry?.mappings)
+      ? entry.mappings
+        .map((mapping) => `${String(mapping?.from || "").trim()}->${String(mapping?.to || "").trim()}`)
+        .filter((row) => row !== "->")
+        .join(", ")
+      : "";
+    return `${sourceType}|${sourceRef}|${mappings}`;
+  }).join("\n");
+}
+
+function toHandlerRef(activityId) {
+  const normalized = String(activityId || "")
+    .replace(/[^A-Za-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .map((entry, index) =>
+      index === 0
+        ? entry.toLowerCase()
+        : entry.charAt(0).toUpperCase() + entry.slice(1).toLowerCase())
+    .join("");
+
+  return `handlers.${normalized || "activityHandler"}`;
+}
+
+function buildDefaultActivitySpecification(activityId, elementType) {
+  const normalizedType = normalizeBpmnType(elementType);
+  const automatic = AUTOMATIC_TASK_TYPES.has(normalizedType);
+  return {
+    activityType: automatic ? "AUTOMATIC" : "MANUAL",
+    candidateRoles: ["PROCESS_USER"],
+    assignment: {
+      mode: "AUTOMATIC",
+      strategy: automatic ? "SINGLE_MATCH_ONLY" : "ROLE_QUEUE",
+      allowPreviouslyAssignedAssignee: true,
+      manualAssignerRoles: ["PROCESS_MONITOR", "ADMINISTRATOR"],
+      maxAssignees: 1,
+    },
+    automaticExecution: automatic
+      ? {
+          handlerRef: toHandlerRef(activityId),
+          taskTypeKey: DEFAULT_AUTOMATIC_TASK_TYPE_KEY,
+          triggerMode: "MANUAL_TRIGGER",
+          deferredDelayMinutes: null,
+          configuration: {},
+        }
+      : null,
+    input: {
+      sources: [],
+    },
+    output: {
+      storage: "INSTANCE",
+      mappings: [],
+    },
+    visibility: {
+      activityViewerRoles: ["PROCESS_USER", "PROCESS_MONITOR", "ADMINISTRATOR"],
+      dataViewerRoles: ["PROCESS_USER", "PROCESS_MONITOR", "ADMINISTRATOR"],
+    },
+  };
+}
+
+function fillSelectOptions(documentRef, selectElement, options, selectedValue = "") {
+  if (!selectElement) {
+    return;
+  }
+
+  const previousValue = selectedValue || selectElement.value || "";
+  selectElement.innerHTML = "";
+
+  if (!Array.isArray(options) || options.length === 0) {
+    const emptyOption = documentRef.createElement("option");
+    emptyOption.value = "";
+    emptyOption.textContent = "-";
+    selectElement.appendChild(emptyOption);
+    selectElement.value = "";
+    return;
+  }
+
+  for (const optionData of options) {
+    const optionElement = documentRef.createElement("option");
+    optionElement.value = String(optionData.value);
+    optionElement.textContent = String(optionData.label);
+    selectElement.appendChild(optionElement);
+  }
+
+  const available = new Set(options.map((entry) => String(entry.value)));
+  selectElement.value = available.has(String(previousValue))
+    ? String(previousValue)
+    : String(options[0].value);
+}
+
 function createDisabledStudio(feedbackElement, reason) {
-  setFeedback(feedbackElement, `BPMN studio unavailable: ${reason}`, "error");
+  if (feedbackElement) {
+    setFeedback(feedbackElement, `BPMN studio unavailable: ${reason}`, "error");
+  }
 
   return {
     ready: false,
@@ -422,6 +595,9 @@ function createDisabledStudio(feedbackElement, reason) {
       return false;
     },
     setCatalog() {
+      return null;
+    },
+    setAutomaticTaskTypes() {
       return null;
     },
   };
@@ -439,9 +615,40 @@ function triggerDownload(filename, content) {
   URL.revokeObjectURL(url);
 }
 
+function findBpmnActivityMap(xml) {
+  const parser = new DOMParser();
+  const parsed = parser.parseFromString(String(xml || ""), "application/xml");
+  const map = new Map();
+  const entries = parsed.getElementsByTagName("*");
+  for (const element of entries) {
+    const id = String(element.getAttribute("id") || "");
+    const name = localName(element);
+    if (!id || !TASK_TYPES.has(name)) {
+      continue;
+    }
+    map.set(id, {
+      activityId: id,
+      elementType: name,
+    });
+  }
+
+  return map;
+}
+
+function toJsonSafeText(value, fallback = "{}") {
+  try {
+    return `${JSON.stringify(value, null, 2)}\n`;
+  } catch (_) {
+    return fallback;
+  }
+}
+
 export async function initializeBpmnStudio({ documentRef = document, api = {} } = {}) {
   const canvasElement = documentRef.getElementById("process-bpmn-canvas");
   const editorElement = documentRef.getElementById("process-bpmn-editor");
+  const editorShell = documentRef.getElementById("process-bpmn-editor-shell");
+  const specEditorShell = documentRef.getElementById("process-spec-editor-shell");
+  const specEditorElement = documentRef.getElementById("process-spec-editor");
   const feedbackElement = documentRef.getElementById("process-bpmn-feedback");
   const newButton = documentRef.getElementById("process-bpmn-new");
   const importButton = documentRef.getElementById("process-bpmn-import-trigger");
@@ -456,6 +663,36 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
   const undoButton = documentRef.getElementById("process-bpmn-undo");
   const redoButton = documentRef.getElementById("process-bpmn-redo");
   const importFileInput = documentRef.getElementById("process-bpmn-import-file");
+  const toggleXmlButton = documentRef.getElementById("process-bpmn-toggle-xml");
+  const toggleSpecJsonButton = documentRef.getElementById("process-bpmn-toggle-spec-json");
+  const saveSpecButton = documentRef.getElementById("process-bpmn-save-spec");
+  const validateSpecButton = documentRef.getElementById("process-bpmn-validate-spec");
+
+  const selectionLine = documentRef.getElementById("process-selected-activity-line");
+  const activityForm = documentRef.getElementById("process-activity-config-form");
+  const activityIdInput = documentRef.getElementById("process-activity-id");
+  const activityKindInput = documentRef.getElementById("process-activity-kind");
+  const activityTypeSelect = documentRef.getElementById("process-activity-type");
+  const candidateRolesInput = documentRef.getElementById("process-candidate-roles");
+  const assignmentModeSelect = documentRef.getElementById("process-assignment-mode");
+  const assignmentStrategySelect = documentRef.getElementById("process-assignment-strategy");
+  const allowPrevAssignedCheckbox = documentRef.getElementById("process-allow-prev-assigned");
+  const manualAssignerRolesInput = documentRef.getElementById("process-manual-assigner-roles");
+  const maxAssigneesInput = documentRef.getElementById("process-max-assignees");
+  const automaticSection = documentRef.getElementById("process-automatic-config");
+  const automaticTaskTypeSelect = documentRef.getElementById("process-automatic-task-type");
+  const automaticHandlerRefInput = documentRef.getElementById("process-automatic-handler-ref");
+  const automaticTriggerModeSelect = documentRef.getElementById("process-automatic-trigger-mode");
+  const automaticDelayInput = documentRef.getElementById("process-automatic-delay-minutes");
+  const automaticConfigurationTextarea = documentRef.getElementById("process-automatic-config-json");
+  const inputSourcesTextarea = documentRef.getElementById("process-input-sources");
+  const outputStorageSelect = documentRef.getElementById("process-output-storage");
+  const outputMappingsTextarea = documentRef.getElementById("process-output-mappings");
+  const activityViewerRolesInput = documentRef.getElementById("process-activity-viewer-roles");
+  const dataViewerRolesInput = documentRef.getElementById("process-data-viewer-roles");
+  const applyConfigButton = documentRef.getElementById("process-activity-apply");
+  const reloadConfigButton = documentRef.getElementById("process-activity-reload");
+  const activityFeedbackElement = documentRef.getElementById("process-activity-feedback");
 
   if (!canvasElement || !editorElement || !feedbackElement) {
     return createDisabledStudio(feedbackElement, "BPMN studio containers not found in DOM.");
@@ -480,10 +717,11 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
     },
   });
 
+  const monacoTheme = documentRef.documentElement?.dataset?.theme === "dark" ? "vs-dark" : "vs";
   const editor = monaco.editor.create(editorElement, {
     value: DEFAULT_BPMN_XML,
     language: "xml",
-    theme: "vs",
+    theme: monacoTheme,
     automaticLayout: true,
     minimap: {
       enabled: false,
@@ -494,61 +732,41 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
     wordWrap: "on",
   });
 
+  const specificationEditor = specEditorElement
+    ? monaco.editor.create(specEditorElement, {
+        value: toJsonSafeText(DEFAULT_SPECIFICATION),
+        language: "json",
+        theme: monacoTheme,
+        automaticLayout: true,
+        minimap: {
+          enabled: false,
+        },
+        lineNumbers: "on",
+        tabSize: 2,
+        insertSpaces: true,
+        wordWrap: "on",
+      })
+    : null;
+
   let currentXml = DEFAULT_BPMN_XML;
   let syncingFromModeler = false;
   let syncingFromEditor = false;
   let editorToModelerTimer = null;
   let modelerToEditorTimer = null;
   let catalogModels = [];
+  let automaticTaskTypes = [];
+  let selectedActivityId = "";
+  let selectedElementType = "";
+  let selectedModelKey = "";
+  let selectedVersionNumber = "";
+  let currentSpecification = deepClone(DEFAULT_SPECIFICATION);
+  let syncingSpecificationEditor = false;
 
-  function fillSelectOptions(selectElement, options, selectedValue = "") {
-    if (!selectElement) {
+  function setActivityFeedback(message, tone) {
+    if (!activityFeedbackElement) {
       return;
     }
-
-    const previousValue = selectedValue || selectElement.value || "";
-    selectElement.innerHTML = "";
-
-    if (!Array.isArray(options) || options.length === 0) {
-      const emptyOption = documentRef.createElement("option");
-      emptyOption.value = "";
-      emptyOption.textContent = "-";
-      selectElement.appendChild(emptyOption);
-      selectElement.value = "";
-      return;
-    }
-
-    for (const optionData of options) {
-      const optionElement = documentRef.createElement("option");
-      optionElement.value = String(optionData.value);
-      optionElement.textContent = String(optionData.label);
-      selectElement.appendChild(optionElement);
-    }
-
-    const available = new Set(options.map((entry) => String(entry.value)));
-    selectElement.value = available.has(String(previousValue))
-      ? String(previousValue)
-      : String(options[0].value);
-  }
-
-  function refreshVersionSelector() {
-    if (!loadVersionSelector) {
-      return;
-    }
-
-    const selectedModelKey = String(loadModelSelector?.value || "");
-    const model = catalogModels.find((entry) => entry.modelKey === selectedModelKey) || null;
-    const versionOptions = Array.isArray(model?.versions)
-      ? model.versions
-        .slice()
-        .sort((left, right) => Number(left.versionNumber || 0) - Number(right.versionNumber || 0))
-        .map((version) => ({
-          value: String(version.versionNumber),
-          label: `v${version.versionNumber} (${version.status})`,
-        }))
-      : [];
-
-    fillSelectOptions(loadVersionSelector, versionOptions, loadVersionSelector.value);
+    setFeedback(activityFeedbackElement, message, tone);
   }
 
   function setCatalog(models = []) {
@@ -561,8 +779,50 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
         label: `${model.modelKey} - ${model.title}`,
       }));
 
-    fillSelectOptions(loadModelSelector, modelOptions, loadModelSelector?.value);
+    fillSelectOptions(documentRef, loadModelSelector, modelOptions, loadModelSelector?.value);
     refreshVersionSelector();
+  }
+
+  function setAutomaticTaskTypes(taskTypes = []) {
+    automaticTaskTypes = Array.isArray(taskTypes) ? taskTypes.slice() : [];
+    if (!automaticTaskTypeSelect) {
+      return;
+    }
+
+    const options = automaticTaskTypes
+      .filter((entry) => entry?.enabled !== false)
+      .sort((left, right) => String(left.taskTypeKey || "").localeCompare(String(right.taskTypeKey || "")))
+      .map((entry) => ({
+        value: entry.taskTypeKey,
+        label: `${entry.taskTypeKey} (${entry.kind || "BUILTIN"})`,
+      }));
+
+    if (options.length === 0) {
+      options.push({
+        value: DEFAULT_AUTOMATIC_TASK_TYPE_KEY,
+        label: DEFAULT_AUTOMATIC_TASK_TYPE_KEY,
+      });
+    }
+    fillSelectOptions(documentRef, automaticTaskTypeSelect, options, automaticTaskTypeSelect.value);
+  }
+
+  function refreshVersionSelector() {
+    if (!loadVersionSelector) {
+      return;
+    }
+
+    const modelKey = String(loadModelSelector?.value || "");
+    const model = catalogModels.find((entry) => entry.modelKey === modelKey) || null;
+    const versionOptions = Array.isArray(model?.versions)
+      ? model.versions
+        .slice()
+        .sort((left, right) => Number(left.versionNumber || 0) - Number(right.versionNumber || 0))
+        .map((version) => ({
+          value: String(version.versionNumber),
+          label: `v${version.versionNumber} (${version.status})`,
+        }))
+      : [];
+    fillSelectOptions(documentRef, loadVersionSelector, versionOptions, loadVersionSelector.value);
   }
 
   function setEditorMarkers(markers = []) {
@@ -611,6 +871,315 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
     };
   }
 
+  function updateSpecificationEditor() {
+    if (!specificationEditor) {
+      return;
+    }
+    syncingSpecificationEditor = true;
+    specificationEditor.setValue(toJsonSafeText(currentSpecification));
+    syncingSpecificationEditor = false;
+  }
+
+  function normalizeSpecificationShape(input) {
+    const source = input && typeof input === "object" && !Array.isArray(input)
+      ? input
+      : {};
+
+    const merged = {
+      ...deepClone(DEFAULT_SPECIFICATION),
+      ...deepClone(source),
+    };
+    merged.schemaVersion = 1;
+    merged.start = merged.start && typeof merged.start === "object" && !Array.isArray(merged.start)
+      ? merged.start
+      : deepClone(DEFAULT_SPECIFICATION.start);
+    merged.monitors = merged.monitors && typeof merged.monitors === "object" && !Array.isArray(merged.monitors)
+      ? merged.monitors
+      : deepClone(DEFAULT_SPECIFICATION.monitors);
+    merged.activities = merged.activities && typeof merged.activities === "object" && !Array.isArray(merged.activities)
+      ? merged.activities
+      : {};
+
+    return merged;
+  }
+
+  function ensureActivitySpec(activityId, elementType) {
+    const id = String(activityId || "").trim();
+    if (!id) {
+      return null;
+    }
+
+    if (!currentSpecification.activities[id]) {
+      currentSpecification.activities[id] = buildDefaultActivitySpecification(id, elementType);
+      updateSpecificationEditor();
+    }
+
+    return currentSpecification.activities[id];
+  }
+
+  function setSelectionLine(message) {
+    if (selectionLine) {
+      selectionLine.textContent = message;
+    }
+  }
+
+  function setActivityFormEnabled(enabled) {
+    if (!activityForm) {
+      return;
+    }
+    for (const field of activityForm.querySelectorAll("input, select, textarea, button")) {
+      field.disabled = !enabled;
+    }
+  }
+
+  function applyAutomaticSectionVisibility() {
+    if (!automaticSection || !activityTypeSelect) {
+      return;
+    }
+
+    const isAutomatic = String(activityTypeSelect.value || "").toUpperCase() === "AUTOMATIC";
+    automaticSection.classList.toggle("hidden", !isAutomatic);
+  }
+
+  function renderActivityForm(activitySpec) {
+    if (!activitySpec || !activityForm) {
+      return;
+    }
+
+    if (activityIdInput) {
+      activityIdInput.value = selectedActivityId;
+    }
+    if (activityKindInput) {
+      activityKindInput.value = selectedElementType || "-";
+    }
+    if (activityTypeSelect) {
+      activityTypeSelect.value = String(activitySpec.activityType || "MANUAL").toUpperCase();
+    }
+    if (candidateRolesInput) {
+      candidateRolesInput.value = stringifyRoleList(activitySpec.candidateRoles);
+    }
+    if (assignmentModeSelect) {
+      assignmentModeSelect.value = String(activitySpec.assignment?.mode || "AUTOMATIC").toUpperCase();
+    }
+    if (assignmentStrategySelect) {
+      assignmentStrategySelect.value = String(activitySpec.assignment?.strategy || "ROLE_QUEUE").toUpperCase();
+    }
+    if (allowPrevAssignedCheckbox) {
+      allowPrevAssignedCheckbox.checked = activitySpec.assignment?.allowPreviouslyAssignedAssignee !== false;
+    }
+    if (manualAssignerRolesInput) {
+      manualAssignerRolesInput.value = stringifyRoleList(activitySpec.assignment?.manualAssignerRoles);
+    }
+    if (maxAssigneesInput) {
+      maxAssigneesInput.value = String(activitySpec.assignment?.maxAssignees || 1);
+    }
+
+    const automaticExecution = activitySpec.automaticExecution || {};
+    if (automaticTaskTypeSelect) {
+      automaticTaskTypeSelect.value = String(automaticExecution.taskTypeKey || DEFAULT_AUTOMATIC_TASK_TYPE_KEY);
+    }
+    if (automaticHandlerRefInput) {
+      automaticHandlerRefInput.value = String(automaticExecution.handlerRef || toHandlerRef(selectedActivityId));
+    }
+    if (automaticTriggerModeSelect) {
+      automaticTriggerModeSelect.value = String(automaticExecution.triggerMode || "MANUAL_TRIGGER");
+    }
+    if (automaticDelayInput) {
+      automaticDelayInput.value = automaticExecution.deferredDelayMinutes == null
+        ? ""
+        : String(automaticExecution.deferredDelayMinutes);
+    }
+    if (automaticConfigurationTextarea) {
+      automaticConfigurationTextarea.value = toJsonSafeText(automaticExecution.configuration || {}, "{}").trim();
+    }
+
+    if (inputSourcesTextarea) {
+      inputSourcesTextarea.value = stringifyInputSources(activitySpec.input?.sources || []);
+    }
+    if (outputStorageSelect) {
+      outputStorageSelect.value = String(activitySpec.output?.storage || "INSTANCE").toUpperCase();
+    }
+    if (outputMappingsTextarea) {
+      outputMappingsTextarea.value = stringifyMappings(activitySpec.output?.mappings || []);
+    }
+    if (activityViewerRolesInput) {
+      activityViewerRolesInput.value = stringifyRoleList(activitySpec.visibility?.activityViewerRoles);
+    }
+    if (dataViewerRolesInput) {
+      dataViewerRolesInput.value = stringifyRoleList(activitySpec.visibility?.dataViewerRoles);
+    }
+
+    applyAutomaticSectionVisibility();
+  }
+
+  function parseConfigurationJson(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return {};
+    }
+
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("Automatic configuration must be a JSON object.");
+    }
+    return parsed;
+  }
+
+  function collectActivitySpecFromForm() {
+    const activityType = String(activityTypeSelect?.value || "MANUAL").toUpperCase();
+    const assignment = {
+      mode: String(assignmentModeSelect?.value || "AUTOMATIC").toUpperCase(),
+      strategy: String(assignmentStrategySelect?.value || "ROLE_QUEUE").toUpperCase(),
+      allowPreviouslyAssignedAssignee: allowPrevAssignedCheckbox?.checked !== false,
+      manualAssignerRoles: parseRoleList(manualAssignerRolesInput?.value || "PROCESS_MONITOR,ADMINISTRATOR"),
+      maxAssignees: Math.max(1, Number.parseInt(String(maxAssigneesInput?.value || "1"), 10) || 1),
+    };
+
+    const outputStorage = String(outputStorageSelect?.value || "INSTANCE").toUpperCase();
+    const automaticConfig = parseConfigurationJson(automaticConfigurationTextarea?.value || "{}");
+
+    return {
+      activityType,
+      candidateRoles: parseRoleList(candidateRolesInput?.value || "PROCESS_USER"),
+      assignment,
+      automaticExecution: activityType === "AUTOMATIC"
+        ? {
+            taskTypeKey: String(automaticTaskTypeSelect?.value || DEFAULT_AUTOMATIC_TASK_TYPE_KEY).toLowerCase(),
+            handlerRef: String(automaticHandlerRefInput?.value || toHandlerRef(selectedActivityId)).trim(),
+            triggerMode: String(automaticTriggerModeSelect?.value || "MANUAL_TRIGGER").toUpperCase(),
+            deferredDelayMinutes: String(automaticDelayInput?.value || "").trim()
+              ? Math.max(1, Number.parseInt(String(automaticDelayInput.value), 10) || 1)
+              : null,
+            configuration: automaticConfig,
+          }
+        : null,
+      input: {
+        sources: parseInputSources(inputSourcesTextarea?.value || ""),
+      },
+      output: {
+        storage: OUTPUT_STORAGE_VALUES.includes(outputStorage) ? outputStorage : "INSTANCE",
+        mappings: parseMappings(outputMappingsTextarea?.value || ""),
+      },
+      visibility: {
+        activityViewerRoles: parseRoleList(activityViewerRolesInput?.value || "PROCESS_USER,PROCESS_MONITOR,ADMINISTRATOR"),
+        dataViewerRoles: parseRoleList(dataViewerRolesInput?.value || "PROCESS_USER,PROCESS_MONITOR,ADMINISTRATOR"),
+      },
+    };
+  }
+
+  function applyCurrentActivityConfiguration() {
+    if (!selectedActivityId) {
+      throw new Error("Select a BPMN activity before applying configuration.");
+    }
+
+    const nextSpec = collectActivitySpecFromForm();
+    currentSpecification.activities[selectedActivityId] = nextSpec;
+    updateSpecificationEditor();
+    setActivityFeedback(`Configuration applied to activity '${selectedActivityId}'.`, "success");
+  }
+
+  async function saveSpecificationToVersion() {
+    if (typeof api.saveProcessModelSpecification !== "function") {
+      throw new Error("Save specification API is not available.");
+    }
+
+    const modelKey = String(loadModelSelector?.value || "");
+    const versionNumber = String(loadVersionSelector?.value || "");
+    if (!modelKey || !versionNumber) {
+      throw new Error("Select model and version before saving specification.");
+    }
+
+    if (specificationEditor && !syncingSpecificationEditor) {
+      const parsed = JSON.parse(specificationEditor.getValue() || "{}");
+      currentSpecification = normalizeSpecificationShape(parsed);
+    }
+
+    const payload = await api.saveProcessModelSpecification(modelKey, versionNumber, {
+      specification: currentSpecification,
+    });
+    const specification = payload?.specification || currentSpecification;
+    currentSpecification = normalizeSpecificationShape(specification);
+    updateSpecificationEditor();
+    setActivityFeedback(`Specification saved for ${modelKey} v${versionNumber}.`, "success");
+    return payload;
+  }
+
+  async function validateSpecificationForVersion() {
+    if (typeof api.validateProcessModelSpecification !== "function") {
+      throw new Error("Validate specification API is not available.");
+    }
+
+    const modelKey = String(loadModelSelector?.value || "");
+    const versionNumber = String(loadVersionSelector?.value || "");
+    if (!modelKey || !versionNumber) {
+      throw new Error("Select model and version before validating specification.");
+    }
+
+    if (specificationEditor && !syncingSpecificationEditor) {
+      const parsed = JSON.parse(specificationEditor.getValue() || "{}");
+      currentSpecification = normalizeSpecificationShape(parsed);
+    }
+
+    const payload = await api.validateProcessModelSpecification(modelKey, versionNumber, {
+      specification: currentSpecification,
+    });
+    const errorCount = Array.isArray(payload?.validation?.errors) ? payload.validation.errors.length : 0;
+    const warningCount = Array.isArray(payload?.validation?.warnings) ? payload.validation.warnings.length : 0;
+    if (errorCount > 0) {
+      setActivityFeedback(`Specification validation failed with ${errorCount} error(s) and ${warningCount} warning(s).`, "error");
+    } else if (warningCount > 0) {
+      setActivityFeedback(`Specification validation passed with ${warningCount} warning(s).`);
+    } else {
+      setActivityFeedback("Specification validation passed (0 errors, 0 warnings).", "success");
+    }
+    return payload;
+  }
+
+  async function loadSpecificationForVersion(modelKey, versionNumber) {
+    if (typeof api.fetchProcessModelSpecification !== "function") {
+      currentSpecification = deepClone(DEFAULT_SPECIFICATION);
+      updateSpecificationEditor();
+      return;
+    }
+
+    try {
+      const payload = await api.fetchProcessModelSpecification(modelKey, versionNumber);
+      currentSpecification = normalizeSpecificationShape(payload?.specification || DEFAULT_SPECIFICATION);
+      updateSpecificationEditor();
+      setActivityFeedback(`Specification loaded for ${modelKey} v${versionNumber}.`, "success");
+    } catch (error) {
+      currentSpecification = deepClone(DEFAULT_SPECIFICATION);
+      updateSpecificationEditor();
+      setActivityFeedback(error.message || "Specification could not be loaded. Using defaults.", "error");
+    }
+  }
+
+  function handleSelectionChanged(event) {
+    const selected = Array.isArray(event?.newSelection) ? event.newSelection : [];
+    const first = selected[0];
+    const businessObject = first?.businessObject || null;
+    const elementId = String(businessObject?.id || "");
+    const typeName = normalizeBpmnType(businessObject?.$type || first?.type || "");
+
+    if (!elementId || !TASK_TYPES.has(typeName)) {
+      selectedActivityId = "";
+      selectedElementType = "";
+      setSelectionLine("Select a BPMN activity to configure assignment, automatic execution, and data mappings.");
+      setActivityFormEnabled(false);
+      setActivityFeedback("Activity configuration is waiting for an activity selection.");
+      return;
+    }
+
+    selectedActivityId = elementId;
+    selectedElementType = typeName;
+    setSelectionLine(`Selected activity: ${selectedActivityId} (${selectedElementType})`);
+    setActivityFormEnabled(true);
+
+    const activitySpec = ensureActivitySpec(selectedActivityId, selectedElementType);
+    renderActivityForm(activitySpec);
+    setActivityFeedback("Activity configuration loaded.", "success");
+  }
+
   async function importXmlIntoModeler(xml, options = {}) {
     const normalizedXml = String(xml || "");
     const lintResult = validateXmlAndLint(normalizedXml, { withFeedback: false });
@@ -625,6 +1194,12 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
     try {
       const importResult = await modeler.importXML(normalizedXml);
       currentXml = normalizedXml;
+
+      const activityMap = findBpmnActivityMap(normalizedXml);
+      for (const [activityId, metadata] of activityMap.entries()) {
+        ensureActivitySpec(activityId, metadata.elementType);
+      }
+      updateSpecificationEditor();
 
       if (options.withFeedback !== false) {
         const warnings = Array.isArray(importResult?.warnings) ? importResult.warnings.length : 0;
@@ -732,11 +1307,14 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
     }
 
     await setXml(xml, { withFeedback: false });
+    await loadSpecificationForVersion(modelKey, versionNumber);
     await createSnapshot(
       "load-version",
       `Loaded ${modelKey} v${versionNumber}`,
       Number.parseInt(versionNumber, 10),
     );
+    selectedModelKey = modelKey;
+    selectedVersionNumber = versionNumber;
     setFeedback(feedbackElement, `Loaded ${modelKey} v${versionNumber} into BPMN Studio.`, "success");
   }
 
@@ -780,6 +1358,73 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
     setFeedback(feedbackElement, "Redo applied from persisted history.", "success");
   }
 
+  function toggleElementVisibility(toggleButton, shellElement, expandedText, collapsedText) {
+    if (!toggleButton || !shellElement) {
+      return;
+    }
+
+    const hidden = shellElement.classList.toggle("hidden");
+    toggleButton.textContent = hidden ? collapsedText : expandedText;
+    if (!hidden && shellElement.contains(editorElement)) {
+      editor.layout();
+    }
+    if (!hidden && specificationEditor && shellElement.contains(specEditorElement)) {
+      specificationEditor.layout();
+    }
+  }
+
+  for (const [selectElement, options] of [
+    [activityTypeSelect, ACTIVITY_TYPES],
+    [assignmentModeSelect, ASSIGNMENT_MODES],
+    [assignmentStrategySelect, ASSIGNMENT_STRATEGIES],
+    [automaticTriggerModeSelect, TRIGGER_MODES],
+    [outputStorageSelect, OUTPUT_STORAGE_VALUES],
+  ]) {
+    if (!selectElement) {
+      continue;
+    }
+    fillSelectOptions(documentRef, selectElement, options.map((entry) => ({ value: entry, label: entry })), selectElement.value || options[0]);
+  }
+
+  if (automaticTaskTypeSelect) {
+    fillSelectOptions(
+      documentRef,
+      automaticTaskTypeSelect,
+      [{ value: DEFAULT_AUTOMATIC_TASK_TYPE_KEY, label: DEFAULT_AUTOMATIC_TASK_TYPE_KEY }],
+      DEFAULT_AUTOMATIC_TASK_TYPE_KEY,
+    );
+  }
+
+  setSelectionLine("Select a BPMN activity to configure assignment, automatic execution, and data mappings.");
+  setActivityFormEnabled(false);
+  applyAutomaticSectionVisibility();
+
+  if (toggleXmlButton && editorShell) {
+    toggleXmlButton.addEventListener("click", () => {
+      toggleElementVisibility(
+        toggleXmlButton,
+        editorShell,
+        "Hide BPMN XML",
+        "Show BPMN XML",
+      );
+    });
+    toggleXmlButton.textContent = editorShell.classList.contains("hidden") ? "Show BPMN XML" : "Hide BPMN XML";
+  }
+
+  if (toggleSpecJsonButton && specEditorShell) {
+    toggleSpecJsonButton.addEventListener("click", () => {
+      toggleElementVisibility(
+        toggleSpecJsonButton,
+        specEditorShell,
+        "Hide specification JSON",
+        "Show specification JSON",
+      );
+    });
+    toggleSpecJsonButton.textContent = specEditorShell.classList.contains("hidden")
+      ? "Show specification JSON"
+      : "Hide specification JSON";
+  }
+
   editor.onDidChangeModelContent(() => {
     if (syncingFromModeler) {
       return;
@@ -797,7 +1442,7 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
       try {
         await importXmlIntoModeler(xml, { withFeedback: true });
       } catch (_) {
-        // feedback already handled
+        // feedback already emitted.
       }
     }, 700);
   });
@@ -816,6 +1461,69 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
     }, 220);
   });
 
+  const eventBus = modeler.get("eventBus");
+  eventBus.on("selection.changed", handleSelectionChanged);
+
+  if (specificationEditor) {
+    specificationEditor.onDidChangeModelContent(() => {
+      if (syncingSpecificationEditor) {
+        return;
+      }
+      try {
+        const parsed = JSON.parse(specificationEditor.getValue() || "{}");
+        currentSpecification = normalizeSpecificationShape(parsed);
+      } catch (_) {
+        // Keep editor free-form; explicit save/validate will surface parsing feedback.
+      }
+    });
+  }
+
+  if (activityTypeSelect) {
+    activityTypeSelect.addEventListener("change", () => applyAutomaticSectionVisibility());
+  }
+
+  if (applyConfigButton) {
+    applyConfigButton.addEventListener("click", () => {
+      try {
+        applyCurrentActivityConfiguration();
+      } catch (error) {
+        setActivityFeedback(error.message || "Failed to apply activity configuration.", "error");
+      }
+    });
+  }
+
+  if (reloadConfigButton) {
+    reloadConfigButton.addEventListener("click", () => {
+      if (!selectedActivityId) {
+        setActivityFeedback("Select a BPMN activity before reloading configuration.", "error");
+        return;
+      }
+      const activitySpec = ensureActivitySpec(selectedActivityId, selectedElementType);
+      renderActivityForm(activitySpec);
+      setActivityFeedback("Activity configuration reloaded from current specification.", "success");
+    });
+  }
+
+  if (saveSpecButton) {
+    saveSpecButton.addEventListener("click", async () => {
+      try {
+        await saveSpecificationToVersion();
+      } catch (error) {
+        setActivityFeedback(error.message || "Failed to save specification.", "error");
+      }
+    });
+  }
+
+  if (validateSpecButton) {
+    validateSpecButton.addEventListener("click", async () => {
+      try {
+        await validateSpecificationForVersion();
+      } catch (error) {
+        setActivityFeedback(error.message || "Failed to validate specification.", "error");
+      }
+    });
+  }
+
   if (loadModelSelector) {
     loadModelSelector.addEventListener("change", () => {
       refreshVersionSelector();
@@ -826,6 +1534,10 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
     newButton.addEventListener("click", async () => {
       try {
         await setXml(DEFAULT_BPMN_XML, { withFeedback: false });
+        currentSpecification = deepClone(DEFAULT_SPECIFICATION);
+        updateSpecificationEditor();
+        setActivityFormEnabled(false);
+        setSelectionLine("Select a BPMN activity to configure assignment, automatic execution, and data mappings.");
         await createSnapshot("new-diagram", "Initialized new BPMN diagram");
         setFeedback(feedbackElement, "New BPMN diagram created.", "success");
       } catch (error) {
@@ -943,6 +1655,11 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
 
   try {
     await setXml(DEFAULT_BPMN_XML, { withFeedback: false });
+    if (typeof api.fetchAutomaticTaskCatalog === "function") {
+      const catalogPayload = await api.fetchAutomaticTaskCatalog();
+      setAutomaticTaskTypes(Array.isArray(catalogPayload?.catalog?.taskTypes) ? catalogPayload.catalog.taskTypes : []);
+    }
+    updateSpecificationEditor();
     setFeedback(feedbackElement, "BPMN studio ready.", "success");
   } catch (error) {
     setFeedback(feedbackElement, error.message || "Failed to initialize BPMN studio.", "error");
@@ -958,5 +1675,19 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
     },
     applyXmlToTextarea,
     setCatalog,
+    setAutomaticTaskTypes,
+    async saveSpecification() {
+      return saveSpecificationToVersion();
+    },
+    async validateSpecification() {
+      return validateSpecificationForVersion();
+    },
+    getCurrentSelection() {
+      return {
+        modelKey: selectedModelKey,
+        versionNumber: selectedVersionNumber,
+        activityId: selectedActivityId,
+      };
+    },
   };
 }
