@@ -20,6 +20,7 @@ const INPUT_SOURCE_TYPE_VALUES = Object.freeze([
   "EXTERNAL_SERVICE",
 ]);
 const OUTPUT_STORAGE_VALUES = Object.freeze(["INSTANCE", "SHARED", "BOTH"]);
+const DEFAULT_AUTOMATIC_TASK_TYPE_KEY = "core.echo";
 
 const BPMN_ACTIVITY_TAGS = Object.freeze([
   "task",
@@ -45,6 +46,10 @@ const AUTOMATIC_ACTIVITY_TAGS = new Set([
 
 function normalizeString(value) {
   return String(value || "").trim();
+}
+
+function asObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
 }
 
 function normalizeBoolean(value, fallback = false) {
@@ -125,6 +130,76 @@ function normalizeEnum(value, allowedValues, fallback, path, errors) {
   return normalized;
 }
 
+function normalizeJsonObject(value, fallback = {}) {
+  const source = asObject(value);
+  if (!source) {
+    return { ...fallback };
+  }
+  return JSON.parse(JSON.stringify(source));
+}
+
+function validateConfigurationAgainstSchema(configuration, schema, path, errors) {
+  const config = asObject(configuration) || {};
+  const schemaObject = asObject(schema) || {};
+  const required = Array.isArray(schemaObject.required) ? schemaObject.required : [];
+  const properties = asObject(schemaObject.properties) || {};
+
+  for (const propertyName of required) {
+    const normalizedName = normalizeString(propertyName);
+    if (!normalizedName) {
+      continue;
+    }
+    if (!Object.prototype.hasOwnProperty.call(config, normalizedName)) {
+      pushIssue(
+        errors,
+        `${path}.configuration.${normalizedName}`,
+        `Missing required configuration key '${normalizedName}'.`,
+      );
+    }
+  }
+
+  for (const [propertyName, value] of Object.entries(config)) {
+    const propertySchema = asObject(properties[propertyName]) || {};
+    const expectedType = normalizeString(propertySchema.type).toLowerCase();
+    const enumValues = Array.isArray(propertySchema.enum) ? propertySchema.enum : null;
+
+    if (expectedType === "string" && typeof value !== "string") {
+      pushIssue(errors, `${path}.configuration.${propertyName}`, `Expected string for '${propertyName}'.`);
+      continue;
+    }
+    if (expectedType === "number" && typeof value !== "number") {
+      pushIssue(errors, `${path}.configuration.${propertyName}`, `Expected number for '${propertyName}'.`);
+      continue;
+    }
+    if (expectedType === "integer" && (!Number.isInteger(value))) {
+      pushIssue(errors, `${path}.configuration.${propertyName}`, `Expected integer for '${propertyName}'.`);
+      continue;
+    }
+    if (expectedType === "boolean" && typeof value !== "boolean") {
+      pushIssue(errors, `${path}.configuration.${propertyName}`, `Expected boolean for '${propertyName}'.`);
+      continue;
+    }
+    if (expectedType === "array" && !Array.isArray(value)) {
+      pushIssue(errors, `${path}.configuration.${propertyName}`, `Expected array for '${propertyName}'.`);
+      continue;
+    }
+    if (expectedType === "object" && !asObject(value)) {
+      pushIssue(errors, `${path}.configuration.${propertyName}`, `Expected object for '${propertyName}'.`);
+      continue;
+    }
+    if (enumValues && enumValues.length > 0) {
+      const contains = enumValues.some((entry) => String(entry) === String(value));
+      if (!contains) {
+        pushIssue(
+          errors,
+          `${path}.configuration.${propertyName}`,
+          `Invalid value for '${propertyName}'. Allowed values: ${enumValues.join(", ")}.`,
+        );
+      }
+    }
+  }
+}
+
 function toPositiveInteger(value, fallback, path, errors) {
   if (value === undefined || value === null || value === "") {
     return fallback;
@@ -200,8 +275,10 @@ function buildDefaultActivitySpec(activityId, tagName) {
     automaticExecution: isAutomatic
       ? {
           handlerRef: toHandlerRef(activityId),
+          taskTypeKey: DEFAULT_AUTOMATIC_TASK_TYPE_KEY,
           triggerMode: "MANUAL_TRIGGER",
           deferredDelayMinutes: null,
+          configuration: {},
         }
       : null,
     input: {
@@ -279,7 +356,13 @@ function normalizeInputSources(rawSources, path, errors) {
 }
 
 function normalizeActivitySpec(rawActivitySpec, defaults, context) {
-  const { activityId, path, errors } = context;
+  const {
+    activityId,
+    path,
+    errors,
+    warnings,
+    automaticTaskTypesByKey,
+  } = context;
   const source = rawActivitySpec && typeof rawActivitySpec === "object" && !Array.isArray(rawActivitySpec)
     ? rawActivitySpec
     : {};
@@ -357,13 +440,16 @@ function normalizeActivitySpec(rawActivitySpec, defaults, context) {
       : {};
   const defaultAutomaticExecution = defaults.automaticExecution || {
     handlerRef: toHandlerRef(activityId),
+    taskTypeKey: DEFAULT_AUTOMATIC_TASK_TYPE_KEY,
     triggerMode: "MANUAL_TRIGGER",
     deferredDelayMinutes: null,
+    configuration: {},
   };
   const automaticExecution =
     activityType === "AUTOMATIC"
       ? {
           handlerRef: normalizeString(automaticExecutionSource.handlerRef || defaultAutomaticExecution.handlerRef),
+          taskTypeKey: normalizeString(automaticExecutionSource.taskTypeKey || defaultAutomaticExecution.taskTypeKey || DEFAULT_AUTOMATIC_TASK_TYPE_KEY).toLowerCase(),
           triggerMode: normalizeEnum(
             automaticExecutionSource.triggerMode,
             AUTOMATIC_TRIGGER_MODE_VALUES,
@@ -380,6 +466,10 @@ function normalizeActivitySpec(rawActivitySpec, defaults, context) {
                   `${path}.automaticExecution.deferredDelayMinutes`,
                   errors,
                 ),
+          configuration: normalizeJsonObject(
+            automaticExecutionSource.configuration,
+            defaultAutomaticExecution.configuration || {},
+          ),
         }
       : null;
 
@@ -397,6 +487,74 @@ function normalizeActivitySpec(rawActivitySpec, defaults, context) {
         errors,
         `${path}.automaticExecution.deferredDelayMinutes`,
         "Deferred automatic trigger mode requires deferredDelayMinutes.",
+      );
+    }
+
+    if (!automaticExecution.taskTypeKey) {
+      pushIssue(
+        errors,
+        `${path}.automaticExecution.taskTypeKey`,
+        "Automatic activity requires a taskTypeKey.",
+      );
+    }
+
+    if (automaticTaskTypesByKey && automaticExecution.taskTypeKey) {
+      const taskType = automaticTaskTypesByKey.get(automaticExecution.taskTypeKey) || null;
+      if (!taskType) {
+        pushIssue(
+          errors,
+          `${path}.automaticExecution.taskTypeKey`,
+          `Unknown automatic task type '${automaticExecution.taskTypeKey}'.`,
+        );
+      } else if (taskType.enabled === false) {
+        pushIssue(
+          errors,
+          `${path}.automaticExecution.taskTypeKey`,
+          `Automatic task type '${automaticExecution.taskTypeKey}' is disabled in catalog.`,
+        );
+      } else {
+        validateConfigurationAgainstSchema(
+          automaticExecution.configuration,
+          taskType.configurationSchema,
+          `${path}.automaticExecution`,
+          errors,
+        );
+
+        const minSources = Number.parseInt(String(taskType?.inputContract?.minSources ?? 0), 10);
+        if (Number.isFinite(minSources) && minSources > 0) {
+          const actualSources = Array.isArray(source?.input?.sources) ? source.input.sources.length : 0;
+          if (actualSources < minSources) {
+            pushIssue(
+              errors,
+              `${path}.input.sources`,
+              `Automatic task type '${automaticExecution.taskTypeKey}' requires at least ${minSources} input source(s).`,
+            );
+          }
+        }
+
+        const allowedSourceTypes = Array.isArray(taskType?.inputContract?.allowedSourceTypes)
+          ? taskType.inputContract.allowedSourceTypes.map((entry) => normalizeString(entry).toUpperCase()).filter(Boolean)
+          : [];
+        if (allowedSourceTypes.length > 0) {
+          const rawInputSources = Array.isArray(source?.input?.sources) ? source.input.sources : [];
+          for (let index = 0; index < rawInputSources.length; index += 1) {
+            const rawSource = rawInputSources[index];
+            const sourceType = normalizeString(rawSource?.sourceType || "PROCESS_CONTEXT").toUpperCase();
+            if (!allowedSourceTypes.includes(sourceType)) {
+              pushIssue(
+                errors,
+                `${path}.input.sources[${index}].sourceType`,
+                `Source type '${sourceType}' is not allowed for automatic task type '${automaticExecution.taskTypeKey}'. Allowed: ${allowedSourceTypes.join(", ")}.`,
+              );
+            }
+          }
+        }
+      }
+    } else if (warnings && automaticExecution.taskTypeKey) {
+      pushIssue(
+        warnings,
+        `${path}.automaticExecution.taskTypeKey`,
+        "Automatic task catalog was not provided during validation. taskTypeKey cross-check skipped.",
       );
     }
   }
@@ -503,6 +661,9 @@ function validateProcessSpecificationV1(rawSpecification, options = {}) {
   const bpmnXml = String(options.bpmnXml || "");
   const errors = [];
   const warnings = [];
+  const automaticTaskTypesByKey = options?.automaticTaskTypesByKey instanceof Map
+    ? options.automaticTaskTypesByKey
+    : null;
 
   const bpmnActivities = extractBpmnActivities(bpmnXml);
   if (bpmnActivities.size === 0) {
@@ -584,6 +745,8 @@ function validateProcessSpecificationV1(rawSpecification, options = {}) {
         activityId,
         path: `activities.${activityId}`,
         errors,
+        warnings,
+        automaticTaskTypesByKey,
       },
     );
   }
@@ -677,6 +840,7 @@ module.exports = {
   AUTOMATIC_TRIGGER_MODE_VALUES,
   INPUT_SOURCE_TYPE_VALUES,
   OUTPUT_STORAGE_VALUES,
+  DEFAULT_AUTOMATIC_TASK_TYPE_KEY,
   BPMN_ACTIVITY_TAGS,
   generateDefaultProcessSpecificationV1,
   validateProcessSpecificationV1,

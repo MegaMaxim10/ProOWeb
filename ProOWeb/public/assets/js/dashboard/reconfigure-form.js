@@ -147,7 +147,7 @@ export function wireReconfigureForm({ status, onReconfigure, documentRef = docum
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     submitButton.disabled = true;
-    setFeedback(feedback, "Applying reconfiguration and smart migration...");
+    setFeedback(feedback, "Applying configuration update and managed regeneration...");
 
     try {
       const payload = buildReconfigurePayload(form);
@@ -159,7 +159,7 @@ export function wireReconfigureForm({ status, onReconfigure, documentRef = docum
         windowRef.location.reload();
       }, 1200);
     } catch (error) {
-      setFeedback(feedback, error.message || "Reconfiguration failed.", "error");
+      setFeedback(feedback, error.message || "Configuration update failed.", "error");
       submitButton.disabled = false;
     }
   });

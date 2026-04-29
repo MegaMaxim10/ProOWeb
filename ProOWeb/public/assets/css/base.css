@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+
 * {
   box-sizing: border-box;
 }
@@ -9,10 +11,10 @@ body {
 }
 
 body {
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-family: "IBM Plex Sans", "Aptos", "Segoe UI", sans-serif;
   color: var(--text);
   background:
-    radial-gradient(circle at top right, var(--bg-accent) 0%, #f0f6ff 20%, var(--bg) 54%, #f9fbff 100%);
+    radial-gradient(circle at top right, var(--bg-accent) 0%, #ecf6f2 20%, var(--bg) 58%, #f8fbfd 100%);
 }
 
 .page {
@@ -32,6 +34,10 @@ p {
 small {
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+code {
+  font-family: "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
 }
 
 input,

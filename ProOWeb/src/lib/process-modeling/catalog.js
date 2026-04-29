@@ -78,11 +78,12 @@ function asObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : null;
 }
 
-function resolveVersionSpecification(rawSpecification, bpmnXml) {
+function resolveVersionSpecification(rawSpecification, bpmnXml, validationOptions = {}) {
   const source = asObject(rawSpecification) || {};
   const validation = validateProcessSpecificationV1(source, {
     bpmnXml: String(bpmnXml || ""),
     strict: true,
+    ...validationOptions,
   });
 
   return {
@@ -113,7 +114,7 @@ function buildModelFilePath(rootDir, modelKey) {
   return path.join(paths.modelsRoot, `${normalizeModelKey(modelKey)}.json`);
 }
 
-function normalizeVersion(rawVersion = {}) {
+function normalizeVersion(rawVersion = {}, options = {}) {
   const status = normalizeStatus(rawVersion.status || "DRAFT");
   const versionNumber = normalizeVersionNumber(rawVersion.versionNumber);
   const bpmnXml = String(rawVersion.bpmnXml || "");
@@ -122,7 +123,11 @@ function normalizeVersion(rawVersion = {}) {
     throw createCatalogError(400, "Each process version must contain BPMN XML.");
   }
 
-  const specificationSnapshot = resolveVersionSpecification(rawVersion.specification, bpmnXml);
+  const specificationSnapshot = resolveVersionSpecification(
+    rawVersion.specification,
+    bpmnXml,
+    options.validationOptions || {},
+  );
 
   return {
     versionNumber,
@@ -140,10 +145,10 @@ function normalizeVersion(rawVersion = {}) {
   };
 }
 
-function normalizeModel(rawModel = {}) {
+function normalizeModel(rawModel = {}, options = {}) {
   const modelKey = normalizeModelKey(rawModel.modelKey);
   const versions = Array.isArray(rawModel.versions)
-    ? rawModel.versions.map((entry) => normalizeVersion(entry))
+    ? rawModel.versions.map((entry) => normalizeVersion(entry, options))
     : [];
 
   if (versions.length === 0) {
@@ -163,7 +168,7 @@ function normalizeModel(rawModel = {}) {
   };
 }
 
-function loadProcessModel(rootDir, modelKey) {
+function loadProcessModel(rootDir, modelKey, options = {}) {
   const filePath = buildModelFilePath(rootDir, modelKey);
   if (!fs.existsSync(filePath)) {
     return null;
@@ -171,11 +176,11 @@ function loadProcessModel(rootDir, modelKey) {
 
   const raw = fs.readFileSync(filePath, "utf8");
   const parsed = JSON.parse(raw);
-  return normalizeModel(parsed);
+  return normalizeModel(parsed, options);
 }
 
-function saveProcessModel(rootDir, model) {
-  const normalized = normalizeModel(model);
+function saveProcessModel(rootDir, model, options = {}) {
+  const normalized = normalizeModel(model, options);
   const filePath = buildModelFilePath(rootDir, normalized.modelKey);
 
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -202,7 +207,7 @@ function requireVersion(model, versionNumber) {
   };
 }
 
-function listProcessModels(rootDir) {
+function listProcessModels(rootDir, options = {}) {
   const { modelsRoot } = ensureCatalogLayout(rootDir);
   const entries = fs
     .readdirSync(modelsRoot, { withFileTypes: true })
@@ -212,7 +217,7 @@ function listProcessModels(rootDir) {
   const models = entries
     .map((entry) => {
       const raw = fs.readFileSync(entry, "utf8");
-      return normalizeModel(JSON.parse(raw));
+      return normalizeModel(JSON.parse(raw), options);
     })
     .sort((left, right) => left.modelKey.localeCompare(right.modelKey));
 
@@ -263,9 +268,14 @@ function toPublicModel(model, options = {}) {
   };
 }
 
-function createInitialVersion({ bpmnXml, summary, specification }) {
+function createInitialVersion({
+  bpmnXml,
+  summary,
+  specification,
+  validationOptions = {},
+}) {
   const now = toIsoNow();
-  const specificationSnapshot = resolveVersionSpecification(specification, bpmnXml);
+  const specificationSnapshot = resolveVersionSpecification(specification, bpmnXml, validationOptions);
   return {
     versionNumber: 1,
     status: "DRAFT",
@@ -280,7 +290,7 @@ function createInitialVersion({ bpmnXml, summary, specification }) {
   };
 }
 
-function createProcessModel(rootDir, payload = {}) {
+function createProcessModel(rootDir, payload = {}, options = {}) {
   const modelKey = normalizeModelKey(payload.modelKey);
   const title = normalizeString(payload.title);
   const description = normalizeString(payload.description);
@@ -308,7 +318,12 @@ function createProcessModel(rootDir, payload = {}) {
       description,
       createdAt: now,
       updatedAt: now,
-      versions: [createInitialVersion({ bpmnXml, summary, specification: payload.specification })],
+      versions: [createInitialVersion({
+        bpmnXml,
+        summary,
+        specification: payload.specification,
+        validationOptions: options.validationOptions || {},
+      })],
     });
 
   return toPublicModel(saved);
@@ -342,7 +357,11 @@ function createProcessModelVersion(rootDir, modelKey, payload = {}, options = {}
     0,
   ) + 1;
 
-  const specificationSnapshot = resolveVersionSpecification(payload.specification, bpmnXml);
+  const specificationSnapshot = resolveVersionSpecification(
+    payload.specification,
+    bpmnXml,
+    options.validationOptions || {},
+  );
   const now = toIsoNow();
   model.versions.push({
     versionNumber: nextVersion,
@@ -563,7 +582,7 @@ function readProcessModelVersionDataContract(rootDir, modelKey, versionNumber) {
   };
 }
 
-function validateProcessModelVersionSpecification(rootDir, modelKey, versionNumber, payload = {}) {
+function validateProcessModelVersionSpecification(rootDir, modelKey, versionNumber, payload = {}, options = {}) {
   const normalizedKey = normalizeModelKey(modelKey);
   const model = loadProcessModel(rootDir, normalizedKey);
   if (!model) {
@@ -576,6 +595,7 @@ function validateProcessModelVersionSpecification(rootDir, modelKey, versionNumb
   const validation = validateProcessSpecificationV1(specification, {
     bpmnXml: version.bpmnXml,
     strict: true,
+    ...(options.validationOptions || {}),
   });
 
   return {
@@ -591,7 +611,7 @@ function validateProcessModelVersionSpecification(rootDir, modelKey, versionNumb
   };
 }
 
-function saveProcessModelVersionSpecification(rootDir, modelKey, versionNumber, payload = {}) {
+function saveProcessModelVersionSpecification(rootDir, modelKey, versionNumber, payload = {}, options = {}) {
   const normalizedKey = normalizeModelKey(modelKey);
   const model = loadProcessModel(rootDir, normalizedKey);
   if (!model) {
@@ -607,6 +627,7 @@ function saveProcessModelVersionSpecification(rootDir, modelKey, versionNumber, 
     normalizedValidation = normalizeProcessSpecificationV1(specification, {
       bpmnXml: version.bpmnXml,
       strict: true,
+      ...(options.validationOptions || {}),
     });
   } catch (error) {
     if (error?.validation) {
@@ -634,6 +655,7 @@ function saveProcessModelVersionSpecification(rootDir, modelKey, versionNumber, 
   const validation = validateProcessSpecificationV1(savedVersion.specification, {
     bpmnXml: savedVersion.bpmnXml,
     strict: true,
+    ...(options.validationOptions || {}),
   });
 
   return {

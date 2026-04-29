@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,43 +9,73 @@
     <link rel="stylesheet" href="/assets/css/main.css" />
   </head>
   <body class="page dashboard-page">
+    <a class="skip-link" href="#main-content">Skip to workspace content</a>
     <div class="dashboard-layout">
       <aside class="sidebar panel">
-        <p class="kicker">ProOWeb IDE</p>
-        <h2>Commandes</h2>
-        <nav>
-          <a href="#overview">Vue generale</a>
-          <a href="#management">Gestion projet manage</a>
-          <a href="#reconfigure">Reconfiguration</a>
-          <a href="#template-governance">Template governance</a>
-          <a href="#org-model">Modele organisationnel</a>
-          <a href="#process-model">Flux BPMN</a>
-          <a href="#data-model">Modele de donnees</a>
-          <a href="#codegen">Generation code</a>
-          <a href="#deployment">Deployment profiles</a>
+        <p class="kicker">ProOWeb Studio</p>
+        <h2>Workspace Navigator</h2>
+        <label class="nav-filter">
+          <span>Find a section</span>
+          <input id="workspace-nav-filter" type="search" placeholder="Search: process, migration, templates..." />
+        </label>
+        <nav id="workspace-nav">
+          <a class="nav-link" href="#workspace-overview">Overview</a>
+          <a class="nav-link" href="#management">Migration Center</a>
+          <a class="nav-link" href="#reconfigure">Platform Configuration</a>
+          <a class="nav-link" href="#template-governance">Template Governance</a>
+          <a class="nav-link" href="#process-model">Process Studio</a>
+          <a class="nav-link" href="#codegen">Developer Commands</a>
+          <a class="nav-link" href="#deployment">Generated Layout</a>
         </nav>
       </aside>
 
-      <main class="content">
-        <section id="overview" class="panel">
-          <p class="kicker">Workspace initialise</p>
-          <h1 id="project-title">Chargement...</h1>
-          <p id="stack-line" class="muted"></p>
+      <main id="main-content" class="content">
+        <section id="workspace-overview" class="panel workspace-header">
+          <div class="workspace-header-main">
+            <p class="kicker">Process-Oriented Web Application Builder</p>
+            <h1 id="project-title">Loading workspace...</h1>
+            <p id="stack-line" class="muted"></p>
+          </div>
+          <div class="workspace-header-actions">
+            <button id="command-center-open" type="button" class="secondary-action">Command Center</button>
+            <button id="header-migrate-button" type="button" class="secondary-action hidden">Run smart migration</button>
+            <a class="secondary-link" href="#process-model">Open process studio</a>
+          </div>
+          <div class="workspace-kpi-grid">
+            <article>
+              <p class="kicker">Managed Sources</p>
+              <h3 id="kpi-managed-files">0</h3>
+              <p class="muted">Tracked files in generated application.</p>
+            </article>
+            <article>
+              <p class="kicker">Active Feature Packs</p>
+              <h3 id="kpi-feature-packs">0</h3>
+              <p class="muted">Core capabilities currently enabled.</p>
+            </article>
+            <article>
+              <p class="kicker">Template Overrides</p>
+              <h3 id="kpi-template-overrides">0</h3>
+              <p class="muted">Durable customizations applied on generation.</p>
+            </article>
+          </div>
           <div id="admin-block" class="admin-block"></div>
           <div id="project-options" class="admin-block"></div>
         </section>
 
         <section id="management" class="panel">
-          <h3>Versionnage et migration</h3>
-          <p id="management-line" class="muted">Chargement...</p>
-          <button id="migrate-button" type="button" class="hidden">Migrer vers la version editeur courante</button>
+          <h3>Migration and Version Alignment</h3>
+          <p class="muted">
+            Keep generated sources aligned with the current ProOWeb editor while preserving manual customizations.
+          </p>
+          <p id="management-line" class="muted">Loading management status...</p>
+          <button id="migrate-button" type="button" class="hidden">Run smart migration</button>
           <p id="migrate-feedback" class="feedback" aria-live="polite"></p>
         </section>
 
         <section id="reconfigure" class="panel">
-          <h3>Step 10 - Reconfiguration lifecycle</h3>
+          <h3>Platform Configuration</h3>
           <p class="muted">
-            Modifiez les preferences du projet puis appliquez une regeneration geree avec rapport detaille.
+            Update project capabilities and infrastructure preferences, then regenerate with a detailed change report.
           </p>
 
           <form id="reconfigure-form" class="wizard-form" novalidate>
@@ -66,7 +96,7 @@
               <legend>Swagger UI backend</legend>
               <label class="inline-row">
                 <input id="swagger-toggle" type="checkbox" name="swaggerUiEnabled" />
-                Activer Swagger UI
+                Enable Swagger UI
               </label>
               <div id="swagger-profiles" class="checkbox-grid">
                 <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="dev" /> dev</label>
@@ -79,7 +109,7 @@
               <legend>External IAM (Authentication only)</legend>
               <label class="inline-row">
                 <input id="external-iam-toggle" type="checkbox" name="externalIamEnabled" />
-                Activer l'authentification IAM externe
+                Enable external IAM authentication
               </label>
               <div id="external-iam-config">
                 <label>
@@ -117,7 +147,7 @@
               <legend>Session & Device Security</legend>
               <label class="inline-row">
                 <input id="session-security-toggle" type="checkbox" name="sessionSecurityEnabled" />
-                Activer l'observation des sessions et devices
+                Enable session and device monitoring
               </label>
               <div id="session-security-config">
                 <label>
@@ -135,7 +165,7 @@
               <legend>Organization Hierarchy</legend>
               <label class="inline-row">
                 <input id="organization-hierarchy-toggle" type="checkbox" name="organizationHierarchyEnabled" />
-                Activer le module d'organigramme organisationnel
+                Enable organizational hierarchy module
               </label>
               <div id="organization-hierarchy-config">
                 <label>
@@ -157,7 +187,7 @@
               <legend>Notification Workflows</legend>
               <label class="inline-row">
                 <input id="notifications-toggle" type="checkbox" name="notificationsEnabled" />
-                Activer les notifications email + audit trail
+                Enable email notifications + audit trail
               </label>
               <div id="notifications-config">
                 <label>
@@ -166,7 +196,7 @@
                 </label>
                 <label class="inline-row">
                   <input type="checkbox" name="notificationsAuditEnabled" />
-                  Activer le canal d'audit des notifications
+                  Enable notifications audit channel
                 </label>
               </div>
             </fieldset>
@@ -175,7 +205,7 @@
               <legend>Database Migrations (Liquibase)</legend>
               <label class="inline-row">
                 <input id="liquibase-toggle" type="checkbox" name="liquibaseEnabled" />
-                Activer la baseline Liquibase
+                Enable Liquibase baseline
               </label>
               <div id="liquibase-config">
                 <label>
@@ -231,7 +261,7 @@
               </p>
             </fieldset>
 
-            <button id="reconfigure-button" type="submit">Apply reconfiguration</button>
+            <button id="reconfigure-button" type="submit">Apply configuration update</button>
             <p id="reconfigure-feedback" class="feedback" aria-live="polite"></p>
           </form>
 
@@ -239,7 +269,7 @@
         </section>
 
         <section id="template-governance" class="panel">
-          <h3>Step 21 - Template Customization and Evolution Governance</h3>
+          <h3>Template Governance</h3>
           <p class="muted">
             Define durable template overrides under <code>.prooweb/template-overrides</code> so upgrades and regenerations keep your custom behavior.
           </p>
@@ -319,7 +349,7 @@
         </section>
 
         <section id="process-model" class="panel">
-          <h3>Step 11-20 - Process Modeling, Runtime, Data, and Safe Promotion</h3>
+          <h3>Process Engineering Studio</h3>
           <p class="muted">
             Process models are managed in ProOWeb and stored under <code>.prooweb/process-models</code>.
             Source code is generated in the app only when a version is deployed.
@@ -378,6 +408,34 @@
             </div>
             <div id="process-spec-editor" class="process-spec-editor"></div>
             <p id="process-spec-feedback" class="feedback" aria-live="polite"></p>
+          </div>
+
+          <div class="process-studio panel">
+            <h4>Automatic Task Catalog Studio</h4>
+            <p class="muted">
+              Maintain reusable automatic task types, centralize dependency versions, and edit custom Java handlers stored in <code>.prooweb</code>.
+            </p>
+            <div class="process-studio-toolbar">
+              <button id="process-auto-catalog-load" type="button">Load catalog</button>
+              <button id="process-auto-catalog-save" type="button">Save catalog</button>
+              <label class="studio-select">
+                Task type
+                <select id="process-auto-task-type-select"></select>
+              </label>
+              <button id="process-auto-task-source-load" type="button">Load custom source</button>
+              <button id="process-auto-task-source-save" type="button">Save custom source</button>
+            </div>
+            <div class="process-studio-grid process-auto-catalog-grid">
+              <div>
+                <p class="muted">Catalog JSON (task types + library registry)</p>
+                <div id="process-auto-catalog-editor" class="process-spec-editor"></div>
+              </div>
+              <div>
+                <p id="process-auto-task-source-path" class="muted">Custom source path: -</p>
+                <div id="process-auto-task-source-editor" class="process-spec-editor"></div>
+              </div>
+            </div>
+            <p id="process-auto-catalog-feedback" class="feedback" aria-live="polite"></p>
           </div>
 
           <div class="process-grid">
@@ -494,7 +552,7 @@
                 Fail simulation when warnings are present
               </label>
               <label>
-                Max timeline steps
+                Max timeline entries
                 <input type="number" name="maxTimelineSteps" min="10" value="80" />
               </label>
               <button type="submit">Run simulation</button>
@@ -626,10 +684,10 @@
         </section>
 
         <section id="codegen" class="panel">
-          <h3>Commandes npm rapides</h3>
+          <h3>Developer Command Shortcuts</h3>
           <ul class="command-list">
             <li><code>npm run compile</code> - build backend + frontend</li>
-            <li><code>npm test</code> - tests backend + frontend</li>
+            <li><code>npm test</code> - execute backend + frontend tests</li>
             <li><code>npm run start:dev</code> - docker compose profile dev</li>
             <li><code>npm run start:demo</code> - docker compose profile demo</li>
             <li><code>npm run start:test</code> - docker compose profile test</li>
@@ -639,7 +697,7 @@
         </section>
 
         <section id="deployment" class="panel">
-          <h3>Arborescence generee (racine du depot)</h3>
+          <h3>Generated Project Layout (Repository Root)</h3>
           <pre class="tree-view">src/
   backend/springboot/
   frontend/web/react/
@@ -653,6 +711,20 @@ deployment/docker/
 .prooweb-managed.json</pre>
         </section>
       </main>
+    </div>
+
+    <div id="command-center" class="command-center hidden" role="dialog" aria-modal="true" aria-labelledby="command-center-title">
+      <div class="command-center-panel">
+        <div class="command-center-head">
+          <h2 id="command-center-title">Command Center</h2>
+          <button id="command-center-close" type="button" class="secondary-action">Close</button>
+        </div>
+        <label class="command-center-search">
+          <span>Find an action or destination</span>
+          <input id="command-center-query" type="search" placeholder="Try: process studio, migration, template governance..." />
+        </label>
+        <ul id="command-center-results" class="command-center-results"></ul>
+      </div>
     </div>
 
     <script type="module" src="/assets/js/dashboard/index.js"></script>

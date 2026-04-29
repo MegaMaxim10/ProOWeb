@@ -1,24 +1,24 @@
 export function describeGeneratedRoot(generatedRoot) {
-  return generatedRoot === "root" ? "racine du depot" : generatedRoot;
+  return generatedRoot === "root" ? "repository root" : generatedRoot;
 }
 
 export function buildMigrationSummary(migration) {
   if (!migration || !migration.summary) {
-    return "Migration terminee.";
+    return "Migration completed.";
   }
 
   const summary = migration.summary;
 
   return [
-    "Migration " + migration.mode + " terminee",
-    "crees " + summary.created,
-    "maj " + summary.updated,
-    "inchanges " + summary.unchanged,
-    "conflits resolus " + summary.conflictsResolved,
-    "collisions resolues " + summary.collisionsResolved,
+    "Migration mode " + migration.mode + " completed",
+    "created " + summary.created,
+    "updated " + summary.updated,
+    "unchanged " + summary.unchanged,
+    "resolved conflicts " + summary.conflictsResolved,
+    "resolved collisions " + summary.collisionsResolved,
     "backups " + summary.backupsCreated,
-    "fichiers customises " + Number(summary.filesWithOverrides || 0),
-    "overrides appliques " + Number(summary.overrideApplications || 0),
+    "customized files " + Number(summary.filesWithOverrides || 0),
+    "applied overrides " + Number(summary.overrideApplications || 0),
   ].join(" | ");
 }
 

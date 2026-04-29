@@ -33,18 +33,18 @@ export async function bootstrapWizardPage({ documentRef = document, windowRef = 
     event.preventDefault();
 
     submitButton.disabled = true;
-    setFeedback(feedback, "Initialisation du workspace en cours...");
+    setFeedback(feedback, "Initializing workspace...");
 
     try {
       const payload = extractWizardFormPayload(form);
       await initializeWorkspace(payload);
 
-      setFeedback(feedback, "Workspace initialise. Redirection vers le dashboard...", "success");
+      setFeedback(feedback, "Workspace initialized. Redirecting to studio...", "success");
       windowRef.setTimeout(() => {
         windowRef.location.replace("/");
       }, 900);
     } catch (error) {
-      setFeedback(feedback, error.message || "Erreur inattendue.", "error");
+      setFeedback(feedback, error.message || "Unexpected initialization error.", "error");
       submitButton.disabled = false;
     }
   });

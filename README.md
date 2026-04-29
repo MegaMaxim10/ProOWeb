@@ -191,6 +191,10 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
 - Storage location: `.prooweb/process-models/models/*.json`.
 - Main editor APIs:
   - `GET /api/process-models`
+  - `GET /api/process-models/automatic-task-catalog`
+  - `PUT /api/process-models/automatic-task-catalog`
+  - `GET /api/process-models/automatic-task-catalog/task-types/{taskTypeKey}/source`
+  - `PUT /api/process-models/automatic-task-catalog/task-types/{taskTypeKey}/source`
   - `POST /api/process-models`
   - `POST /api/process-models/{modelKey}/versions`
   - `GET /api/process-models/{modelKey}/versions/{version}`
@@ -221,7 +225,13 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
 - Process specification studio (`spec-v1`) adds:
   - version-linked JSON specification editing with Monaco,
   - strict validation against BPMN activity ids and assignment/visibility policy schema,
+  - automatic task type validation against editor-managed catalog (`taskTypeKey`, typed `configuration`, input source constraints),
+  - explicit automatic task input resolution (`input.sources`) and output handling (`output.storage`, `output.mappings`),
   - normalized persisted contract per process version for code generation.
+- Automatic task catalog studio adds:
+  - built-in reusable task types (email, broadcast, document generation, data cleanup/transform, webhooks, audit, delay),
+  - custom task type source editing in `.prooweb/process-models/automatic-task-types/**`,
+  - centralized library registry/version governance to prevent dependency clashes across custom types.
 - Deployment generates process-specific source artifacts into backend/frontend trees and tracks them in:
   - `.prooweb/process-models/managed-files.json`
 - Runtime deployment assets include:
@@ -229,11 +239,14 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
     - `src/backend/springboot/prooweb-application/src/main/resources/processes/<modelKey>/v<version>.runtime.json`
   - backend runtime catalog:
     - `src/backend/springboot/prooweb-application/src/main/resources/processes/runtime-catalog.json`
+  - backend automatic task catalog for deployed usage only:
+    - `src/backend/springboot/prooweb-application/src/main/resources/processes/automatic-task-catalog.json`
   - backend runtime engine generated modules:
     - `src/backend/springboot/system/system-domain/src/main/java/.../process/runtime/*`
     - `src/backend/springboot/system/system-application/src/main/java/.../process/runtime/*`
     - `src/backend/springboot/system/system-infrastructure/src/main/java/.../process/runtime/*`
     - `src/backend/springboot/gateway/src/main/java/.../gateway/api/ProcessRuntimeController.java`
+    - `src/backend/springboot/system/system-application/src/main/java/.../process/runtime/service/autotasks/*` (generated only for task types used by deployed process versions)
   - frontend runtime modules:
     - `src/frontend/web/react/src/modules/processes/<modelKey>/Process<ProcessName>V<version>RuntimeContract.js`
     - `src/frontend/web/react/src/modules/processes/generatedProcessRegistry.js`

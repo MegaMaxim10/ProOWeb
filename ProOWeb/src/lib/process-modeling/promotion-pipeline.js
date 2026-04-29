@@ -15,6 +15,10 @@ const { validateProcessSpecificationV1 } = require("./spec-v1");
 const { buildRuntimeContract } = require("./runtime-contract");
 const { buildDataContract } = require("./data-contract");
 const { deployProcessModelVersion, undeployProcessModelVersion } = require("./deployment");
+const {
+  readAutomaticTaskCatalog,
+  buildAutomaticTaskTypeLookup,
+} = require("./automatic-task-catalog");
 
 const DEFAULT_COMMAND_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -273,10 +277,12 @@ function simulateProcessModelVersion({
     model,
     version,
   } = requireModelAndVersion(rootDir, modelKey, versionNumber);
+  const automaticTaskCatalog = readAutomaticTaskCatalog(rootDir, { includeSources: false });
 
   const validation = validateProcessSpecificationV1(version.specification, {
     bpmnXml: version.bpmnXml,
     strict: true,
+    automaticTaskTypesByKey: buildAutomaticTaskTypeLookup(automaticTaskCatalog),
   });
 
   const runtimeContract = buildRuntimeContract({

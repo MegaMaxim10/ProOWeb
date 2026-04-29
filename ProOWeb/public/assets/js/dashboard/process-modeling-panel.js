@@ -1,6 +1,10 @@
 import { setFeedback } from "../shared/feedback.js";
 import {
   fetchProcessModels,
+  fetchAutomaticTaskCatalog,
+  saveAutomaticTaskCatalog,
+  fetchAutomaticTaskTypeSource,
+  saveAutomaticTaskTypeSource,
   createProcessModel,
   createProcessModelVersion,
   fetchProcessModelVersion,
@@ -22,6 +26,7 @@ import {
 } from "./process-modeling-api.js";
 import { initializeBpmnStudio } from "./bpmn-studio.js";
 import { initializeSpecificationStudio } from "./specification-studio.js";
+import { initializeAutomaticTaskCatalogStudio } from "./automatic-task-catalog-studio.js";
 
 function byVersionNumber(left, right) {
   return Number(left?.versionNumber || 0) - Number(right?.versionNumber || 0);
@@ -324,8 +329,11 @@ function renderRuntimeContractReport(payload) {
   ];
 
   for (const activity of contract.activities || []) {
+    const automaticTaskType = activity?.automaticExecution?.taskTypeKey
+      ? ` | taskType=${activity.automaticExecution.taskTypeKey}`
+      : "";
     lines.push(
-      `- ${activity.activityId} | ${activity.activityType} | strategy=${activity.assignment?.strategy || "-"}`,
+      `- ${activity.activityId} | ${activity.activityType} | strategy=${activity.assignment?.strategy || "-"}${automaticTaskType}`,
     );
   }
 
@@ -402,6 +410,53 @@ function renderSpecificationReport(action, payload) {
     lines.push("", "[Warnings]");
     for (const issue of warnings) {
       lines.push(`- ${issue.path || "-"}: ${issue.message || "-"}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function renderAutomaticTaskCatalogReport(action, payload) {
+  const catalog = payload?.catalog && typeof payload.catalog === "object" ? payload.catalog : payload;
+  const taskTypes = Array.isArray(catalog?.taskTypes) ? catalog.taskTypes : [];
+  const librariesMaven = Array.isArray(catalog?.libraries?.maven) ? catalog.libraries.maven : [];
+  const librariesNpm = Array.isArray(catalog?.libraries?.npm) ? catalog.libraries.npm : [];
+  const diagnostics = catalog?.diagnostics || payload?.summary?.diagnostics || {};
+  const duplicateTaskTypeKeys = Array.isArray(diagnostics?.duplicateTaskTypeKeys) ? diagnostics.duplicateTaskTypeKeys : [];
+  const libraryConflicts = Array.isArray(diagnostics?.libraryConflicts) ? diagnostics.libraryConflicts : [];
+
+  const lines = [
+    `Action: automatic-task-catalog/${action}`,
+    `Schema version: ${catalog?.schemaVersion || "-"}`,
+    `Task types: ${taskTypes.length}`,
+    `Built-in task types: ${taskTypes.filter((entry) => entry.kind === "BUILTIN").length}`,
+    `Custom task types: ${taskTypes.filter((entry) => entry.kind === "CUSTOM").length}`,
+    `Maven libraries: ${librariesMaven.length}`,
+    `NPM libraries: ${librariesNpm.length}`,
+    `Duplicate task type keys: ${duplicateTaskTypeKeys.length}`,
+    `Library conflicts: ${libraryConflicts.length}`,
+  ];
+
+  if (taskTypes.length > 0) {
+    lines.push("", "[Task Types]");
+    for (const taskType of taskTypes) {
+      lines.push(`- ${taskType.taskTypeKey} | ${taskType.kind} | ${taskType.enabled === false ? "disabled" : "enabled"}`);
+    }
+  }
+
+  if (libraryConflicts.length > 0) {
+    lines.push("", "[Library conflicts]");
+    for (const conflict of libraryConflicts) {
+      lines.push(`- ${conflict.type || "CONFLICT"} | ${conflict.coordinate || conflict.libraryKey || "-"}`);
+    }
+  }
+
+  if (payload?.taskTypeKey && (payload?.sourcePath || action.includes("source"))) {
+    lines.push("", "[Source]");
+    lines.push(`Task type: ${payload.taskTypeKey}`);
+    lines.push(`Source path: ${payload.sourcePath || "-"}`);
+    if (payload?.updatedAt) {
+      lines.push(`Updated at: ${payload.updatedAt}`);
     }
   }
 
@@ -533,6 +588,18 @@ export async function wireProcessModelingPanel({ status, documentRef = document 
     },
     onReport(action, payload) {
       reportView.textContent = renderSpecificationReport(action, payload);
+    },
+  });
+  const automaticTaskCatalogStudio = await initializeAutomaticTaskCatalogStudio({
+    documentRef,
+    api: {
+      fetchAutomaticTaskCatalog,
+      saveAutomaticTaskCatalog,
+      fetchAutomaticTaskTypeSource,
+      saveAutomaticTaskTypeSource,
+    },
+    onReport(action, payload) {
+      reportView.textContent = renderAutomaticTaskCatalogReport(action, payload);
     },
   });
 

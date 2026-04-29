@@ -49,7 +49,7 @@ function renderRows(container, templateCustomization) {
     : [];
 
   if (overrides.length === 0) {
-    container.innerHTML = "<tr><td colspan=\"9\" class=\"muted\">No template overrides defined yet.</td></tr>";
+    container.innerHTML = "<tr><td colspan=\"8\" class=\"muted\">No template overrides defined yet.</td></tr>";
     return;
   }
 

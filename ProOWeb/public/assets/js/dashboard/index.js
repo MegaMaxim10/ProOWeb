@@ -5,10 +5,10 @@ bootstrapDashboardPage().catch((error) => {
   const stackLine = document.getElementById("stack-line");
 
   if (title) {
-    title.textContent = "Erreur de chargement";
+    title.textContent = "Workspace loading error";
   }
 
   if (stackLine) {
-    stackLine.textContent = error.message || "Impossible de charger le dashboard.";
+    stackLine.textContent = error.message || "Unable to load ProOWeb Studio.";
   }
 });

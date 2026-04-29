@@ -1,6 +1,62 @@
 const { getServiceErrorStatusCode } = require("../errors/service-error");
 
 function createProcessModelController({ processModelService, readJsonBody, sendJson }) {
+  function handleReadAutomaticTaskCatalog(_request, response) {
+    try {
+      const result = processModelService.readAutomaticTasksCatalog();
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, { error: error.message || "Failed to read automatic task catalog." });
+    }
+  }
+
+  async function handleSaveAutomaticTaskCatalog(request, response) {
+    let payload;
+    try {
+      payload = await readJsonBody(request);
+    } catch (error) {
+      sendJson(response, 400, { error: error.message });
+      return;
+    }
+
+    try {
+      const result = processModelService.saveAutomaticTasksCatalog(payload);
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, { error: error.message || "Failed to save automatic task catalog." });
+    }
+  }
+
+  function handleReadAutomaticTaskTypeSource(_request, response, taskTypeKey) {
+    try {
+      const result = processModelService.readAutomaticTaskSource(taskTypeKey);
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, { error: error.message || "Failed to read automatic task source." });
+    }
+  }
+
+  async function handleSaveAutomaticTaskTypeSource(request, response, taskTypeKey) {
+    let payload;
+    try {
+      payload = await readJsonBody(request);
+    } catch (error) {
+      sendJson(response, 400, { error: error.message });
+      return;
+    }
+
+    try {
+      const result = processModelService.saveAutomaticTaskSource(taskTypeKey, payload);
+      sendJson(response, 200, result);
+    } catch (error) {
+      const statusCode = getServiceErrorStatusCode(error, 500);
+      sendJson(response, statusCode, { error: error.message || "Failed to save automatic task source." });
+    }
+  }
+
   function handleListProcessModels(_request, response) {
     try {
       const result = processModelService.listModels();
@@ -286,6 +342,10 @@ function createProcessModelController({ processModelService, readJsonBody, sendJ
   }
 
   return {
+    handleReadAutomaticTaskCatalog,
+    handleSaveAutomaticTaskCatalog,
+    handleReadAutomaticTaskTypeSource,
+    handleSaveAutomaticTaskTypeSource,
     handleListProcessModels,
     handleCreateProcessModel,
     handleCreateProcessModelVersion,

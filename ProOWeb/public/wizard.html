@@ -1,77 +1,77 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ProOWeb - Initialisation</title>
+    <title>ProOWeb - Workspace Initialization</title>
     <link rel="stylesheet" href="/assets/css/main.css" />
   </head>
   <body class="page wizard-page">
     <main class="shell two-columns">
       <section class="panel hero-panel">
-        <p class="kicker">Process-Oriented Web Application Builder</p>
-        <h1>Configurer le workspace ProOWeb</h1>
+        <p class="kicker">ProOWeb Studio</p>
+        <h1>Initialize Your Process-Centric Engineering Workspace</h1>
         <p>
-          Ce wizard initialise l'application cible a la racine du depot courant
-          et versionne les sources generees pour les migrations futures.
+          This setup wizard provisions the generated application at repository root, prepares managed source tracking,
+          and bootstraps your process-engineering runtime foundation.
         </p>
         <ul class="checklist">
-          <li>Modele organisationnel (RBAC + hierarchie)</li>
-          <li>Flux BPMN centres metier</li>
-          <li>Modele de donnees orientee processus</li>
-          <li>Generation de code maitrisable par l'equipe</li>
+          <li>Identity and RBAC baseline ready for enterprise workflows</li>
+          <li>Process modeling lifecycle with BPMN versioning and deployment</li>
+          <li>Modular backend/frontend architecture with managed regeneration</li>
+          <li>Optional quality automation (Cucumber/Cypress) and safe upgrades</li>
         </ul>
       </section>
 
       <section class="panel form-panel">
-        <h2>Wizard d'initialisation</h2>
+        <h2>Workspace Configuration</h2>
         <form id="init-form" class="wizard-form" novalidate>
           <label>
-            Titre du projet
-            <input type="text" name="projectTitle" required placeholder="Ex: Gestion des achats" />
+            Project title
+            <input type="text" name="projectTitle" required placeholder="Example: Purchase Management" />
           </label>
 
           <label>
-            Base package Java (backend)
+            Java base package (backend)
             <input
               type="text"
               name="basePackage"
               required
               value="com.prooweb.generated"
-              placeholder="Ex: com.acme.procurement"
+              placeholder="Example: com.acme.procurement"
             />
             <small>
-              Utilise pour les packages Java et le <code>groupId</code> Maven des sources generees.
+              Used for generated Java package namespaces and Maven <code>groupId</code> values.
             </small>
           </label>
 
           <label>
-            Lien du depot Git (optionnel)
+            Git repository URL (optional)
             <input
               type="text"
               name="gitRepositoryUrl"
               placeholder="https://github.com/org/projet.git ou git@github.com:org/projet.git"
             />
             <small>
-              Si vide: le dossier <code>.git</code> courant sera supprime. Si renseigne: un nouveau depot Git sera
-              initialise avec ce remote <code>origin</code>.
+              If empty, the current <code>.git</code> directory is removed. If provided, ProOWeb initializes a new
+              repository with this remote as <code>origin</code>.
             </small>
           </label>
 
           <label>
             Backend
             <select name="backendTech" required>
-              <option value="springboot">Spring Boot (supporte)</option>
+              <option value="springboot">Spring Boot (supported)</option>
             </select>
           </label>
 
           <fieldset>
-            <legend>Swagger UI backend</legend>
+            <legend>Backend Swagger UI</legend>
             <label class="inline-row">
               <input id="swagger-toggle" type="checkbox" name="swaggerUiEnabled" />
-              Activer Swagger UI
+              Enable Swagger UI
             </label>
-            <p class="fieldset-hint">Choisir uniquement des profils non preprod/prod.</p>
+            <p class="fieldset-hint">Select only non-production profiles.</p>
             <div id="swagger-profiles" class="checkbox-grid">
               <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="dev" /> dev</label>
               <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="demo" /> demo</label>
@@ -83,10 +83,10 @@
             <legend>External IAM (Authentication only)</legend>
             <label class="inline-row">
               <input id="external-iam-toggle" type="checkbox" name="externalIamEnabled" />
-              Activer l'authentification IAM externe (OIDC)
+              Enable external IAM authentication (OIDC)
             </label>
             <p class="fieldset-hint">
-              Les roles et permissions restent geres par la plateforme (RBAC interne).
+              Roles and permissions remain managed by the platform (internal RBAC).
             </p>
             <div id="external-iam-config">
               <label>
@@ -124,10 +124,10 @@
             <legend>Session & Device Security</legend>
             <label class="inline-row">
               <input id="session-security-toggle" type="checkbox" name="sessionSecurityEnabled" />
-              Activer l'observation des sessions et devices
+              Enable session and device monitoring
             </label>
             <p class="fieldset-hint">
-              Detection de comportements suspects selon le nombre de devices observes.
+              Detect suspicious behaviors using configurable device-window thresholds.
             </p>
             <div id="session-security-config">
               <label>
@@ -150,10 +150,10 @@
                 name="organizationHierarchyEnabled"
                 checked
               />
-              Activer le module d'organigramme organisationnel
+              Enable organizational hierarchy module
             </label>
             <p class="fieldset-hint">
-              Sert de base aux strategies d'affectation hierarchiques des taches metier.
+              Provides hierarchy-aware assignment strategies for process tasks.
             </p>
             <div id="organization-hierarchy-config">
               <label>
@@ -175,10 +175,10 @@
             <legend>Notification Workflows</legend>
             <label class="inline-row">
               <input id="notifications-toggle" type="checkbox" name="notificationsEnabled" checked />
-              Activer les notifications email + audit trail
+              Enable email notifications + audit trail
             </label>
             <p class="fieldset-hint">
-              Genere des templates de notification prets a l'usage et un workflow de test/audit.
+              Generates operational notification templates with traceable audit history.
             </p>
             <div id="notifications-config">
               <label>
@@ -187,7 +187,7 @@
               </label>
               <label class="inline-row">
                 <input type="checkbox" name="notificationsAuditEnabled" checked />
-                Activer le canal d'audit des notifications
+                Enable notifications audit channel
               </label>
             </div>
           </fieldset>
@@ -196,10 +196,10 @@
             <legend>Database Migrations (Liquibase)</legend>
             <label class="inline-row">
               <input id="liquibase-toggle" type="checkbox" name="liquibaseEnabled" checked />
-              Activer la baseline Liquibase
+              Enable Liquibase baseline
             </label>
             <p class="fieldset-hint">
-              Rend les migrations de schema reproductibles avec conventions de changelog.
+              Provides reproducible schema evolution conventions for generated code.
             </p>
             <div id="liquibase-config">
               <label>
@@ -221,10 +221,10 @@
             <legend>Process Modeling & Versioning</legend>
             <label class="inline-row">
               <input id="process-modeling-toggle" type="checkbox" name="processModelingEnabled" checked />
-              Activer le catalogue BPMN de ProOWeb (stockage .prooweb)
+              Enable ProOWeb BPMN process catalog (.prooweb storage)
             </label>
             <p class="fieldset-hint">
-              Les modeles sont geres dans l'editeur puis le code applicatif est genere seulement a la demande de deploy.
+              Models are managed in the editor, and application code is generated only on deployment requests.
             </p>
             <div id="process-modeling-config">
               <label>
@@ -239,7 +239,7 @@
               </label>
               <label class="inline-row">
                 <input type="checkbox" name="processAllowDirectDeployment" />
-                Autoriser le passage direct DRAFT -> DEPLOYED
+                Allow direct DRAFT -> DEPLOYED transition
               </label>
             </div>
           </fieldset>
@@ -265,28 +265,28 @@
           <label>
             Frontend web
             <select name="frontendWebTech" required>
-              <option value="react">React (supporte)</option>
+              <option value="react">React (supported)</option>
             </select>
           </label>
 
           <label>
             Frontend mobile
             <select name="frontendMobileTech" required>
-              <option value="none">Non active (support a venir)</option>
+              <option value="none">Disabled (support planned)</option>
             </select>
           </label>
 
           <label>
-            SGBD
+            Database engine
             <select name="databaseTech" required>
-              <option value="postgresql">PostgreSQL (supporte)</option>
+              <option value="postgresql">PostgreSQL (supported)</option>
             </select>
           </label>
 
           <fieldset>
-            <legend>Super administrateur</legend>
+            <legend>Workspace super administrator</legend>
             <label>
-              Nom complet
+              Full name
               <input type="text" name="superAdminName" required />
             </label>
             <label>
@@ -294,16 +294,16 @@
               <input type="email" name="superAdminEmail" required />
             </label>
             <label>
-              Identifiant
+              Username
               <input type="text" name="superAdminUsername" required />
             </label>
             <label>
-              Mot de passe
+              Password
               <input type="password" name="superAdminPassword" required minlength="8" />
             </label>
           </fieldset>
 
-          <button id="submit-button" type="submit">Initialiser le workspace</button>
+          <button id="submit-button" type="submit">Initialize workspace</button>
           <p id="feedback" class="feedback" aria-live="polite"></p>
         </form>
       </section>

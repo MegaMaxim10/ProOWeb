@@ -47,7 +47,7 @@ function createWorkspaceController({ workspaceService, readJsonBody, sendJson })
     } catch (error) {
       const statusCode = getServiceErrorStatusCode(error, 500);
       sendJson(response, statusCode, {
-        error: error.message || "Erreur de migration.",
+        error: error.message || "Migration failed.",
       });
     }
   }
@@ -67,7 +67,7 @@ function createWorkspaceController({ workspaceService, readJsonBody, sendJson })
     } catch (error) {
       const statusCode = getServiceErrorStatusCode(error, 500);
       sendJson(response, statusCode, {
-        error: error.message || "Erreur de reconfiguration.",
+        error: error.message || "Reconfiguration failed.",
       });
     }
   }

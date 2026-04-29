@@ -24,6 +24,9 @@ const {
   buildDataContract,
   buildDataCatalogEntry,
 } = require("./data-contract");
+const {
+  readAutomaticTaskCatalog,
+} = require("./automatic-task-catalog");
 
 const DEFAULT_BASE_PACKAGE = "com.prooweb.generated";
 
@@ -125,6 +128,39 @@ function toJavaList(values) {
   }
 
   return `List.of(${source.map((entry) => toJavaString(entry)).join(", ")})`;
+}
+
+function toJavaValue(value) {
+  if (value === null || value === undefined) {
+    return toJavaString("");
+  }
+
+  if (typeof value === "string") {
+    return toJavaString(value);
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : "0";
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return "List.of()";
+    }
+    return `List.of(${value.map((entry) => toJavaValue(entry)).join(", ")})`;
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value);
+    if (entries.length === 0) {
+      return "Map.of()";
+    }
+    return `Map.ofEntries(${entries
+      .map(([key, entryValue]) => `Map.entry(${toJavaString(key)}, ${toJavaValue(entryValue)})`)
+      .join(", ")})`;
+  }
+
+  return toJavaString(String(value));
 }
 
 function toDeploymentId() {
@@ -474,10 +510,71 @@ function buildBackendDataCatalogJson(runtimeEntries) {
   ) + "\n";
 }
 
+function collectUsedAutomaticTaskTypeKeys(runtimeEntries) {
+  const keys = new Set();
+  for (const runtimeEntry of runtimeEntries || []) {
+    for (const activity of runtimeEntry?.runtimeContract?.activities || []) {
+      if (String(activity?.activityType || "").toUpperCase() !== "AUTOMATIC") {
+        continue;
+      }
+      const taskTypeKey = String(activity?.automaticExecution?.taskTypeKey || "").trim().toLowerCase() || "core.echo";
+      keys.add(taskTypeKey);
+    }
+  }
+  return Array.from(keys).sort((left, right) => left.localeCompare(right));
+}
+
+function resolveUsedAutomaticTaskTypes(automaticTaskCatalog, runtimeEntries) {
+  const usedKeys = collectUsedAutomaticTaskTypeKeys(runtimeEntries);
+  const catalogRows = Array.isArray(automaticTaskCatalog?.taskTypes)
+    ? automaticTaskCatalog.taskTypes
+    : [];
+  const usedTaskTypes = [];
+  const missingTaskTypes = [];
+
+  for (const key of usedKeys) {
+    const row = catalogRows.find((entry) => entry.taskTypeKey === key) || null;
+    if (!row) {
+      missingTaskTypes.push(key);
+      continue;
+    }
+    usedTaskTypes.push(row);
+  }
+
+  return {
+    usedKeys,
+    usedTaskTypes,
+    missingTaskTypes,
+  };
+}
+
+function buildBackendAutomaticTaskCatalogJson({
+  usedTaskTypes,
+  libraryCatalog,
+  missingTaskTypes,
+}) {
+  return JSON.stringify(
+    {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      usedTaskTypes: Array.isArray(usedTaskTypes) ? usedTaskTypes : [],
+      missingTaskTypes: Array.isArray(missingTaskTypes) ? missingTaskTypes : [],
+      libraries: {
+        maven: Array.isArray(libraryCatalog?.maven) ? libraryCatalog.maven : [],
+        npm: Array.isArray(libraryCatalog?.npm) ? libraryCatalog.npm : [],
+      },
+    },
+    null,
+    2,
+  ) + "\n";
+}
+
 function buildGeneratedProcessRuntimeCatalogJava({ basePackage, runtimeEntries }) {
   const processRows = runtimeEntries.map(({ entry, runtimeContract }) => {
     const activityRows = (runtimeContract.activities || []).map((activity) => {
       const automaticHandlerRef = activity.automaticExecution?.handlerRef || "";
+      const automaticTaskTypeKey = activity.automaticExecution?.taskTypeKey || "core.echo";
+      const automaticConfiguration = activity.automaticExecution?.configuration || {};
       const inputSourceRows = (activity.input?.sources || []).map((source) => {
         const sourceMappingRows = (source.mappings || []).map((mapping) =>
           `            new FieldMappingDescriptor(${toJavaString(mapping.from || "")}, ${toJavaString(mapping.to || "")})`);
@@ -506,7 +603,9 @@ function buildGeneratedProcessRuntimeCatalogJava({ basePackage, runtimeEntries }
         activity.assignment?.manualAssignerRoles || [],
       )}, ${Number.isFinite(Number(activity.assignment?.maxAssignees))
         ? Number(activity.assignment.maxAssignees)
-        : 1}, ${toJavaString(automaticHandlerRef)}, ${toJavaList(activity.visibility?.activityViewerRoles || [])}, ${toJavaList(
+        : 1}, ${toJavaString(automaticHandlerRef)}, ${toJavaString(automaticTaskTypeKey)}, ${toJavaValue(
+        automaticConfiguration,
+      )}, ${toJavaList(activity.visibility?.activityViewerRoles || [])}, ${toJavaList(
         activity.visibility?.dataViewerRoles || [],
       )}, ${inputSourcesLiteral}, ${toJavaString(activity.output?.storage || "INSTANCE")}, ${outputMappingsLiteral})`;
     });
@@ -531,6 +630,7 @@ function buildGeneratedProcessRuntimeCatalogJava({ basePackage, runtimeEntries }
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 
 public final class GeneratedProcessRuntimeCatalog {
   private GeneratedProcessRuntimeCatalog() {
@@ -557,6 +657,8 @@ public final class GeneratedProcessRuntimeCatalog {
       List<String> manualAssignerRoles,
       int maxAssignees,
       String automaticHandlerRef,
+      String automaticTaskTypeKey,
+      Map<String, Object> automaticConfiguration,
       List<String> activityViewerRoles,
       List<String> dataViewerRoles,
       List<InputSourceDescriptor> inputSources,
@@ -1139,7 +1241,10 @@ public interface ProcessRuntimeEngineUseCase {
 `;
 }
 
-function buildProcessRuntimeEngineServiceJava({ basePackage }) {
+function buildProcessRuntimeEngineServiceJava({
+  basePackage,
+  customTaskDispatchCases = "      default:\n        return null;",
+}) {
   return `package ${basePackage}.system.application.process.runtime.service;
 
 import ${basePackage}.system.application.process.runtime.port.in.ProcessRuntimeEngineUseCase;
@@ -2722,15 +2827,443 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor,
       Map<String, Object> inputData,
       ProcessRuntimeInstance instance) {
+    Map<String, Object> safeInput = inputData == null ? Map.of() : inputData;
+    Map<String, Object> configuration = activityDescriptor.automaticConfiguration() == null
+      ? Map.of()
+      : activityDescriptor.automaticConfiguration();
+    String taskTypeKey = normalizeTaskTypeKey(
+      activityDescriptor.automaticTaskTypeKey(),
+      activityDescriptor.automaticHandlerRef()
+    );
+
+    Map<String, Object> builtinOutput = executeBuiltinAutomaticTask(
+      taskTypeKey,
+      safeInput,
+      configuration,
+      instance,
+      activityDescriptor
+    );
+    if (builtinOutput != null) {
+      return builtinOutput;
+    }
+
+    Map<String, Object> customOutput = executeCustomAutomaticTask(
+      taskTypeKey,
+      safeInput,
+      configuration,
+      instance,
+      activityDescriptor
+    );
+    if (customOutput != null) {
+      return customOutput;
+    }
+
     Map<String, Object> output = new HashMap<>();
     output.put("status", "AUTOMATIC_EXECUTED_STUB");
     output.put("activityId", activityDescriptor.activityId());
     output.put("handlerRef", activityDescriptor.automaticHandlerRef());
+    output.put("taskTypeKey", taskTypeKey);
     output.put("instanceId", instance.instanceId());
-    if (inputData != null && !inputData.isEmpty()) {
-      output.put("inputEcho", inputData);
+    if (!safeInput.isEmpty()) {
+      output.put("inputEcho", safeInput);
+    }
+    if (!configuration.isEmpty()) {
+      output.put("configurationEcho", configuration);
     }
     return output;
+  }
+
+  private String normalizeTaskTypeKey(String taskTypeKey, String handlerRef) {
+    String normalized = taskTypeKey == null ? "" : taskTypeKey.trim().toLowerCase();
+    if (!normalized.isBlank()) {
+      return normalized;
+    }
+
+    String fallback = handlerRef == null ? "" : handlerRef.trim().toLowerCase();
+    if (fallback.startsWith("handlers.")) {
+      fallback = fallback.substring("handlers.".length());
+    }
+    if (fallback.isBlank()) {
+      return "core.echo";
+    }
+    return "custom." + fallback.replaceAll("[^a-z0-9._-]+", "-");
+  }
+
+  private Map<String, Object> executeBuiltinAutomaticTask(
+      String taskTypeKey,
+      Map<String, Object> inputData,
+      Map<String, Object> configuration,
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor) {
+    switch (taskTypeKey) {
+      case "core.echo":
+        return executeCoreEchoTask(inputData, configuration, instance, activityDescriptor);
+      case "core.email.send":
+      case "core.email.broadcast":
+        return executeCoreEmailTask(taskTypeKey, inputData, configuration, instance, activityDescriptor);
+      case "core.document.generate":
+        return executeCoreDocumentGenerationTask(inputData, configuration, instance, activityDescriptor);
+      case "core.data.delete":
+        return executeCoreDeleteDataTask(inputData, configuration, instance, activityDescriptor);
+      case "core.data.transform":
+      case "core.json.merge":
+        return executeCoreDataTransformTask(taskTypeKey, inputData, configuration, instance, activityDescriptor);
+      case "core.http.request":
+      case "core.webhook.emit":
+        return executeCoreHttpOrWebhookTask(taskTypeKey, inputData, configuration, instance, activityDescriptor);
+      case "core.wait.delay":
+        return executeCoreDelayTask(inputData, configuration, instance, activityDescriptor);
+      case "core.notification.emit":
+        return executeCoreNotificationTask(inputData, configuration, instance, activityDescriptor);
+      case "core.audit.log":
+        return executeCoreAuditTask(inputData, configuration, instance, activityDescriptor);
+      default:
+        return null;
+    }
+  }
+
+  private Map<String, Object> executeCustomAutomaticTask(
+      String taskTypeKey,
+      Map<String, Object> inputData,
+      Map<String, Object> configuration,
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor) {
+    switch (taskTypeKey) {
+${customTaskDispatchCases}
+    }
+  }
+
+  private Map<String, Object> executeCoreEchoTask(
+      Map<String, Object> inputData,
+      Map<String, Object> configuration,
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor) {
+    Map<String, Object> output = new HashMap<>();
+    output.put("status", asString(configuration.get("status"), "ECHO_OK"));
+    output.put("activityId", activityDescriptor.activityId());
+    output.put("instanceId", instance.instanceId());
+    if (asBoolean(configuration.get("includeInput"), true)) {
+      output.put("payload", inputData);
+    }
+    return output;
+  }
+
+  private Map<String, Object> executeCoreEmailTask(
+      String taskTypeKey,
+      Map<String, Object> inputData,
+      Map<String, Object> configuration,
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor) {
+    List<String> recipients = readStringList(configuration.get("to"));
+    String recipientsFromPath = asString(configuration.get("toFromInputPath"), "");
+    if (!recipientsFromPath.isBlank()) {
+      recipients.addAll(readStringList(readPathValue(inputData, recipientsFromPath)));
+    }
+    String recipientListPath = asString(configuration.get("recipientListFromInputPath"), "");
+    if (!recipientListPath.isBlank()) {
+      recipients.addAll(readStringList(readPathValue(inputData, recipientListPath)));
+    }
+    recipients = recipients.stream()
+      .map((entry) -> entry == null ? "" : entry.trim())
+      .filter((entry) -> !entry.isBlank())
+      .distinct()
+      .toList();
+    String subject = asString(configuration.get("subject"), "");
+    String subjectFromPath = asString(configuration.get("subjectFromInputPath"), "");
+    if (!subjectFromPath.isBlank()) {
+      subject = asString(readPathValue(inputData, subjectFromPath), subject);
+    }
+    String template = asString(configuration.get("template"), "");
+    String dataFromPath = asString(configuration.get("dataFromInputPath"), "");
+    Object templateData = dataFromPath.isBlank() ? inputData : readPathValue(inputData, dataFromPath);
+    String body = renderTemplate(template, templateData);
+
+    Map<String, Object> output = new HashMap<>();
+    output.put("status", recipients.isEmpty() ? "NO_RECIPIENT" : "SENT_SIMULATED");
+    output.put("taskTypeKey", taskTypeKey);
+    output.put("activityId", activityDescriptor.activityId());
+    output.put("recipientCount", recipients.size());
+    output.put("recipients", recipients);
+    output.put("subject", subject);
+    output.put("body", body);
+    output.put("smtpProfile", asString(configuration.get("smtpProfile"), "default"));
+    output.put("instanceId", instance.instanceId());
+    return output;
+  }
+
+  private Map<String, Object> executeCoreDocumentGenerationTask(
+      Map<String, Object> inputData,
+      Map<String, Object> configuration,
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor) {
+    String template = asString(configuration.get("template"), "");
+    String fileName = asString(configuration.get("fileName"), activityDescriptor.activityId() + "-document.txt");
+    String format = asString(configuration.get("format"), "TEXT").toUpperCase();
+    String dataFromPath = asString(configuration.get("dataFromInputPath"), "");
+    Object templateData = dataFromPath.isBlank() ? inputData : readPathValue(inputData, dataFromPath);
+
+    Map<String, Object> document = new HashMap<>();
+    document.put("fileName", fileName);
+    document.put("format", format);
+    if ("JSON".equals(format)) {
+      document.put("content", asString(templateData, "{}"));
+    } else {
+      document.put("content", renderTemplate(template, templateData));
+    }
+    document.put("generatedAt", Instant.now().toString());
+    document.put("instanceId", instance.instanceId());
+
+    Map<String, Object> output = new HashMap<>();
+    output.put("status", "DOCUMENT_GENERATED");
+    output.put("activityId", activityDescriptor.activityId());
+    output.put("document", document);
+    return output;
+  }
+
+  private Map<String, Object> executeCoreDeleteDataTask(
+      Map<String, Object> inputData,
+      Map<String, Object> configuration,
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor) {
+    List<String> contextPaths = readStringList(configuration.get("contextPaths"));
+    List<String> sharedEntityKeys = readStringList(configuration.get("sharedEntityKeys"));
+
+    Map<String, Object> output = new HashMap<>();
+    output.put("status", "DELETE_APPLIED");
+    output.put("activityId", activityDescriptor.activityId());
+    output.put("contextPathsRequested", contextPaths);
+    output.put("sharedEntitiesRequested", sharedEntityKeys);
+    output.put("contextDeletionMode", "ADVISORY");
+
+    for (String entityKey : sharedEntityKeys) {
+      if (entityKey == null || entityKey.isBlank()) {
+        continue;
+      }
+      processRuntimeStorePort.writeSharedData(entityKey, Map.of());
+    }
+    output.put("sharedEntitiesCleared", sharedEntityKeys.size());
+    output.put("inputEcho", inputData);
+    return output;
+  }
+
+  private Map<String, Object> executeCoreDataTransformTask(
+      String taskTypeKey,
+      Map<String, Object> inputData,
+      Map<String, Object> configuration,
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor) {
+    String mode = asString(configuration.get("mode"), "MERGE").toUpperCase();
+    String fromPath = asString(configuration.get("fromPath"), "");
+    String toPath = asString(configuration.get("toPath"), "");
+    List<String> sourcePaths = readStringList(configuration.get("sourcePaths"));
+
+    Map<String, Object> output = new HashMap<>();
+    output.put("status", "TRANSFORM_APPLIED");
+    output.put("taskTypeKey", taskTypeKey);
+    output.put("activityId", activityDescriptor.activityId());
+    output.put("mode", mode);
+    output.put("instanceId", instance.instanceId());
+
+    if ("PICK".equals(mode) && !fromPath.isBlank()) {
+      Object value = readPathValue(inputData, fromPath);
+      writePathValue(output, toPath.isBlank() ? "result" : toPath, value);
+      return output;
+    }
+
+    Map<String, Object> merged = new HashMap<>();
+    if (!sourcePaths.isEmpty()) {
+      for (String sourcePath : sourcePaths) {
+        Object value = readPathValue(inputData, sourcePath);
+        if (value instanceof Map<?, ?> typedMap) {
+          for (Map.Entry<?, ?> entry : typedMap.entrySet()) {
+            if (entry.getKey() != null) {
+              merged.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+          }
+        }
+      }
+    } else {
+      merged.putAll(inputData);
+    }
+    writePathValue(output, toPath.isBlank() ? "result" : toPath, merged);
+    return output;
+  }
+
+  private Map<String, Object> executeCoreHttpOrWebhookTask(
+      String taskTypeKey,
+      Map<String, Object> inputData,
+      Map<String, Object> configuration,
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor) {
+    String url = asString(configuration.get("url"), "");
+    String method = asString(configuration.get("method"), "POST").toUpperCase();
+    String payloadPath = asString(configuration.get("payloadFromInputPath"), "");
+    Object payload = payloadPath.isBlank() ? inputData : readPathValue(inputData, payloadPath);
+
+    Map<String, Object> output = new HashMap<>();
+    output.put("status", "REQUEST_SIMULATED");
+    output.put("taskTypeKey", taskTypeKey);
+    output.put("activityId", activityDescriptor.activityId());
+    output.put("url", url);
+    output.put("method", method);
+    output.put("payload", payload);
+    output.put("response", Map.of(
+      "statusCode", 202,
+      "message", "Simulated by generated runtime"
+    ));
+    output.put("instanceId", instance.instanceId());
+    return output;
+  }
+
+  private Map<String, Object> executeCoreDelayTask(
+      Map<String, Object> inputData,
+      Map<String, Object> configuration,
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor) {
+    int delaySeconds = asInteger(configuration.get("delaySeconds"), 0);
+    if (delaySeconds < 0) {
+      delaySeconds = 0;
+    }
+    Instant scheduledAt = Instant.now().plusSeconds(delaySeconds);
+
+    Map<String, Object> output = new HashMap<>();
+    output.put("status", "DELAY_REGISTERED");
+    output.put("activityId", activityDescriptor.activityId());
+    output.put("delaySeconds", delaySeconds);
+    output.put("scheduledAt", scheduledAt.toString());
+    output.put("reason", asString(configuration.get("reason"), ""));
+    output.put("instanceId", instance.instanceId());
+    output.put("inputEcho", inputData);
+    return output;
+  }
+
+  private Map<String, Object> executeCoreNotificationTask(
+      Map<String, Object> inputData,
+      Map<String, Object> configuration,
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor) {
+    String message = asString(configuration.get("message"), "");
+    String level = asString(configuration.get("level"), "INFO").toUpperCase();
+    String recipientsPath = asString(configuration.get("recipientsFromInputPath"), "");
+    List<String> recipients = recipientsPath.isBlank()
+      ? List.of()
+      : readStringList(readPathValue(inputData, recipientsPath));
+
+    Map<String, Object> output = new HashMap<>();
+    output.put("status", recipients.isEmpty() ? "NOTIFICATION_READY" : "NOTIFICATION_DISPATCHED");
+    output.put("activityId", activityDescriptor.activityId());
+    output.put("message", message);
+    output.put("level", level);
+    output.put("recipients", recipients);
+    output.put("instanceId", instance.instanceId());
+    return output;
+  }
+
+  private Map<String, Object> executeCoreAuditTask(
+      Map<String, Object> inputData,
+      Map<String, Object> configuration,
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor) {
+    String eventName = asString(configuration.get("eventName"), "PROCESS_AUTOMATIC_AUDIT");
+    String category = asString(configuration.get("category"), "PROCESS");
+    String detailsPath = asString(configuration.get("detailsFromInputPath"), "");
+    Object details = detailsPath.isBlank() ? inputData : readPathValue(inputData, detailsPath);
+
+    logProcessEvent(
+      eventName,
+      instance,
+      activityDescriptor.activityId(),
+      "SYSTEM",
+      null,
+      "category=" + category + ",details=" + safeAuditValue(details)
+    );
+
+    Map<String, Object> output = new HashMap<>();
+    output.put("status", "AUDIT_EMITTED");
+    output.put("activityId", activityDescriptor.activityId());
+    output.put("eventName", eventName);
+    output.put("category", category);
+    output.put("details", details);
+    output.put("instanceId", instance.instanceId());
+    return output;
+  }
+
+  private String renderTemplate(String template, Object data) {
+    String content = template == null ? "" : template;
+    if (content.isBlank()) {
+      return content;
+    }
+    if (!(data instanceof Map<?, ?> typedMap)) {
+      return content;
+    }
+    String rendered = content;
+    for (Map.Entry<?, ?> entry : typedMap.entrySet()) {
+      if (entry.getKey() == null) {
+        continue;
+      }
+      String token = "${" + String.valueOf(entry.getKey()) + "}";
+      String replacement = entry.getValue() == null ? "" : String.valueOf(entry.getValue());
+      rendered = rendered.replace(token, replacement);
+    }
+    return rendered;
+  }
+
+  private List<String> readStringList(Object value) {
+    if (value instanceof List<?> typedList) {
+      return typedList.stream()
+        .map((entry) -> entry == null ? "" : String.valueOf(entry).trim())
+        .filter((entry) -> !entry.isBlank())
+        .toList();
+    }
+    String scalar = asString(value, "");
+    if (scalar.isBlank()) {
+      return List.of();
+    }
+    return List.of(scalar);
+  }
+
+  private boolean asBoolean(Object value, boolean fallback) {
+    if (value instanceof Boolean typedBoolean) {
+      return typedBoolean;
+    }
+    String normalized = asString(value, "").toLowerCase();
+    if ("true".equals(normalized) || "1".equals(normalized) || "yes".equals(normalized) || "on".equals(normalized)) {
+      return true;
+    }
+    if ("false".equals(normalized) || "0".equals(normalized) || "no".equals(normalized) || "off".equals(normalized)) {
+      return false;
+    }
+    return fallback;
+  }
+
+  private int asInteger(Object value, int fallback) {
+    if (value instanceof Number typedNumber) {
+      return typedNumber.intValue();
+    }
+    try {
+      return Integer.parseInt(asString(value, String.valueOf(fallback)));
+    } catch (NumberFormatException ignored) {
+      return fallback;
+    }
+  }
+
+  private String asString(Object value, String fallback) {
+    if (value == null) {
+      return fallback;
+    }
+    String normalized = String.valueOf(value);
+    return normalized.isBlank() ? fallback : normalized;
+  }
+
+  private String safeAuditValue(Object value) {
+    if (value == null) {
+      return "null";
+    }
+    String raw = String.valueOf(value);
+    if (raw.length() <= 300) {
+      return raw;
+    }
+    return raw.substring(0, 300) + "...";
   }
 
   private Map<String, Object> applyOutputMappings(
@@ -4318,6 +4851,72 @@ function buildGeneratedProcessRuntimeHandlersReadmeMd(runtimeEntries) {
   return `${lines.join("\n")}\n`;
 }
 
+function toAutomaticTaskClassName(taskTypeKey) {
+  const pascal = toPascalCase(String(taskTypeKey || "").replace(/[._-]+/g, " "));
+  return `${pascal}AutomaticTask`;
+}
+
+function buildCustomAutomaticTaskClassJava({
+  basePackage,
+  taskTypeKey,
+  sourceCode,
+}) {
+  const className = toAutomaticTaskClassName(taskTypeKey);
+  const rawBody = normalizeString(sourceCode)
+    ? String(sourceCode)
+    : `output.put("status", "CUSTOM_NOT_IMPLEMENTED");
+    output.put("taskTypeKey", "${escapeJavaString(taskTypeKey)}");
+    output.put("activityId", activityDescriptor.activityId());
+    return output;`;
+  const body = /return\s+[A-Za-z0-9_.()]+[\s;]*/.test(rawBody)
+    ? rawBody
+    : `${rawBody}
+    return output;`;
+
+  return `package ${basePackage}.system.application.process.runtime.service.autotasks;
+
+import ${basePackage}.system.domain.process.runtime.GeneratedProcessRuntimeCatalog;
+import ${basePackage}.system.domain.process.runtime.ProcessRuntimeInstance;
+import java.util.HashMap;
+import java.util.Map;
+
+public final class ${className} {
+  private ${className}() {
+  }
+
+  public static Map<String, Object> execute(
+      Map<String, Object> inputData,
+      Map<String, Object> configuration,
+      ProcessRuntimeInstance instance,
+      GeneratedProcessRuntimeCatalog.ActivityDescriptor activityDescriptor) {
+    Map<String, Object> output = new HashMap<>();
+    ${body}
+  }
+}
+`;
+}
+
+function buildCustomAutomaticTaskDispatchCases({ basePackage, taskTypes }) {
+  const rows = Array.isArray(taskTypes) ? taskTypes : [];
+  if (rows.length === 0) {
+    return "      default:\n        return null;";
+  }
+
+  const cases = rows.map((taskType) => {
+    const className = toAutomaticTaskClassName(taskType.taskTypeKey);
+    return `      case "${escapeJavaString(taskType.taskTypeKey)}":
+        return ${basePackage}.system.application.process.runtime.service.autotasks.${className}.execute(
+          inputData,
+          configuration,
+          instance,
+          activityDescriptor
+        );`;
+  });
+
+  cases.push("      default:\n        return null;");
+  return cases.join("\n");
+}
+
 function buildAutomaticHandlersStubJava({ basePackage, processName, modelKey, versionNumber, runtimeContract }) {
   const className = `${processName}ProcessV${versionNumber}AutomaticHandlers`;
   const automaticActivities = (runtimeContract.activities || []).filter((entry) => entry.activityType === "AUTOMATIC");
@@ -4737,7 +5336,13 @@ function buildFrontendDeployedProcessCypressSpec({ modelKey, versionNumber, runt
 `;
 }
 
-function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords }) {
+function buildDeploymentFiles({
+  workspaceConfig,
+  model,
+  version,
+  deployedRecords,
+  automaticTaskCatalog,
+}) {
   const basePackage = normalizeBasePackage(workspaceConfig?.project?.basePackage || DEFAULT_BASE_PACKAGE);
   const basePackagePath = basePackage.replace(/\./g, "/");
   const processName = toPascalCase(model.modelKey);
@@ -4783,6 +5388,17 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
       entry.model.modelKey === model.modelKey
       && entry.version.versionNumber === version.versionNumber,
   );
+  const usedAutomaticTaskTypes = resolveUsedAutomaticTaskTypes(
+    automaticTaskCatalog,
+    runtimeEntries,
+  );
+  const usedCustomAutomaticTaskTypes = usedAutomaticTaskTypes.usedTaskTypes
+    .filter((entry) => entry.kind === "CUSTOM")
+    .sort((left, right) => left.taskTypeKey.localeCompare(right.taskTypeKey));
+  const customAutomaticTaskDispatchCases = buildCustomAutomaticTaskDispatchCases({
+    basePackage,
+    taskTypes: usedCustomAutomaticTaskTypes,
+  });
 
   const backendProcessRoot = path.join(
     "src/backend/springboot/system/system-domain/src/main/java",
@@ -4886,6 +5502,17 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
       versionNumber: 1,
     },
     {
+      relativePath: "src/backend/springboot/prooweb-application/src/main/resources/processes/automatic-task-catalog.json",
+      content: buildBackendAutomaticTaskCatalogJson({
+        usedTaskTypes: usedAutomaticTaskTypes.usedTaskTypes,
+        libraryCatalog: automaticTaskCatalog?.libraries || { maven: [], npm: [] },
+        missingTaskTypes: usedAutomaticTaskTypes.missingTaskTypes,
+      }),
+      kind: "backend-automatic-task-catalog",
+      modelKey: "_automatic_task_catalog_",
+      versionNumber: 1,
+    },
+    {
       relativePath: toPosixPath(path.join(backendDomainRuntimeRoot, "GeneratedProcessRuntimeCatalog.java")),
       content: buildGeneratedProcessRuntimeCatalogJava({ basePackage, runtimeEntries }),
       kind: "backend-runtime-generated-catalog",
@@ -4936,7 +5563,10 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
     },
     {
       relativePath: toPosixPath(path.join(backendApplicationRuntimeRoot, "service/ProcessRuntimeEngineService.java")),
-      content: buildProcessRuntimeEngineServiceJava({ basePackage }),
+      content: buildProcessRuntimeEngineServiceJava({
+        basePackage,
+        customTaskDispatchCases: customAutomaticTaskDispatchCases,
+      }),
       kind: "backend-runtime-application-service",
       modelKey: "_runtime_engine_",
       versionNumber: 1,
@@ -5117,6 +5747,21 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
           },
         ]
       : []),
+    ...usedCustomAutomaticTaskTypes.map((taskType) => ({
+      relativePath: toPosixPath(path.join(
+        backendApplicationRuntimeRoot,
+        "service/autotasks",
+        `${toAutomaticTaskClassName(taskType.taskTypeKey)}.java`,
+      )),
+      content: buildCustomAutomaticTaskClassJava({
+        basePackage,
+        taskTypeKey: taskType.taskTypeKey,
+        sourceCode: taskType.source || "",
+      }),
+      kind: "backend-runtime-custom-automatic-task",
+      modelKey: "_automatic_task_catalog_",
+      versionNumber: 1,
+    })),
   ];
 
   return {
@@ -5124,6 +5769,7 @@ function buildDeploymentFiles({ workspaceConfig, model, version, deployedRecords
     runtimeContract,
     dataContract,
     runtimeEntries,
+    usedAutomaticTaskTypes,
   };
 }
 
@@ -5146,7 +5792,13 @@ function applyTemplateOverridesOnDeploymentFile(templateOverrideRuntime, file) {
   };
 }
 
-function buildManagedDeploymentPlan({ workspaceConfig, deployedRecords, templateOverrideRuntime }) {
+function buildManagedDeploymentPlan({
+  rootDir,
+  workspaceConfig,
+  deployedRecords,
+  templateOverrideRuntime,
+  automaticTaskCatalog,
+}) {
   const fileByPath = new Map();
   const buildByRecord = new Map();
 
@@ -5156,6 +5808,7 @@ function buildManagedDeploymentPlan({ workspaceConfig, deployedRecords, template
       model: record.model,
       version: record.version,
       deployedRecords,
+      automaticTaskCatalog,
     });
     buildByRecord.set(
       buildDeploymentRecordKey(record.model.modelKey, record.version.versionNumber),
@@ -5526,13 +6179,16 @@ function deployProcessModelVersion({ rootDir, workspaceConfig, modelKey, version
   const savedVersion = savedModel.versions.find((entry) => entry.versionNumber === normalizedVersion);
 
   const templateOverrideRuntime = loadTemplateOverrideRuntime(rootDir);
+  const automaticTaskCatalog = readAutomaticTaskCatalog(rootDir, { includeSources: true });
   const deployedRecords = listDeployedModels(rootDir)
     .map((entry) => ({ model: entry.model, version: entry.version }))
     .sort((left, right) => left.model.modelKey.localeCompare(right.model.modelKey));
   const deploymentPlan = buildManagedDeploymentPlan({
+    rootDir,
     workspaceConfig,
     deployedRecords,
     templateOverrideRuntime,
+    automaticTaskCatalog,
   });
   const deploymentBuild = deploymentPlan.buildByRecord.get(
     buildDeploymentRecordKey(savedModel.modelKey, savedVersion.versionNumber),
@@ -5543,6 +6199,11 @@ function deployProcessModelVersion({ rootDir, workspaceConfig, modelKey, version
       version: savedVersion,
       runtimeContract: buildRuntimeContract({ model: savedModel, version: savedVersion }),
     }),
+    usedAutomaticTaskTypes: {
+      usedKeys: [],
+      usedTaskTypes: [],
+      missingTaskTypes: [],
+    },
   };
   const generatedFiles = deploymentPlan.files;
 
@@ -5567,6 +6228,7 @@ function deployProcessModelVersion({ rootDir, workspaceConfig, modelKey, version
       startableByRoles: deploymentBuild.runtimeContract.start.startableByRoles,
       monitorRoles: deploymentBuild.runtimeContract.monitors.monitorRoles,
       sharedDataEntities: (deploymentBuild.dataContract.sharedData?.entities || []).map((entry) => entry.entityKey),
+      automaticTaskTypesUsed: (deploymentBuild.usedAutomaticTaskTypes?.usedKeys || []),
     },
   };
   refreshedModel.updatedAt = new Date().toISOString();
@@ -5585,6 +6247,7 @@ function deployProcessModelVersion({ rootDir, workspaceConfig, modelKey, version
       startableByRoles: deploymentBuild.runtimeContract.start.startableByRoles,
       monitorRoles: deploymentBuild.runtimeContract.monitors.monitorRoles,
       sharedDataEntities: (deploymentBuild.dataContract.sharedData?.entities || []).map((entry) => entry.entityKey),
+      automaticTaskTypesUsed: (deploymentBuild.usedAutomaticTaskTypes?.usedKeys || []),
       report,
     },
   };
@@ -5630,10 +6293,13 @@ function undeployProcessModelVersion({ rootDir, workspaceConfig, modelKey, versi
     .map((entry) => ({ model: entry.model, version: entry.version }))
     .sort((left, right) => left.model.modelKey.localeCompare(right.model.modelKey));
   const templateOverrideRuntime = loadTemplateOverrideRuntime(rootDir);
+  const automaticTaskCatalog = readAutomaticTaskCatalog(rootDir, { includeSources: true });
   const deploymentPlan = buildManagedDeploymentPlan({
+    rootDir,
     workspaceConfig,
     deployedRecords,
     templateOverrideRuntime,
+    automaticTaskCatalog,
   });
   const generatedFiles = deploymentPlan.files;
 

@@ -10,8 +10,11 @@ import { wireProcessModelingPanel } from "./process-modeling-panel.js";
 import { wireReconfigureForm } from "./reconfigure-form.js";
 import { wireTemplateOverridesPanel } from "./template-overrides-panel.js";
 import { renderWorkspaceStatus } from "./render.js";
+import { wireWorkspaceShell } from "./workspace-shell.js";
 
 export async function bootstrapDashboardPage({ documentRef = document } = {}) {
+  wireWorkspaceShell({ documentRef });
+
   const status = await fetchWorkspaceStatus();
 
   renderWorkspaceStatus({

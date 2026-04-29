@@ -3,5 +3,5 @@ import { bootstrapWizardPage } from "./bootstrap.js";
 
 bootstrapWizardPage().catch((error) => {
   const feedback = document.getElementById("feedback");
-  setFeedback(feedback, error.message || "Erreur de chargement.", "error");
+  setFeedback(feedback, error.message || "Initialization screen failed to load.", "error");
 });

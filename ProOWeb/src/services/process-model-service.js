@@ -30,6 +30,13 @@ const {
   undoStudioSnapshot,
   redoStudioSnapshot,
 } = require("../lib/process-modeling/history");
+const {
+  readAutomaticTaskCatalog,
+  saveAutomaticTaskCatalog,
+  readAutomaticTaskTypeSource,
+  saveAutomaticTaskTypeSource,
+  buildAutomaticTaskTypeLookup,
+} = require("../lib/process-modeling/automatic-task-catalog");
 const { createServiceError } = require("../errors/service-error");
 
 function createProcessModelService(dependencies = {}) {
@@ -59,6 +66,11 @@ function createProcessModelService(dependencies = {}) {
     pushStudioSnapshot,
     undoStudioSnapshot,
     redoStudioSnapshot,
+    readAutomaticTaskCatalog,
+    saveAutomaticTaskCatalog,
+    readAutomaticTaskTypeSource,
+    saveAutomaticTaskTypeSource,
+    buildAutomaticTaskTypeLookup,
     ...dependencies,
   };
 
@@ -85,6 +97,33 @@ function createProcessModelService(dependencies = {}) {
     }
   }
 
+  function loadAutomaticTaskCatalogSummary() {
+    const catalog = deps.readAutomaticTaskCatalog(deps.rootDir, { includeSources: false });
+    const enabledTaskTypes = (catalog.taskTypes || []).filter((entry) => entry.enabled !== false).length;
+    const builtinTaskTypes = (catalog.taskTypes || []).filter((entry) => entry.kind === "BUILTIN").length;
+    const customTaskTypes = (catalog.taskTypes || []).filter((entry) => entry.kind === "CUSTOM").length;
+    return {
+      schemaVersion: catalog.schemaVersion,
+      totalTaskTypes: (catalog.taskTypes || []).length,
+      enabledTaskTypes,
+      builtinTaskTypes,
+      customTaskTypes,
+      mavenLibraries: (catalog.libraries?.maven || []).length,
+      npmLibraries: (catalog.libraries?.npm || []).length,
+      diagnostics: catalog.diagnostics || {
+        duplicateTaskTypeKeys: [],
+        libraryConflicts: [],
+      },
+    };
+  }
+
+  function buildSpecificationValidationOptions() {
+    const catalog = deps.readAutomaticTaskCatalog(deps.rootDir, { includeSources: false });
+    return {
+      automaticTaskTypesByKey: deps.buildAutomaticTaskTypeLookup(catalog),
+    };
+  }
+
   function listModels() {
     const config = requireWorkspaceConfig();
     requireProcessModelingEnabled(config);
@@ -96,6 +135,7 @@ function createProcessModelService(dependencies = {}) {
     return {
       models,
       processModeling: config.backendOptions?.processModeling || null,
+      automaticTaskCatalog: loadAutomaticTaskCatalogSummary(),
       storageRoot: ".prooweb/process-models",
     };
   }
@@ -104,7 +144,9 @@ function createProcessModelService(dependencies = {}) {
     const config = requireWorkspaceConfig();
     requireProcessModelingEnabled(config);
 
-    const model = deps.createProcessModel(deps.rootDir, payload);
+    const model = deps.createProcessModel(deps.rootDir, payload, {
+      validationOptions: buildSpecificationValidationOptions(),
+    });
     return {
       message: "Process model created.",
       model,
@@ -118,6 +160,7 @@ function createProcessModelService(dependencies = {}) {
     const maxVersionsPerModel = config?.backendOptions?.processModeling?.maxVersionsPerModel || 50;
     const result = deps.createProcessModelVersion(deps.rootDir, modelKey, payload, {
       maxVersionsPerModel,
+      validationOptions: buildSpecificationValidationOptions(),
     });
 
     return {
@@ -184,7 +227,21 @@ function createProcessModelService(dependencies = {}) {
     requireProcessModelingEnabled(config);
 
     const normalizedVersion = normalizeVersionNumber(versionNumber, "versionNumber");
-    return deps.readProcessModelVersionSpecification(deps.rootDir, modelKey, normalizedVersion);
+    const result = deps.readProcessModelVersionSpecification(deps.rootDir, modelKey, normalizedVersion);
+    const validated = deps.validateProcessModelVersionSpecification(
+      deps.rootDir,
+      modelKey,
+      normalizedVersion,
+      { specification: result.specification },
+      {
+        validationOptions: buildSpecificationValidationOptions(),
+      },
+    );
+    return {
+      ...result,
+      summary: validated.summary,
+      validation: validated.validation,
+    };
   }
 
   function readModelVersionRuntimeContract(modelKey, versionNumber) {
@@ -221,6 +278,9 @@ function createProcessModelService(dependencies = {}) {
       modelKey,
       normalizedVersion,
       payload,
+      {
+        validationOptions: buildSpecificationValidationOptions(),
+      },
     );
   }
 
@@ -234,6 +294,9 @@ function createProcessModelService(dependencies = {}) {
       modelKey,
       normalizedVersion,
       payload,
+      {
+        validationOptions: buildSpecificationValidationOptions(),
+      },
     );
 
     return {
@@ -377,6 +440,47 @@ function createProcessModelService(dependencies = {}) {
     };
   }
 
+  function readAutomaticTasksCatalog() {
+    const config = requireWorkspaceConfig();
+    requireProcessModelingEnabled(config);
+    const catalog = deps.readAutomaticTaskCatalog(deps.rootDir, { includeSources: false });
+    return {
+      catalog,
+      summary: loadAutomaticTaskCatalogSummary(),
+    };
+  }
+
+  function saveAutomaticTasksCatalog(payload = {}) {
+    const config = requireWorkspaceConfig();
+    requireProcessModelingEnabled(config);
+    const catalog = deps.saveAutomaticTaskCatalog(deps.rootDir, payload);
+    return {
+      message: "Automatic task catalog saved.",
+      catalog,
+      summary: loadAutomaticTaskCatalogSummary(),
+    };
+  }
+
+  function readAutomaticTaskSource(taskTypeKey) {
+    const config = requireWorkspaceConfig();
+    requireProcessModelingEnabled(config);
+    return deps.readAutomaticTaskTypeSource(deps.rootDir, taskTypeKey);
+  }
+
+  function saveAutomaticTaskSource(taskTypeKey, payload = {}) {
+    const config = requireWorkspaceConfig();
+    requireProcessModelingEnabled(config);
+    const source = payload?.source;
+    if (source === undefined || source === null) {
+      throw createServiceError(400, "source is required.");
+    }
+    const result = deps.saveAutomaticTaskTypeSource(deps.rootDir, taskTypeKey, source);
+    return {
+      message: "Automatic task type source saved.",
+      ...result,
+    };
+  }
+
   return {
     listModels,
     createModel,
@@ -398,6 +502,10 @@ function createProcessModelService(dependencies = {}) {
     createStudioSnapshot,
     undoStudio,
     redoStudio,
+    readAutomaticTasksCatalog,
+    saveAutomaticTasksCatalog,
+    readAutomaticTaskSource,
+    saveAutomaticTaskSource,
   };
 }
 

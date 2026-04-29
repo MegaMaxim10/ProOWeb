@@ -78,6 +78,13 @@ function normalizeInputSources(rawSources) {
   return normalized;
 }
 
+function normalizeJsonObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  return JSON.parse(JSON.stringify(value));
+}
+
 function extractSequenceFlows(bpmnXml) {
   const xml = String(bpmnXml || "");
   const flows = [];
@@ -196,11 +203,13 @@ function normalizeActivityContract(activityId, rawActivity = {}) {
     automaticExecution: activityType === "AUTOMATIC"
       ? {
           handlerRef: normalizeString(automaticSource?.handlerRef),
+          taskTypeKey: normalizeString(automaticSource?.taskTypeKey || "core.echo").toLowerCase(),
           triggerMode: normalizeString(automaticSource?.triggerMode || "MANUAL_TRIGGER").toUpperCase(),
           deferredDelayMinutes:
             automaticSource?.deferredDelayMinutes == null
               ? null
               : toPositiveInteger(automaticSource.deferredDelayMinutes, 1),
+          configuration: normalizeJsonObject(automaticSource?.configuration),
         }
       : null,
     input: {

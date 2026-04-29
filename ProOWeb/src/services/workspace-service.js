@@ -79,7 +79,7 @@ function createWorkspaceService(dependencies = {}) {
 
   function initializeWorkspace(payload) {
     if (deps.isWorkspaceInitialized()) {
-      throw createServiceError(409, "Workspace deja initialise.");
+      throw createServiceError(409, "Workspace is already initialized.");
     }
 
     const config = deps.buildWorkspaceConfig(payload);
@@ -89,7 +89,7 @@ function createWorkspaceService(dependencies = {}) {
     deps.writeWorkspaceConfig(config);
 
     return {
-      message: "Workspace initialise avec succes.",
+      message: "Workspace initialized successfully.",
       workspace: deps.toPublicWorkspaceConfig(config),
       management: deps.getManagementStatus(config),
       generation: generationReport,
@@ -99,7 +99,7 @@ function createWorkspaceService(dependencies = {}) {
 
   function migrateWorkspace(payload) {
     if (!deps.isWorkspaceInitialized()) {
-      throw createServiceError(409, "Workspace non initialise.");
+      throw createServiceError(409, "Workspace is not initialized.");
     }
 
     const mode = resolveMigrationMode(payload);
@@ -117,7 +117,7 @@ function createWorkspaceService(dependencies = {}) {
     deps.writeWorkspaceConfig(migratedConfig);
 
     return {
-      message: "Migration intelligente appliquee avec succes.",
+      message: "Smart migration completed successfully.",
       workspace: deps.toPublicWorkspaceConfig(migratedConfig),
       management: deps.getManagementStatus(migratedConfig),
       migration: migrationReport,
@@ -126,7 +126,7 @@ function createWorkspaceService(dependencies = {}) {
 
   function reconfigureWorkspace(payload) {
     if (!deps.isWorkspaceInitialized()) {
-      throw createServiceError(409, "Workspace non initialise.");
+      throw createServiceError(409, "Workspace is not initialized.");
     }
 
     const mode = resolveReconfigurationMode(payload);
@@ -144,7 +144,7 @@ function createWorkspaceService(dependencies = {}) {
     deps.writeWorkspaceConfig(migratedConfig);
 
     return {
-      message: "Reconfiguration appliquee avec succes.",
+      message: "Workspace reconfiguration completed successfully.",
       workspace: deps.toPublicWorkspaceConfig(migratedConfig),
       management: deps.getManagementStatus(migratedConfig),
       migration: migrationReport,

@@ -1,6 +1,28 @@
 import { setFeedback } from "../shared/feedback.js";
 import { buildMigrationSummary, describeGeneratedRoot } from "./formatters.js";
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderDefinitionList(entries) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  if (safeEntries.length === 0) {
+    return "<p class=\"muted\">No data available.</p>";
+  }
+
+  return [
+    "<dl class=\"definition-grid\">",
+    ...safeEntries.map((entry) => `<dt>${escapeHtml(entry.label)}</dt><dd>${escapeHtml(entry.value)}</dd>`),
+    "</dl>",
+  ].join("");
+}
+
 export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, documentRef = document }) {
   if (!status.initialized || !status.workspace) {
     windowRef.location.replace("/");
@@ -10,18 +32,23 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
   const workspace = status.workspace;
   const management = status.management;
   const templateCustomizationSummary = status.templateCustomization?.summary || {};
+  const featurePacks = Array.isArray(management.activeFeaturePacks) ? management.activeFeaturePacks : [];
 
   documentRef.getElementById("project-title").textContent = workspace.project.title;
   documentRef.getElementById("stack-line").textContent =
     "Backend " + workspace.stack.backendTech +
-    " | Frontend web " + workspace.stack.frontendWebTech +
-    " | DB " + workspace.stack.databaseTech;
+    " | Web frontend " + workspace.stack.frontendWebTech +
+    " | Database " + workspace.stack.databaseTech;
 
   const adminBlock = documentRef.getElementById("admin-block");
-  adminBlock.innerHTML =
-    "<strong>Super administrateur:</strong><br />" +
-    workspace.superAdmin.name + " (" + workspace.superAdmin.email + ")<br />" +
-    "Username: " + workspace.superAdmin.username;
+  adminBlock.innerHTML = [
+    "<h3>Workspace Administrator</h3>",
+    renderDefinitionList([
+      { label: "Name", value: workspace.superAdmin.name },
+      { label: "Email", value: workspace.superAdmin.email },
+      { label: "Username", value: workspace.superAdmin.username },
+    ]),
+  ].join("");
 
   const swaggerConfig = workspace.backendOptions?.swaggerUi;
   const externalIamConfig = workspace.backendOptions?.externalIam;
@@ -35,40 +62,57 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
     ? externalIamConfig.providers.map((provider) => provider.id).filter(Boolean)
     : [];
   const projectOptions = documentRef.getElementById("project-options");
-  projectOptions.innerHTML =
-    "<strong>Options projet:</strong><br />" +
-    "Base package: " + (workspace.project.basePackage || "com.prooweb.generated") + "<br />" +
-    "Git remote: " + (workspace.project.gitRepositoryUrl || "(aucun, .git supprime)") + "<br />" +
-    "Swagger UI: " + (swaggerConfig?.enabled ? "active" : "desactive") + "<br />" +
-    "Profils Swagger: " + (swaggerConfig?.profiles?.join(", ") || "aucun") + "<br />" +
-    "External IAM: " + (externalIamConfig?.enabled ? "active" : "desactive") + "<br />" +
-    "Providers IAM: " + (externalProviderIds.join(", ") || "aucun") + "<br />" +
-    "Session security: " + (sessionSecurityConfig?.enabled ? "active" : "desactive") + "<br />" +
-    "Risk window (min): " + (sessionSecurityConfig?.suspiciousWindowMinutes || "-") + "<br />" +
-    "Max devices/window: " + (sessionSecurityConfig?.maxDistinctDevices || "-") + "<br />" +
-    "Organization hierarchy: " + (organizationHierarchyConfig?.enabled ? "active" : "desactive") + "<br />" +
-    "Default assignment strategy: " + (organizationHierarchyConfig?.defaultAssignmentStrategy || "-") + "<br />" +
-    "Max hierarchy depth: " + (organizationHierarchyConfig?.maxTraversalDepth || "-") + "<br />" +
-    "Notifications: " + (notificationsConfig?.enabled ? "active" : "desactive") + "<br />" +
-    "Notification sender: " + (notificationsConfig?.senderAddress || "-") + "<br />" +
-    "Notification audit: " + (notificationsConfig?.auditEnabled ? "active" : "desactive") + "<br />" +
-    "Liquibase: " + (databaseMigrationConfig?.liquibaseEnabled ? "active" : "desactive") + "<br />" +
-    "Liquibase changelog: " + (databaseMigrationConfig?.changelogPath || "-") + "<br />" +
-    "Liquibase contexts: " + (databaseMigrationConfig?.contexts || "-") + "<br />" +
-    "ProOWeb process catalog: " + (processModelingConfig?.enabled ? "active" : "desactive") + "<br />" +
-    "Process versioning strategy: " + (processModelingConfig?.versioningStrategy || "-") + "<br />" +
-    "Process max versions/model: " + (processModelingConfig?.maxVersionsPerModel || "-") + "<br />" +
-    "Direct deployment from draft: " + (processModelingConfig?.allowDirectDeployment ? "active" : "desactive") + "<br />" +
-    "Backend BDD (Cucumber): " + (testAutomationConfig?.backendBddCucumberEnabled ? "active" : "desactive") + "<br />" +
-    "Frontend E2E (Cypress): " + (testAutomationConfig?.frontendE2eCypressEnabled ? "active" : "desactive");
+  projectOptions.innerHTML = [
+    "<h3>Project Configuration Snapshot</h3>",
+    renderDefinitionList([
+      { label: "Base package", value: workspace.project.basePackage || "com.prooweb.generated" },
+      { label: "Git remote", value: workspace.project.gitRepositoryUrl || "(none, repository removed)" },
+      { label: "Swagger UI", value: swaggerConfig?.enabled ? "enabled" : "disabled" },
+      { label: "Swagger profiles", value: swaggerConfig?.profiles?.join(", ") || "-" },
+      { label: "External IAM", value: externalIamConfig?.enabled ? "enabled" : "disabled" },
+      { label: "IAM providers", value: externalProviderIds.join(", ") || "-" },
+      { label: "Session security", value: sessionSecurityConfig?.enabled ? "enabled" : "disabled" },
+      { label: "Risk window (min)", value: sessionSecurityConfig?.suspiciousWindowMinutes || "-" },
+      { label: "Max devices/window", value: sessionSecurityConfig?.maxDistinctDevices || "-" },
+      { label: "Organization hierarchy", value: organizationHierarchyConfig?.enabled ? "enabled" : "disabled" },
+      { label: "Default assignment strategy", value: organizationHierarchyConfig?.defaultAssignmentStrategy || "-" },
+      { label: "Max hierarchy depth", value: organizationHierarchyConfig?.maxTraversalDepth || "-" },
+      { label: "Notifications", value: notificationsConfig?.enabled ? "enabled" : "disabled" },
+      { label: "Notification sender", value: notificationsConfig?.senderAddress || "-" },
+      { label: "Notification audit", value: notificationsConfig?.auditEnabled ? "enabled" : "disabled" },
+      { label: "Liquibase", value: databaseMigrationConfig?.liquibaseEnabled ? "enabled" : "disabled" },
+      { label: "Liquibase changelog", value: databaseMigrationConfig?.changelogPath || "-" },
+      { label: "Liquibase contexts", value: databaseMigrationConfig?.contexts || "-" },
+      { label: "Process catalog", value: processModelingConfig?.enabled ? "enabled" : "disabled" },
+      { label: "Process versioning strategy", value: processModelingConfig?.versioningStrategy || "-" },
+      { label: "Max versions/model", value: processModelingConfig?.maxVersionsPerModel || "-" },
+      { label: "Direct deployment from draft", value: processModelingConfig?.allowDirectDeployment ? "enabled" : "disabled" },
+      { label: "Backend BDD (Cucumber)", value: testAutomationConfig?.backendBddCucumberEnabled ? "enabled" : "disabled" },
+      { label: "Frontend E2E (Cypress)", value: testAutomationConfig?.frontendE2eCypressEnabled ? "enabled" : "disabled" },
+      { label: "Feature packs", value: featurePacks.join(", ") || "-" },
+    ]),
+  ].join("");
+
+  const managedFilesKpi = documentRef.getElementById("kpi-managed-files");
+  const featurePacksKpi = documentRef.getElementById("kpi-feature-packs");
+  const templateOverridesKpi = documentRef.getElementById("kpi-template-overrides");
+  if (managedFilesKpi) {
+    managedFilesKpi.textContent = String(Number(management.managedFilesCount || 0));
+  }
+  if (featurePacksKpi) {
+    featurePacksKpi.textContent = String(Number(management.activeFeaturePackCount || 0));
+  }
+  if (templateOverridesKpi) {
+    templateOverridesKpi.textContent = String(Number(templateCustomizationSummary.total || 0));
+  }
 
   const managementLine = documentRef.getElementById("management-line");
   managementLine.textContent =
-    "Projet manage dans " + describeGeneratedRoot(management.generatedRoot) +
-    " | Version projet " + (management.projectEditorVersion || management.editorVersion) +
-    " | Version editeur " + management.editorVersion +
-    " | Fichiers suivis " + management.managedFilesCount +
-    " | Template overrides " + Number(templateCustomizationSummary.total || 0);
+    "Managed root: " + describeGeneratedRoot(management.generatedRoot) +
+    " | Project editor version: " + (management.projectEditorVersion || management.editorVersion) +
+    " | Current editor version: " + management.editorVersion +
+    " | Tracked files: " + management.managedFilesCount +
+    " | Template overrides: " + Number(templateCustomizationSummary.total || 0);
 
   const migrateButton = documentRef.getElementById("migrate-button");
   const migrateFeedback = documentRef.getElementById("migrate-feedback");
@@ -77,11 +121,11 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
     migrateButton.classList.remove("hidden");
     setFeedback(
       migrateFeedback,
-      "Une migration est disponible pour aligner le projet avec la version courante de l'editeur.",
+      "A smart migration is available to align this workspace with the current editor version.",
     );
   } else {
     migrateButton.classList.add("hidden");
-    setFeedback(migrateFeedback, "Projet deja aligne avec la version editeur courante.", "success");
+    setFeedback(migrateFeedback, "Workspace is already aligned with the current editor version.", "success");
   }
 
   migrateButton.onclick = async () => {
@@ -99,7 +143,7 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
         windowRef.location.reload();
       }, 1100);
     } catch (error) {
-      setFeedback(migrateFeedback, error.message || "Erreur de migration.", "error");
+      setFeedback(migrateFeedback, error.message || "Migration failed.", "error");
       migrateButton.disabled = false;
     }
   };

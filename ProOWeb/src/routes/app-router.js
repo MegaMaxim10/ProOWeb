@@ -56,6 +56,52 @@ function createAppRouter({
     }
 
     if (processModelController) {
+      if (method === "GET" && url.pathname === "/api/process-models/automatic-task-catalog") {
+        processModelController.handleReadAutomaticTaskCatalog(request, response);
+        return;
+      }
+
+      if (method === "PUT" && url.pathname === "/api/process-models/automatic-task-catalog") {
+        processModelController.handleSaveAutomaticTaskCatalog(request, response);
+        return;
+      }
+
+      if (
+        method === "GET"
+        && pathSegments.length === 6
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[2] === "automatic-task-catalog"
+        && pathSegments[3] === "task-types"
+        && pathSegments[5] === "source"
+      ) {
+        const taskTypeKey = decodeURIComponent(pathSegments[4]);
+        processModelController.handleReadAutomaticTaskTypeSource(
+          request,
+          response,
+          taskTypeKey,
+        );
+        return;
+      }
+
+      if (
+        method === "PUT"
+        && pathSegments.length === 6
+        && pathSegments[0] === "api"
+        && pathSegments[1] === "process-models"
+        && pathSegments[2] === "automatic-task-catalog"
+        && pathSegments[3] === "task-types"
+        && pathSegments[5] === "source"
+      ) {
+        const taskTypeKey = decodeURIComponent(pathSegments[4]);
+        processModelController.handleSaveAutomaticTaskTypeSource(
+          request,
+          response,
+          taskTypeKey,
+        );
+        return;
+      }
+
       if (method === "GET" && url.pathname === "/api/process-models") {
         processModelController.handleListProcessModels(request, response);
         return;

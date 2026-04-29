@@ -4,6 +4,33 @@ export function fetchProcessModels() {
   return requestJson("/api/process-models");
 }
 
+export function fetchAutomaticTaskCatalog() {
+  return requestJson("/api/process-models/automatic-task-catalog");
+}
+
+export function saveAutomaticTaskCatalog(payload) {
+  return requestJson("/api/process-models/automatic-task-catalog", {
+    method: "PUT",
+    body: payload,
+  });
+}
+
+export function fetchAutomaticTaskTypeSource(taskTypeKey) {
+  return requestJson(
+    `/api/process-models/automatic-task-catalog/task-types/${encodeURIComponent(taskTypeKey)}/source`,
+  );
+}
+
+export function saveAutomaticTaskTypeSource(taskTypeKey, payload) {
+  return requestJson(
+    `/api/process-models/automatic-task-catalog/task-types/${encodeURIComponent(taskTypeKey)}/source`,
+    {
+      method: "PUT",
+      body: payload,
+    },
+  );
+}
+
 export function createProcessModel(payload) {
   return requestJson("/api/process-models", {
     method: "POST",
