@@ -12,6 +12,11 @@ const {
 const { generateWorkspace } = require("../lib/generator");
 const { applyGitRepositoryPolicy } = require("../lib/git");
 const { runSmartMigration } = require("../lib/migration");
+const {
+  listTemplateOverrides,
+  upsertTemplateOverride,
+  removeTemplateOverride,
+} = require("../lib/template-governance");
 const { createServiceError } = require("../errors/service-error");
 
 function resolveMigrationMode(payload) {
@@ -36,17 +41,39 @@ function createWorkspaceService(dependencies = {}) {
     generateWorkspace,
     applyGitRepositoryPolicy,
     runSmartMigration,
+    listTemplateOverrides,
+    upsertTemplateOverride,
+    removeTemplateOverride,
     ...dependencies,
   };
 
   function getWorkspaceStatus() {
     const initialized = deps.isWorkspaceInitialized();
     const config = initialized ? deps.readWorkspaceConfig() : null;
+    let templateCustomization = null;
+    if (initialized) {
+      try {
+        templateCustomization = deps.listTemplateOverrides(deps.rootDir);
+      } catch (error) {
+        templateCustomization = {
+          summary: {
+            total: 0,
+            enabled: 0,
+            missingSourceFiles: 0,
+          },
+          diagnostics: {
+            loadError: error.message || "Template overrides could not be loaded.",
+          },
+          overrides: [],
+        };
+      }
+    }
 
     return {
       initialized,
       workspace: deps.toPublicWorkspaceConfig(config),
       management: deps.getManagementStatus(config),
+      templateCustomization,
     };
   }
 
@@ -124,11 +151,49 @@ function createWorkspaceService(dependencies = {}) {
     };
   }
 
+  function listWorkspaceTemplateOverrides() {
+    if (!deps.isWorkspaceInitialized()) {
+      throw createServiceError(409, "Workspace is not initialized.");
+    }
+
+    return deps.listTemplateOverrides(deps.rootDir);
+  }
+
+  function saveWorkspaceTemplateOverride(payload) {
+    if (!deps.isWorkspaceInitialized()) {
+      throw createServiceError(409, "Workspace is not initialized.");
+    }
+
+    const result = deps.upsertTemplateOverride(deps.rootDir, payload || {});
+    return {
+      message: "Template override saved.",
+      override: result.override,
+      templateCustomization: deps.listTemplateOverrides(deps.rootDir),
+    };
+  }
+
+  function deleteWorkspaceTemplateOverride(overrideId, payload = {}) {
+    if (!deps.isWorkspaceInitialized()) {
+      throw createServiceError(409, "Workspace is not initialized.");
+    }
+
+    const result = deps.removeTemplateOverride(deps.rootDir, overrideId, payload);
+    return {
+      message: result.removed ? "Template override deleted." : "Template override not found.",
+      removed: result.removed,
+      overrideId: result.overrideId,
+      templateCustomization: deps.listTemplateOverrides(deps.rootDir),
+    };
+  }
+
   return {
     getWorkspaceStatus,
     initializeWorkspace,
     migrateWorkspace,
     reconfigureWorkspace,
+    listWorkspaceTemplateOverrides,
+    saveWorkspaceTemplateOverride,
+    deleteWorkspaceTemplateOverride,
   };
 }
 

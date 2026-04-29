@@ -155,7 +155,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - `.prooweb/backups/<migration-id>/<file>`
 - handles path collisions (unmanaged file present on now-managed path) with backup + overwrite,
 - returns detailed report:
-  - counters (`created`, `updated`, `unchanged`, `conflictsResolved`, `collisionsResolved`, `backupsCreated`),
+  - counters (`created`, `updated`, `unchanged`, `conflictsResolved`, `collisionsResolved`, `backupsCreated`, `filesWithOverrides`, `overrideApplications`, `overrideSkips`),
   - per-file details,
   - backup root path.
 
@@ -167,6 +167,23 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
   - feature-pack delta (`added`, `removed`, `unchanged`),
   - per-file actions (`created`, `updated`, `conflictsResolved`, `collisionsResolved`, `staleManagedFiles`),
   - backup traceability.
+
+## Template Customization and Evolution Governance (Step 21)
+
+- Durable overrides are stored in the workspace under:
+  - `.prooweb/template-overrides.json` (registry)
+  - `.prooweb/template-overrides/*.txt` (override source payloads)
+- Supported override strategies:
+  - `replace`
+  - `prepend`
+  - `append`
+  - `replace-block` (requires `matchText`, optional `replacementText`)
+- Override management APIs:
+  - `GET /api/template-overrides`
+  - `POST /api/template-overrides`
+  - `DELETE /api/template-overrides/{overrideId}`
+- Generation, migration, and process deployment apply overrides deterministically (priority descending, then id).
+- Migration/deployment reports expose override activity so teams can audit which customizations were applied or skipped.
 
 ## Process Modeling and Deployment
 
@@ -231,6 +248,7 @@ ProOWeb applies it across generated Java source paths and Maven `groupId` refere
     - `src/frontend/web/react/src/modules/processes/generatedProcessDataLineageCatalog.js`
 - If a managed generated file was manually modified, deployment creates backup before overwrite:
   - `.prooweb/backups/process-deploy-<id>/...`
+- Process deployment now applies the same template override runtime used by workspace generation/migration, so deployed process artifacts remain customization-safe across upgrades.
 
 ## Safe Promotion Pipeline (Step 20)
 

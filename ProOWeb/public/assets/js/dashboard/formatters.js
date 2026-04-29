@@ -17,6 +17,8 @@ export function buildMigrationSummary(migration) {
     "conflits resolus " + summary.conflictsResolved,
     "collisions resolues " + summary.collisionsResolved,
     "backups " + summary.backupsCreated,
+    "fichiers customises " + Number(summary.filesWithOverrides || 0),
+    "overrides appliques " + Number(summary.overrideApplications || 0),
   ].join(" | ");
 }
 
@@ -57,6 +59,9 @@ export function buildDetailedMigrationReport(migration) {
     "- collisions resolved: " + Number(summary.collisionsResolved || 0),
     "- backups created: " + Number(summary.backupsCreated || 0),
     "- stale managed files: " + Number(summary.staleManagedFiles || 0),
+    "- files with template overrides: " + Number(summary.filesWithOverrides || 0),
+    "- template overrides applied: " + Number(summary.overrideApplications || 0),
+    "- template overrides skipped: " + Number(summary.overrideSkips || 0),
   ];
 
   const featurePacks = migration.featurePacks || {};
@@ -73,6 +78,19 @@ export function buildDetailedMigrationReport(migration) {
   appendPaths(lines, "Collisions resolved", details.collisionsResolved);
   appendPaths(lines, "Stale managed files", details.staleManagedFiles);
   appendPaths(lines, "Backup files", details.backups);
+
+  if (Array.isArray(details.overrideSkips) && details.overrideSkips.length > 0) {
+    lines.push("");
+    lines.push("Template override skips:");
+    for (const entry of details.overrideSkips) {
+      const pathLabel = entry?.path ? `- ${entry.path}` : "- (unknown path)";
+      lines.push(pathLabel);
+      const skips = Array.isArray(entry?.skips) ? entry.skips : [];
+      for (const skip of skips) {
+        lines.push("  * " + (skip.id || "unknown") + " -> " + (skip.reason || "skipped"));
+      }
+    }
+  }
 
   return lines.join("\n");
 }

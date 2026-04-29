@@ -55,6 +55,7 @@ The product position is intentionally between:
 - Generated files are tracked in `.prooweb-managed.json`.
 - Developers are allowed to edit generated source files manually.
 - Smart migration must detect manual edits in managed files and resolve through backup + explicit reporting.
+- Durable template customizations are declared under `.prooweb/template-overrides*` and applied deterministically during generation, migration, and deployment.
 - Unmanaged files remain untouched by regeneration.
 
 ## 7. Security and Compliance

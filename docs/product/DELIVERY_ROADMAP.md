@@ -125,6 +125,11 @@ This roadmap defines the phased construction plan and acceptance criteria.
 - Provide frontend/backend template management with durable developer overrides.
 - Maintain continuous intelligent migration across ProOWeb versions without breaking customizations.
 - Exit criteria: long-term customization and upgrades coexist safely.
+- Current implementation baseline:
+  - template override registry and payload sources under `.prooweb/template-overrides*`,
+  - override strategies (`replace`, `prepend`, `append`, `replace-block`) applied during generation, migration, and process deployment,
+  - dashboard/API lifecycle to list/create/update/delete overrides,
+  - migration/deployment reporting enriched with override application/skip counters.
 
 ## Program-Wide Cross-Cutting Tracks
 - Documentation in English only.

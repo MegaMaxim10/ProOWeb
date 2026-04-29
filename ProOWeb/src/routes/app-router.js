@@ -32,7 +32,28 @@ function createAppRouter({
       return;
     }
 
+    if (method === "GET" && url.pathname === "/api/template-overrides") {
+      workspaceController.handleListTemplateOverrides(request, response);
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/template-overrides") {
+      workspaceController.handleSaveTemplateOverride(request, response);
+      return;
+    }
+
     const pathSegments = url.pathname.split("/").filter(Boolean);
+
+    if (
+      method === "DELETE"
+      && pathSegments.length === 3
+      && pathSegments[0] === "api"
+      && pathSegments[1] === "template-overrides"
+    ) {
+      const overrideId = decodeURIComponent(pathSegments[2]);
+      workspaceController.handleDeleteTemplateOverride(request, response, overrideId);
+      return;
+    }
 
     if (processModelController) {
       if (method === "GET" && url.pathname === "/api/process-models") {

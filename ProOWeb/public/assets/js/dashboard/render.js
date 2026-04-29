@@ -9,6 +9,7 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
 
   const workspace = status.workspace;
   const management = status.management;
+  const templateCustomizationSummary = status.templateCustomization?.summary || {};
 
   documentRef.getElementById("project-title").textContent = workspace.project.title;
   documentRef.getElementById("stack-line").textContent =
@@ -66,7 +67,8 @@ export function renderWorkspaceStatus({ status, onMigrate, windowRef = window, d
     "Projet manage dans " + describeGeneratedRoot(management.generatedRoot) +
     " | Version projet " + (management.projectEditorVersion || management.editorVersion) +
     " | Version editeur " + management.editorVersion +
-    " | Fichiers suivis " + management.managedFilesCount;
+    " | Fichiers suivis " + management.managedFilesCount +
+    " | Template overrides " + Number(templateCustomizationSummary.total || 0);
 
   const migrateButton = documentRef.getElementById("migrate-button");
   const migrateFeedback = documentRef.getElementById("migrate-feedback");

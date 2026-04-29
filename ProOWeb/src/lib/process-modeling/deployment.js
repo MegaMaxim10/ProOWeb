@@ -1,6 +1,10 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const {
+  loadTemplateOverrideRuntime,
+  applyTemplateOverridesToFile,
+} = require("../template-governance");
 
 const {
   createCatalogError,
@@ -5127,7 +5131,22 @@ function buildDeploymentRecordKey(modelKey, versionNumber) {
   return `${normalizeModelKey(modelKey)}::${normalizeVersionNumber(versionNumber)}`;
 }
 
-function buildManagedDeploymentPlan({ workspaceConfig, deployedRecords }) {
+function applyTemplateOverridesOnDeploymentFile(templateOverrideRuntime, file) {
+  const overrideResult = applyTemplateOverridesToFile(
+    templateOverrideRuntime,
+    toPosixPath(file.relativePath),
+    file.content,
+  );
+
+  return {
+    ...file,
+    content: overrideResult.content,
+    templateOverrides: overrideResult.appliedOverrides,
+    templateOverrideSkips: overrideResult.skippedOverrides,
+  };
+}
+
+function buildManagedDeploymentPlan({ workspaceConfig, deployedRecords, templateOverrideRuntime }) {
   const fileByPath = new Map();
   const buildByRecord = new Map();
 
@@ -5144,7 +5163,8 @@ function buildManagedDeploymentPlan({ workspaceConfig, deployedRecords }) {
     );
 
     for (const file of build.files) {
-      fileByPath.set(toPosixPath(file.relativePath), file);
+      const overrideAwareFile = applyTemplateOverridesOnDeploymentFile(templateOverrideRuntime, file);
+      fileByPath.set(toPosixPath(file.relativePath), overrideAwareFile);
     }
   }
 
@@ -5189,18 +5209,51 @@ function buildManagedDeploymentPlan({ workspaceConfig, deployedRecords }) {
     ];
 
     for (const file of fallbackFiles) {
-      fileByPath.set(toPosixPath(file.relativePath), file);
+      const overrideAwareFile = applyTemplateOverridesOnDeploymentFile(templateOverrideRuntime, file);
+      fileByPath.set(toPosixPath(file.relativePath), overrideAwareFile);
     }
   }
 
+  const files = Array.from(fileByPath.values());
+  const overrideApplications = files.reduce(
+    (count, file) => count + (Array.isArray(file.templateOverrides) ? file.templateOverrides.length : 0),
+    0,
+  );
+  const filesWithOverrides = files.reduce(
+    (count, file) => count + (Array.isArray(file.templateOverrides) && file.templateOverrides.length > 0 ? 1 : 0),
+    0,
+  );
+  const overrideSkips = files.reduce(
+    (count, file) => count + (Array.isArray(file.templateOverrideSkips) ? file.templateOverrideSkips.length : 0),
+    0,
+  );
+
   return {
-    files: Array.from(fileByPath.values()),
+    files,
     buildByRecord,
+    templateCustomization: {
+      filesWithOverrides,
+      overrideApplications,
+      overrideSkips,
+      overridesMissingSources: templateOverrideRuntime?.diagnostics?.missingSourceFiles?.length || 0,
+    },
   };
 }
 
 function applyManagedDeploymentWrite(rootDir, files, deploymentId, options = {}) {
   const removeMissing = Boolean(options.removeMissing);
+  const filesWithOverrides = files.reduce(
+    (count, file) => count + (Array.isArray(file.templateOverrides) && file.templateOverrides.length > 0 ? 1 : 0),
+    0,
+  );
+  const overrideApplications = files.reduce(
+    (count, file) => count + (Array.isArray(file.templateOverrides) ? file.templateOverrides.length : 0),
+    0,
+  );
+  const overrideSkips = files.reduce(
+    (count, file) => count + (Array.isArray(file.templateOverrideSkips) ? file.templateOverrideSkips.length : 0),
+    0,
+  );
   const report = {
     deploymentId,
     backupRoot: toPosixPath(path.join(".prooweb", "backups", deploymentId)),
@@ -5213,6 +5266,9 @@ function applyManagedDeploymentWrite(rootDir, files, deploymentId, options = {})
       conflictsResolved: 0,
       collisionsResolved: 0,
       backupsCreated: 0,
+      filesWithOverrides,
+      overrideApplications,
+      overrideSkips,
     },
     details: {
       created: [],
@@ -5222,6 +5278,7 @@ function applyManagedDeploymentWrite(rootDir, files, deploymentId, options = {})
       conflictsResolved: [],
       collisionsResolved: [],
       backups: [],
+      overrideSkips: [],
     },
   };
 
@@ -5241,12 +5298,20 @@ function applyManagedDeploymentWrite(rootDir, files, deploymentId, options = {})
       fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
       fs.writeFileSync(absolutePath, file.content, "utf8");
       report.summary.created += 1;
-      report.details.created.push({ path: relativePath, kind: file.kind });
+      report.details.created.push({
+        path: relativePath,
+        kind: file.kind,
+        templateOverrides: file.templateOverrides || [],
+      });
+      if (Array.isArray(file.templateOverrideSkips) && file.templateOverrideSkips.length > 0) {
+        report.details.overrideSkips.push({ path: relativePath, skips: file.templateOverrideSkips });
+      }
       filesIndex[relativePath] = {
         sha256: newHash,
         modelKey: file.modelKey,
         versionNumber: file.versionNumber,
         kind: file.kind,
+        templateOverrides: file.templateOverrides || [],
         updatedAt: new Date().toISOString(),
       };
       continue;
@@ -5256,12 +5321,20 @@ function applyManagedDeploymentWrite(rootDir, files, deploymentId, options = {})
 
     if (currentHash === newHash) {
       report.summary.unchanged += 1;
-      report.details.unchanged.push({ path: relativePath, kind: file.kind });
+      report.details.unchanged.push({
+        path: relativePath,
+        kind: file.kind,
+        templateOverrides: file.templateOverrides || [],
+      });
+      if (Array.isArray(file.templateOverrideSkips) && file.templateOverrideSkips.length > 0) {
+        report.details.overrideSkips.push({ path: relativePath, skips: file.templateOverrideSkips });
+      }
       filesIndex[relativePath] = {
         sha256: newHash,
         modelKey: file.modelKey,
         versionNumber: file.versionNumber,
         kind: file.kind,
+        templateOverrides: file.templateOverrides || [],
         updatedAt: new Date().toISOString(),
       };
       continue;
@@ -5282,7 +5355,11 @@ function applyManagedDeploymentWrite(rootDir, files, deploymentId, options = {})
         previousManagedHash: previousManaged.sha256,
         currentHash,
         newHash,
+        templateOverrides: file.templateOverrides || [],
       });
+      if (Array.isArray(file.templateOverrideSkips) && file.templateOverrideSkips.length > 0) {
+        report.details.overrideSkips.push({ path: relativePath, skips: file.templateOverrideSkips });
+      }
 
       fs.writeFileSync(absolutePath, file.content, "utf8");
       filesIndex[relativePath] = {
@@ -5290,6 +5367,7 @@ function applyManagedDeploymentWrite(rootDir, files, deploymentId, options = {})
         modelKey: file.modelKey,
         versionNumber: file.versionNumber,
         kind: file.kind,
+        templateOverrides: file.templateOverrides || [],
         updatedAt: new Date().toISOString(),
       };
       continue;
@@ -5306,7 +5384,11 @@ function applyManagedDeploymentWrite(rootDir, files, deploymentId, options = {})
         backupPath,
         currentHash,
         newHash,
+        templateOverrides: file.templateOverrides || [],
       });
+      if (Array.isArray(file.templateOverrideSkips) && file.templateOverrideSkips.length > 0) {
+        report.details.overrideSkips.push({ path: relativePath, skips: file.templateOverrideSkips });
+      }
 
       fs.writeFileSync(absolutePath, file.content, "utf8");
       filesIndex[relativePath] = {
@@ -5314,6 +5396,7 @@ function applyManagedDeploymentWrite(rootDir, files, deploymentId, options = {})
         modelKey: file.modelKey,
         versionNumber: file.versionNumber,
         kind: file.kind,
+        templateOverrides: file.templateOverrides || [],
         updatedAt: new Date().toISOString(),
       };
       continue;
@@ -5326,12 +5409,17 @@ function applyManagedDeploymentWrite(rootDir, files, deploymentId, options = {})
       kind: file.kind,
       currentHash,
       newHash,
+      templateOverrides: file.templateOverrides || [],
     });
+    if (Array.isArray(file.templateOverrideSkips) && file.templateOverrideSkips.length > 0) {
+      report.details.overrideSkips.push({ path: relativePath, skips: file.templateOverrideSkips });
+    }
     filesIndex[relativePath] = {
       sha256: newHash,
       modelKey: file.modelKey,
       versionNumber: file.versionNumber,
       kind: file.kind,
+      templateOverrides: file.templateOverrides || [],
       updatedAt: new Date().toISOString(),
     };
   }
@@ -5437,12 +5525,14 @@ function deployProcessModelVersion({ rootDir, workspaceConfig, modelKey, version
   const savedModel = saveProcessModel(rootDir, model);
   const savedVersion = savedModel.versions.find((entry) => entry.versionNumber === normalizedVersion);
 
+  const templateOverrideRuntime = loadTemplateOverrideRuntime(rootDir);
   const deployedRecords = listDeployedModels(rootDir)
     .map((entry) => ({ model: entry.model, version: entry.version }))
     .sort((left, right) => left.model.modelKey.localeCompare(right.model.modelKey));
   const deploymentPlan = buildManagedDeploymentPlan({
     workspaceConfig,
     deployedRecords,
+    templateOverrideRuntime,
   });
   const deploymentBuild = deploymentPlan.buildByRecord.get(
     buildDeploymentRecordKey(savedModel.modelKey, savedVersion.versionNumber),
@@ -5539,9 +5629,11 @@ function undeployProcessModelVersion({ rootDir, workspaceConfig, modelKey, versi
   const deployedRecords = listDeployedModels(rootDir)
     .map((entry) => ({ model: entry.model, version: entry.version }))
     .sort((left, right) => left.model.modelKey.localeCompare(right.model.modelKey));
+  const templateOverrideRuntime = loadTemplateOverrideRuntime(rootDir);
   const deploymentPlan = buildManagedDeploymentPlan({
     workspaceConfig,
     deployedRecords,
+    templateOverrideRuntime,
   });
   const generatedFiles = deploymentPlan.files;
 

@@ -1,6 +1,10 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const {
+  loadTemplateOverrideRuntime,
+  applyTemplateOverridesToFile,
+} = require("./template-governance");
 
 const PROFILE_PORTS = {
   dev: { backend: 8080, frontend: 3000, database: 5432 },
@@ -73,22 +77,31 @@ function applyPackageTransform(targetPath, content, packageTransform) {
 function makeWriter(rootDir, registry, options = {}) {
   const resolvedRoot = path.resolve(rootDir);
   const packageTransform = options.packageTransform || null;
+  const templateOverrideRuntime = options.templateOverrideRuntime || null;
 
   return function writeManagedFile(targetPath, content, metadata = {}) {
     const transformed = applyPackageTransform(targetPath, content, packageTransform);
+    const relativePath = toPosixPath(path.relative(resolvedRoot, transformed.targetPath));
+    const overrideResult = applyTemplateOverridesToFile(
+      templateOverrideRuntime,
+      relativePath,
+      transformed.content,
+    );
+    const finalContent = overrideResult.content;
 
     fs.mkdirSync(path.dirname(transformed.targetPath), { recursive: true });
-    fs.writeFileSync(transformed.targetPath, transformed.content, "utf8");
+    fs.writeFileSync(transformed.targetPath, finalContent, "utf8");
 
-    const relativePath = toPosixPath(path.relative(resolvedRoot, transformed.targetPath));
     const owners = Array.isArray(metadata.owners)
       ? Array.from(new Set(metadata.owners.map((owner) => String(owner).trim()).filter(Boolean)))
       : [];
     registry.push({
       path: relativePath,
-      sha256: hashContent(transformed.content),
+      sha256: hashContent(finalContent),
       owners,
       category: metadata.category || null,
+      templateOverrides: overrideResult.appliedOverrides,
+      templateOverrideSkips: overrideResult.skippedOverrides,
     });
   };
 }
@@ -335,10 +348,10 @@ function writeFiles(baseDir, definitions, writeManagedFile, options = {}) {
   const defaultOwners = Array.isArray(options.owners) ? options.owners : [];
   const defaultCategory = options.category || null;
 
-  for (const { relativePath, content } of definitions) {
+  for (const { relativePath, content, owners, category } of definitions) {
     writeManagedFile(path.join(baseDir, relativePath), content, {
-      owners: defaultOwners,
-      category: defaultCategory,
+      owners: Array.isArray(owners) ? owners : defaultOwners,
+      category: category || defaultCategory,
     });
   }
 }
@@ -1777,11 +1790,16 @@ function generateWorkspace(rootDir, config, options = {}) {
     ...config,
     featurePacks: generationPlan.normalizedFeaturePacks,
   };
+  const templateOverridesRootDir = options.templateOverridesRootDir || rootDir;
+  const templateOverrideRuntime = loadTemplateOverrideRuntime(templateOverridesRootDir);
   const generatedRoot = effectiveConfig.managedBy?.generatedRoot || "root";
   const projectRoot = resolveProjectRoot(rootDir, generatedRoot);
   const managedFiles = [];
   const packageTransform = createPackageTransform(effectiveConfig);
-  const writeManagedFile = makeWriter(rootDir, managedFiles, { packageTransform });
+  const writeManagedFile = makeWriter(rootDir, managedFiles, {
+    packageTransform,
+    templateOverrideRuntime,
+  });
 
   fs.mkdirSync(projectRoot, { recursive: true });
 
@@ -1807,6 +1825,13 @@ function generateWorkspace(rootDir, config, options = {}) {
       mode: generationPlan.mode,
       requested: generationPlan.requestedPackIds,
       active: generationPlan.activePackIds,
+    },
+    templateCustomization: {
+      overridesDefined: templateOverrideRuntime.registry.overrides.length,
+      overridesMissingSources: templateOverrideRuntime.diagnostics.missingSourceFiles.length,
+      filesWithOverrides: managedFiles.filter(
+        (entry) => Array.isArray(entry.templateOverrides) && entry.templateOverrides.length > 0,
+      ).length,
     },
     writtenFiles: managedFiles,
   };

@@ -17,6 +17,7 @@
           <a href="#overview">Vue generale</a>
           <a href="#management">Gestion projet manage</a>
           <a href="#reconfigure">Reconfiguration</a>
+          <a href="#template-governance">Template governance</a>
           <a href="#org-model">Modele organisationnel</a>
           <a href="#process-model">Flux BPMN</a>
           <a href="#data-model">Modele de donnees</a>
@@ -235,6 +236,86 @@
           </form>
 
           <pre id="reconfigure-report" class="tree-view"></pre>
+        </section>
+
+        <section id="template-governance" class="panel">
+          <h3>Step 21 - Template Customization and Evolution Governance</h3>
+          <p class="muted">
+            Define durable template overrides under <code>.prooweb/template-overrides</code> so upgrades and regenerations keep your custom behavior.
+          </p>
+
+          <form id="template-override-form" class="wizard-form" novalidate>
+            <label>
+              Override ID (optional for create, required to update exact entry)
+              <input type="text" name="id" placeholder="frontend-shell-branding" />
+            </label>
+            <label>
+              Target project path
+              <input type="text" name="targetPath" placeholder="src/frontend/web/react/src/ShellApp.jsx" required />
+            </label>
+            <label>
+              Source file path (optional)
+              <input type="text" name="sourcePath" placeholder=".prooweb/template-overrides/frontend-shell-branding.txt" />
+            </label>
+            <label>
+              Strategy
+              <select name="strategy">
+                <option value="replace">replace</option>
+                <option value="prepend">prepend</option>
+                <option value="append">append</option>
+                <option value="replace-block">replace-block</option>
+              </select>
+            </label>
+            <label>
+              Priority (higher executes first)
+              <input type="number" name="priority" value="100" />
+            </label>
+            <label class="inline-row">
+              <input type="checkbox" name="enabled" checked />
+              Enabled
+            </label>
+            <label>
+              Match text (for <code>replace-block</code>)
+              <textarea name="matchText" rows="3" placeholder="text to replace in generated content"></textarea>
+            </label>
+            <label>
+              Replacement text (optional, for <code>replace-block</code>)
+              <textarea name="replacementText" rows="3" placeholder="leave empty to use source content"></textarea>
+            </label>
+            <label>
+              Description
+              <input type="text" name="description" placeholder="Branding header override" />
+            </label>
+            <label>
+              Source content (saved to source file)
+              <textarea name="sourceContent" rows="8" placeholder="Override content"></textarea>
+            </label>
+            <div class="inline-row">
+              <button type="submit">Save override</button>
+              <button id="template-override-clear" type="button">Clear form</button>
+            </div>
+            <p id="template-override-feedback" class="feedback" aria-live="polite"></p>
+          </form>
+
+          <pre id="template-override-summary" class="tree-view"></pre>
+
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Target path</th>
+                  <th>Strategy</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Source path</th>
+                  <th>Edit</th>
+                  <th>Delete</th>
+                </tr>
+              </thead>
+              <tbody id="template-override-rows"></tbody>
+            </table>
+          </div>
         </section>
 
         <section id="process-model" class="panel">

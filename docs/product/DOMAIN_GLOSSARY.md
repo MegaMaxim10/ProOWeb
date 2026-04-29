@@ -61,6 +61,8 @@
 
 ## T
 - Template Ownership: rule specifying whether a file is managed by generator templates or unmanaged.
+- Template Override: explicit customization rule that transforms generated content for a target file (`replace`, `prepend`, `append`, `replace-block`).
+- Template Override Registry: workspace metadata file (`.prooweb/template-overrides.json`) that tracks override identity, strategy, source path, and priority.
 - TOTP/OTP: multi-factor authentication mechanisms for one-time passcodes.
 
 ## U

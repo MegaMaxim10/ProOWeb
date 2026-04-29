@@ -29,3 +29,6 @@ Profiles (`dev`, `demo`, `test`, `preprod`, `prod`) are explicit and consistentl
 
 ## 10. Documentation Discipline
 Architecture-impacting changes require updates to English documentation and ADR records.
+
+## 11. Deterministic Customization Governance
+Template overrides are explicit, versioned, and deterministic so generated upgrades can coexist with durable team customizations.

@@ -25,3 +25,4 @@ This folder contains the canonical English documentation for ProOWeb product phi
 - `ADR-0011`: Editor-side process modeling catalog with deployment-triggered source generation.
 - `ADR-0012`: Runtime contract generation from deployed process specifications.
 - `ADR-0013`: Process data and mapping contract with generated lineage catalogs.
+- `ADR-0014`: Template customization and evolution governance.

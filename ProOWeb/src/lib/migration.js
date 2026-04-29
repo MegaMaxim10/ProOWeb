@@ -106,11 +106,14 @@ function buildBaselineMap(rootDir, currentConfig) {
   };
 }
 
-function createGenerationSnapshot(targetConfig, mode) {
+function createGenerationSnapshot(targetConfig, mode, options = {}) {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "prooweb-migrate-"));
 
   try {
-    const generation = generateWorkspace(tempRoot, targetConfig, { mode });
+    const generation = generateWorkspace(tempRoot, targetConfig, {
+      mode,
+      templateOverridesRootDir: options.templateOverridesRootDir || tempRoot,
+    });
     const generatedFiles = generation.writtenFiles.map((entry) => {
       const relPath = normalizePath(entry.path);
       const absPath = resolveProjectFilePath(tempRoot, relPath);
@@ -121,6 +124,8 @@ function createGenerationSnapshot(targetConfig, mode) {
         sha256: entry.sha256,
         owners: Array.isArray(entry.owners) ? entry.owners : [],
         category: entry.category || null,
+        templateOverrides: Array.isArray(entry.templateOverrides) ? entry.templateOverrides : [],
+        templateOverrideSkips: Array.isArray(entry.templateOverrideSkips) ? entry.templateOverrideSkips : [],
         content,
       };
     });
@@ -141,8 +146,22 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
   const { baselineMap } = buildBaselineMap(rootDir, currentConfig);
   const featurePackChangeSet = compareFeaturePackSelection(currentConfig, targetConfig);
 
-  const snapshot = createGenerationSnapshot(targetConfig, mode);
+  const snapshot = createGenerationSnapshot(targetConfig, mode, {
+    templateOverridesRootDir: rootDir,
+  });
   const generatedPaths = new Set(snapshot.generatedFiles.map((file) => file.path));
+  const overrideApplications = snapshot.generatedFiles.reduce(
+    (count, file) => count + (Array.isArray(file.templateOverrides) ? file.templateOverrides.length : 0),
+    0,
+  );
+  const overrideSkips = snapshot.generatedFiles.reduce(
+    (count, file) => count + (Array.isArray(file.templateOverrideSkips) ? file.templateOverrideSkips.length : 0),
+    0,
+  );
+  const filesWithOverrides = snapshot.generatedFiles.reduce(
+    (count, file) => count + (Array.isArray(file.templateOverrides) && file.templateOverrides.length > 0 ? 1 : 0),
+    0,
+  );
 
   const report = {
     migrationId,
@@ -157,6 +176,9 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
       collisionsResolved: 0,
       backupsCreated: 0,
       staleManagedFiles: 0,
+      filesWithOverrides,
+      overrideApplications,
+      overrideSkips,
     },
     details: {
       created: [],
@@ -166,6 +188,7 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
       collisionsResolved: [],
       staleManagedFiles: [],
       backups: [],
+      overrideSkips: [],
     },
     featurePacks: {
       current: featurePackChangeSet.current,
@@ -209,7 +232,14 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
           action: "create",
           owners: generatedFile.owners,
           category: generatedFile.category,
+          templateOverrides: generatedFile.templateOverrides,
         });
+        if (generatedFile.templateOverrideSkips.length > 0) {
+          report.details.overrideSkips.push({
+            path: relPath,
+            skips: generatedFile.templateOverrideSkips,
+          });
+        }
         continue;
       }
 
@@ -220,7 +250,14 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
           action: "unchanged",
           owners: generatedFile.owners,
           category: generatedFile.category,
+          templateOverrides: generatedFile.templateOverrides,
         });
+        if (generatedFile.templateOverrideSkips.length > 0) {
+          report.details.overrideSkips.push({
+            path: relPath,
+            skips: generatedFile.templateOverrideSkips,
+          });
+        }
         continue;
       }
 
@@ -244,7 +281,14 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
           backupPath,
           owners: generatedFile.owners,
           category: generatedFile.category,
+          templateOverrides: generatedFile.templateOverrides,
         });
+        if (generatedFile.templateOverrideSkips.length > 0) {
+          report.details.overrideSkips.push({
+            path: relPath,
+            skips: generatedFile.templateOverrideSkips,
+          });
+        }
         continue;
       }
 
@@ -264,7 +308,14 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
           backupPath,
           owners: generatedFile.owners,
           category: generatedFile.category,
+          templateOverrides: generatedFile.templateOverrides,
         });
+        if (generatedFile.templateOverrideSkips.length > 0) {
+          report.details.overrideSkips.push({
+            path: relPath,
+            skips: generatedFile.templateOverrideSkips,
+          });
+        }
         continue;
       }
 
@@ -278,7 +329,14 @@ function runSmartMigration({ rootDir, currentConfig, targetConfig, mode = "infra
         newHash,
         owners: generatedFile.owners,
         category: generatedFile.category,
+        templateOverrides: generatedFile.templateOverrides,
       });
+      if (generatedFile.templateOverrideSkips.length > 0) {
+        report.details.overrideSkips.push({
+          path: relPath,
+          skips: generatedFile.templateOverrideSkips,
+        });
+      }
     }
 
     for (const [oldPath, baselineEntry] of baselineMap.entries()) {
