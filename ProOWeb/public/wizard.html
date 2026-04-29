@@ -25,285 +25,309 @@
 
       <section class="panel form-panel">
         <h2>Workspace Configuration</h2>
+        <div class="wizard-meta-row">
+          <nav id="wizard-breadcrumbs" class="wizard-breadcrumbs" aria-label="Wizard location"></nav>
+          <p id="wizard-autosave-indicator" class="wizard-autosave-indicator muted" aria-live="polite"></p>
+        </div>
         <form id="init-form" class="wizard-form" novalidate>
-          <label>
-            Project title
-            <input type="text" name="projectTitle" required placeholder="Example: Purchase Management" />
-          </label>
+          <ol id="wizard-step-track" class="wizard-step-track" aria-label="Initialization steps">
+            <li><button type="button" data-step-jump="0">1. Foundation</button></li>
+            <li><button type="button" data-step-jump="1">2. Platform Modules</button></li>
+            <li><button type="button" data-step-jump="2">3. Process & Quality</button></li>
+            <li><button type="button" data-step-jump="3">4. Administrator</button></li>
+          </ol>
+          <p id="wizard-progress-label" class="muted"></p>
 
-          <label>
-            Java base package (backend)
-            <input
-              type="text"
-              name="basePackage"
-              required
-              value="com.prooweb.generated"
-              placeholder="Example: com.acme.procurement"
-            />
-            <small>
-              Used for generated Java package namespaces and Maven <code>groupId</code> values.
-            </small>
-          </label>
-
-          <label>
-            Git repository URL (optional)
-            <input
-              type="text"
-              name="gitRepositoryUrl"
-              placeholder="https://github.com/org/projet.git ou git@github.com:org/projet.git"
-            />
-            <small>
-              If empty, the current <code>.git</code> directory is removed. If provided, ProOWeb initializes a new
-              repository with this remote as <code>origin</code>.
-            </small>
-          </label>
-
-          <label>
-            Backend
-            <select name="backendTech" required>
-              <option value="springboot">Spring Boot (supported)</option>
-            </select>
-          </label>
-
-          <fieldset>
-            <legend>Backend Swagger UI</legend>
-            <label class="inline-row">
-              <input id="swagger-toggle" type="checkbox" name="swaggerUiEnabled" />
-              Enable Swagger UI
+          <section class="wizard-step" data-wizard-step="0">
+            <label>
+              Project title
+              <input type="text" name="projectTitle" required placeholder="Example: Purchase Management" />
             </label>
-            <p class="fieldset-hint">Select only non-production profiles.</p>
-            <div id="swagger-profiles" class="checkbox-grid">
-              <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="dev" /> dev</label>
-              <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="demo" /> demo</label>
-              <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="test" /> test</label>
-            </div>
-          </fieldset>
 
-          <fieldset>
-            <legend>External IAM (Authentication only)</legend>
-            <label class="inline-row">
-              <input id="external-iam-toggle" type="checkbox" name="externalIamEnabled" />
-              Enable external IAM authentication (OIDC)
-            </label>
-            <p class="fieldset-hint">
-              Roles and permissions remain managed by the platform (internal RBAC).
-            </p>
-            <div id="external-iam-config">
-              <label>
-                Provider ID
-                <input type="text" name="externalIamProviderId" value="corporate-oidc" />
-              </label>
-              <label>
-                Issuer URI
-                <input type="url" name="externalIamIssuerUri" value="https://issuer.example.com" />
-              </label>
-              <label>
-                Client ID
-                <input type="text" name="externalIamClientId" value="prooweb-client" />
-              </label>
-              <label>
-                Client Secret (optional)
-                <input type="password" name="externalIamClientSecret" />
-              </label>
-              <label>
-                Shared Secret HS256 (optional)
-                <input type="password" name="externalIamSharedSecret" />
-              </label>
-              <label>
-                Username claim
-                <input type="text" name="externalIamUsernameClaim" value="preferred_username" />
-              </label>
-              <label>
-                Email claim
-                <input type="text" name="externalIamEmailClaim" value="email" />
-              </label>
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend>Session & Device Security</legend>
-            <label class="inline-row">
-              <input id="session-security-toggle" type="checkbox" name="sessionSecurityEnabled" />
-              Enable session and device monitoring
-            </label>
-            <p class="fieldset-hint">
-              Detect suspicious behaviors using configurable device-window thresholds.
-            </p>
-            <div id="session-security-config">
-              <label>
-                Suspicious window (minutes)
-                <input type="number" min="1" max="1440" name="sessionSecurityWindowMinutes" value="60" />
-              </label>
-              <label>
-                Max distinct devices in window
-                <input type="number" min="1" max="64" name="sessionSecurityMaxDistinctDevices" value="3" />
-              </label>
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend>Organization Hierarchy</legend>
-            <label class="inline-row">
+            <label>
+              Java base package (backend)
               <input
-                id="organization-hierarchy-toggle"
-                type="checkbox"
-                name="organizationHierarchyEnabled"
-                checked
+                type="text"
+                name="basePackage"
+                required
+                value="com.prooweb.generated"
+                placeholder="Example: com.acme.procurement"
               />
-              Enable organizational hierarchy module
+              <small>
+                Used for generated Java package namespaces and Maven <code>groupId</code> values.
+              </small>
             </label>
-            <p class="fieldset-hint">
-              Provides hierarchy-aware assignment strategies for process tasks.
-            </p>
-            <div id="organization-hierarchy-config">
-              <label>
-                Default assignment strategy
-                <select name="organizationDefaultAssignmentStrategy">
-                  <option value="SUPERVISOR_THEN_ANCESTORS">SUPERVISOR_THEN_ANCESTORS</option>
-                  <option value="SUPERVISOR_ONLY">SUPERVISOR_ONLY</option>
-                  <option value="UNIT_MEMBERS">UNIT_MEMBERS</option>
-                </select>
-              </label>
-              <label>
-                Max traversal depth
-                <input type="number" min="1" max="16" name="organizationMaxTraversalDepth" value="8" />
-              </label>
-            </div>
-          </fieldset>
 
-          <fieldset>
-            <legend>Notification Workflows</legend>
-            <label class="inline-row">
-              <input id="notifications-toggle" type="checkbox" name="notificationsEnabled" checked />
-              Enable email notifications + audit trail
+            <label>
+              Git repository URL (optional)
+              <input
+                type="text"
+                name="gitRepositoryUrl"
+                placeholder="https://github.com/org/project.git or git@github.com:org/project.git"
+              />
+              <small>
+                If empty, the current <code>.git</code> directory is removed. If provided, ProOWeb initializes a new
+                repository with this remote as <code>origin</code>.
+              </small>
             </label>
-            <p class="fieldset-hint">
-              Generates operational notification templates with traceable audit history.
-            </p>
-            <div id="notifications-config">
-              <label>
-                Sender address
-                <input type="email" name="notificationsSenderAddress" value="no-reply@prooweb.local" />
-              </label>
+
+            <label>
+              Backend
+              <select name="backendTech" required>
+                <option value="springboot">Spring Boot (supported)</option>
+              </select>
+            </label>
+
+            <label>
+              Frontend web
+              <select name="frontendWebTech" required>
+                <option value="react">React (supported)</option>
+              </select>
+            </label>
+
+            <label>
+              Frontend mobile
+              <select name="frontendMobileTech" required>
+                <option value="none">Disabled (support planned)</option>
+              </select>
+            </label>
+
+            <label>
+              Database engine
+              <select name="databaseTech" required>
+                <option value="postgresql">PostgreSQL (supported)</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="wizard-step" data-wizard-step="1">
+            <fieldset>
+              <legend>Backend Swagger UI</legend>
               <label class="inline-row">
-                <input type="checkbox" name="notificationsAuditEnabled" checked />
-                Enable notifications audit channel
+                <input id="swagger-toggle" type="checkbox" name="swaggerUiEnabled" />
+                Enable Swagger UI
               </label>
-            </div>
-          </fieldset>
+              <p class="fieldset-hint">Select only non-production profiles.</p>
+              <div id="swagger-profiles" class="checkbox-grid">
+                <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="dev" /> dev</label>
+                <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="demo" /> demo</label>
+                <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="test" /> test</label>
+              </div>
+            </fieldset>
 
-          <fieldset>
-            <legend>Database Migrations (Liquibase)</legend>
-            <label class="inline-row">
-              <input id="liquibase-toggle" type="checkbox" name="liquibaseEnabled" checked />
-              Enable Liquibase baseline
-            </label>
-            <p class="fieldset-hint">
-              Provides reproducible schema evolution conventions for generated code.
-            </p>
-            <div id="liquibase-config">
-              <label>
-                Changelog path
+            <fieldset>
+              <legend>External IAM (Authentication only)</legend>
+              <label class="inline-row">
+                <input id="external-iam-toggle" type="checkbox" name="externalIamEnabled" />
+                Enable external IAM authentication (OIDC)
+              </label>
+              <p class="fieldset-hint">
+                Roles and permissions remain managed by the platform (internal RBAC).
+              </p>
+              <div id="external-iam-config">
+                <label>
+                  Provider ID
+                  <input type="text" name="externalIamProviderId" value="corporate-oidc" />
+                </label>
+                <label>
+                  Issuer URI
+                  <input type="url" name="externalIamIssuerUri" value="https://issuer.example.com" />
+                </label>
+                <label>
+                  Client ID
+                  <input type="text" name="externalIamClientId" value="prooweb-client" />
+                </label>
+                <label>
+                  Client Secret (optional)
+                  <input type="password" name="externalIamClientSecret" />
+                </label>
+                <label>
+                  Shared Secret HS256 (optional)
+                  <input type="password" name="externalIamSharedSecret" />
+                </label>
+                <label>
+                  Username claim
+                  <input type="text" name="externalIamUsernameClaim" value="preferred_username" />
+                </label>
+                <label>
+                  Email claim
+                  <input type="text" name="externalIamEmailClaim" value="email" />
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Session & Device Security</legend>
+              <label class="inline-row">
+                <input id="session-security-toggle" type="checkbox" name="sessionSecurityEnabled" />
+                Enable session and device monitoring
+              </label>
+              <p class="fieldset-hint">
+                Detect suspicious behaviors using configurable device-window thresholds.
+              </p>
+              <div id="session-security-config">
+                <label>
+                  Suspicious window (minutes)
+                  <input type="number" min="1" max="1440" name="sessionSecurityWindowMinutes" value="60" />
+                </label>
+                <label>
+                  Max distinct devices in window
+                  <input type="number" min="1" max="64" name="sessionSecurityMaxDistinctDevices" value="3" />
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Organization Hierarchy</legend>
+              <label class="inline-row">
                 <input
-                  type="text"
-                  name="liquibaseChangelogPath"
-                  value="classpath:db/changelog/db.changelog-master.yaml"
+                  id="organization-hierarchy-toggle"
+                  type="checkbox"
+                  name="organizationHierarchyEnabled"
+                  checked
                 />
+                Enable organizational hierarchy module
               </label>
-              <label>
-                Liquibase contexts
-                <input type="text" name="liquibaseContexts" value="baseline,reference-data" />
-              </label>
-            </div>
-          </fieldset>
+              <p class="fieldset-hint">
+                Provides hierarchy-aware assignment strategies for process tasks.
+              </p>
+              <div id="organization-hierarchy-config">
+                <label>
+                  Default assignment strategy
+                  <select name="organizationDefaultAssignmentStrategy">
+                    <option value="SUPERVISOR_THEN_ANCESTORS">SUPERVISOR_THEN_ANCESTORS</option>
+                    <option value="SUPERVISOR_ONLY">SUPERVISOR_ONLY</option>
+                    <option value="UNIT_MEMBERS">UNIT_MEMBERS</option>
+                  </select>
+                </label>
+                <label>
+                  Max traversal depth
+                  <input type="number" min="1" max="16" name="organizationMaxTraversalDepth" value="8" />
+                </label>
+              </div>
+            </fieldset>
 
-          <fieldset>
-            <legend>Process Modeling & Versioning</legend>
-            <label class="inline-row">
-              <input id="process-modeling-toggle" type="checkbox" name="processModelingEnabled" checked />
-              Enable ProOWeb BPMN process catalog (.prooweb storage)
-            </label>
-            <p class="fieldset-hint">
-              Models are managed in the editor, and application code is generated only on deployment requests.
-            </p>
-            <div id="process-modeling-config">
-              <label>
-                Versioning strategy
-                <select name="processVersioningStrategy">
-                  <option value="LINEAR">LINEAR</option>
-                </select>
-              </label>
-              <label>
-                Max versions per model
-                <input type="number" min="2" max="200" name="processMaxVersionsPerModel" value="50" />
-              </label>
+            <fieldset>
+              <legend>Notification Workflows</legend>
               <label class="inline-row">
-                <input type="checkbox" name="processAllowDirectDeployment" />
-                Allow direct DRAFT -> DEPLOYED transition
+                <input id="notifications-toggle" type="checkbox" name="notificationsEnabled" checked />
+                Enable email notifications + audit trail
               </label>
-            </div>
-          </fieldset>
+              <p class="fieldset-hint">
+                Generates operational notification templates with traceable audit history.
+              </p>
+              <div id="notifications-config">
+                <label>
+                  Sender address
+                  <input type="email" name="notificationsSenderAddress" value="no-reply@prooweb.local" />
+                </label>
+                <label class="inline-row">
+                  <input type="checkbox" name="notificationsAuditEnabled" checked />
+                  Enable notifications audit channel
+                </label>
+              </div>
+            </fieldset>
 
-          <fieldset>
-            <legend>Test Automation</legend>
-            <label class="inline-row">
-              <input id="backend-cucumber-toggle" type="checkbox" name="backendBddCucumberEnabled" />
-              Generate backend BDD E2E tests (Cucumber + Spring Boot)
-            </label>
-            <p class="fieldset-hint">
-              Adds Cucumber feature files, Spring glue, and aggregated cucumber JSON/HTML reports.
-            </p>
-            <label class="inline-row">
-              <input id="frontend-cypress-toggle" type="checkbox" name="frontendE2eCypressEnabled" />
-              Generate frontend E2E tests (Cypress)
-            </label>
-            <p class="fieldset-hint">
-              Adds Cypress config/specs and CI scripts using <code>start-server-and-test</code>.
-            </p>
-          </fieldset>
+            <fieldset>
+              <legend>Database Migrations (Liquibase)</legend>
+              <label class="inline-row">
+                <input id="liquibase-toggle" type="checkbox" name="liquibaseEnabled" checked />
+                Enable Liquibase baseline
+              </label>
+              <p class="fieldset-hint">
+                Provides reproducible schema evolution conventions for generated code.
+              </p>
+              <div id="liquibase-config">
+                <label>
+                  Changelog path
+                  <input
+                    type="text"
+                    name="liquibaseChangelogPath"
+                    value="classpath:db/changelog/db.changelog-master.yaml"
+                  />
+                </label>
+                <label>
+                  Liquibase contexts
+                  <input type="text" name="liquibaseContexts" value="baseline,reference-data" />
+                </label>
+              </div>
+            </fieldset>
+          </section>
 
-          <label>
-            Frontend web
-            <select name="frontendWebTech" required>
-              <option value="react">React (supported)</option>
-            </select>
-          </label>
+          <section class="wizard-step" data-wizard-step="2">
+            <fieldset>
+              <legend>Process Modeling & Versioning</legend>
+              <label class="inline-row">
+                <input id="process-modeling-toggle" type="checkbox" name="processModelingEnabled" checked />
+                Enable ProOWeb BPMN process catalog (.prooweb storage)
+              </label>
+              <p class="fieldset-hint">
+                Models are managed in the editor, and application code is generated only on deployment requests.
+              </p>
+              <div id="process-modeling-config">
+                <label>
+                  Versioning strategy
+                  <select name="processVersioningStrategy">
+                    <option value="LINEAR">LINEAR</option>
+                  </select>
+                </label>
+                <label>
+                  Max versions per model
+                  <input type="number" min="2" max="200" name="processMaxVersionsPerModel" value="50" />
+                </label>
+                <label class="inline-row">
+                  <input type="checkbox" name="processAllowDirectDeployment" />
+                  Allow direct DRAFT -> DEPLOYED transition
+                </label>
+              </div>
+            </fieldset>
 
-          <label>
-            Frontend mobile
-            <select name="frontendMobileTech" required>
-              <option value="none">Disabled (support planned)</option>
-            </select>
-          </label>
+            <fieldset>
+              <legend>Test Automation</legend>
+              <label class="inline-row">
+                <input id="backend-cucumber-toggle" type="checkbox" name="backendBddCucumberEnabled" />
+                Generate backend BDD E2E tests (Cucumber + Spring Boot)
+              </label>
+              <p class="fieldset-hint">
+                Adds Cucumber feature files, Spring glue, and aggregated cucumber JSON/HTML reports.
+              </p>
+              <label class="inline-row">
+                <input id="frontend-cypress-toggle" type="checkbox" name="frontendE2eCypressEnabled" />
+                Generate frontend E2E tests (Cypress)
+              </label>
+              <p class="fieldset-hint">
+                Adds Cypress config/specs and CI scripts using <code>start-server-and-test</code>.
+              </p>
+            </fieldset>
+          </section>
 
-          <label>
-            Database engine
-            <select name="databaseTech" required>
-              <option value="postgresql">PostgreSQL (supported)</option>
-            </select>
-          </label>
+          <section class="wizard-step" data-wizard-step="3">
+            <fieldset>
+              <legend>Workspace super administrator</legend>
+              <label>
+                Full name
+                <input type="text" name="superAdminName" required />
+              </label>
+              <label>
+                Email
+                <input type="email" name="superAdminEmail" required />
+              </label>
+              <label>
+                Username
+                <input type="text" name="superAdminUsername" required />
+              </label>
+              <label>
+                Password
+                <input type="password" name="superAdminPassword" required minlength="8" />
+              </label>
+            </fieldset>
+          </section>
 
-          <fieldset>
-            <legend>Workspace super administrator</legend>
-            <label>
-              Full name
-              <input type="text" name="superAdminName" required />
-            </label>
-            <label>
-              Email
-              <input type="email" name="superAdminEmail" required />
-            </label>
-            <label>
-              Username
-              <input type="text" name="superAdminUsername" required />
-            </label>
-            <label>
-              Password
-              <input type="password" name="superAdminPassword" required minlength="8" />
-            </label>
-          </fieldset>
-
-          <button id="submit-button" type="submit">Initialize workspace</button>
+          <div class="wizard-navigation">
+            <button id="previous-step-button" type="button" class="wizard-nav-button">Previous</button>
+            <button id="next-step-button" type="button" class="wizard-nav-button">Next</button>
+            <button id="submit-button" type="submit">Initialize workspace</button>
+          </div>
           <p id="feedback" class="feedback" aria-live="polite"></p>
         </form>
       </section>
