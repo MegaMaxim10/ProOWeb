@@ -5,7 +5,11 @@
   "description": "Process-Oriented Web Application Builder",
   "type": "commonjs",
   "scripts": {
+    "preprooweb": "npm run build:css",
     "prooweb": "node ProOWeb/src/server.js",
+    "build:css": "npm run build:css:dashboard && npm run build:css:wizard",
+    "build:css:dashboard": "tailwindcss -c tailwind.config.cjs -i ./ProOWeb/public/assets/css/sources/tailwind-dashboard.source.css -o ./ProOWeb/public/assets/css/tailwind-dashboard.css --minify",
+    "build:css:wizard": "tailwindcss -c tailwind.config.cjs -i ./ProOWeb/public/assets/css/sources/tailwind-wizard.source.css -o ./ProOWeb/public/assets/css/tailwind-wizard.css --minify",
     "compile": "node scripts/dispatch.js build",
     "test": "node scripts/dispatch.js test",
     "verify": "node scripts/dispatch.js verify",
@@ -14,5 +18,8 @@
     "start:test": "node scripts/dispatch.js start test",
     "start:preprod": "node scripts/dispatch.js start preprod",
     "start:prod": "node scripts/dispatch.js start prod"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
   }
 }

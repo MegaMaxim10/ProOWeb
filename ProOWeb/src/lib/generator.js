@@ -196,6 +196,7 @@ const {
   buildLiquibaseMasterChangelogYaml,
   buildLiquibaseBaselineSchemaChangelogYaml,
   buildLiquibaseReferenceDataChangelogYaml,
+  buildLiquibaseProcessSharedDataGeneratedChangelogYaml,
   buildLiquibaseReadmeMd,
   buildIdentityDomainMarkerJava,
   buildIdentityApplicationMarkerJava,
@@ -379,6 +380,7 @@ function resolveLiquibaseResourceLayout(config) {
     masterResourcePath,
     baselineResourcePath: `${changesetsDirectory}/001-baseline-schema.yaml`,
     referenceDataResourcePath: `${changesetsDirectory}/010-reference-data.yaml`,
+    generatedProcessSharedDataResourcePath: `${changesetsDirectory}/900-process-shared-data.generated.yaml`,
     readmeResourcePath: `${masterDirectory === "." ? "" : `${masterDirectory}/`}README.md`,
   };
 }
@@ -1265,6 +1267,14 @@ function generateBackendScaffold(backendRoot, config, writeManagedFile, generati
       buildLiquibaseReferenceDataChangelogYaml(),
       {
         owners: ["database-liquibase"],
+        category: "backend",
+      },
+    );
+    writeManagedFile(
+      path.join(resourcesRoot, liquibaseLayout.generatedProcessSharedDataResourcePath),
+      buildLiquibaseProcessSharedDataGeneratedChangelogYaml(),
+      {
+        owners: ["database-liquibase", "process-modeling"],
         category: "backend",
       },
     );

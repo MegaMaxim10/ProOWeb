@@ -105,7 +105,8 @@ const FIELD_INFORMATION = {
 };
 
 const BLOCK_INFORMATION = {
-  "workspace-overview": "Information: Workspace summary, stack snapshot, and quick operational actions.",
+  "workspace-dashboard": "Information: Workspace summary, stack snapshot, and quick operational actions.",
+  "workspace-platform-info": "Information: Platform details, administrator bootstrap metadata, and capability configuration snapshot.",
   management: "Information: Migration controls to align generated sources with the current editor version.",
   reconfigure: "Information: Platform capability settings and managed regeneration options.",
   "template-governance": "Information: Override registry used to customize generated templates safely.",
@@ -188,18 +189,142 @@ const ALWAYS_ENABLED_TOGGLES = [
   },
 ];
 
+const TOOLTIP_ATTRIBUTE = "data-prooweb-tooltip";
+const TOOLTIP_LAYER_ID = "prooweb-tooltip-layer";
+
 function normalizeText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
-function resolveFieldDescription(name, labelText, required) {
-  const predefined = FIELD_INFORMATION[name];
-  if (predefined) {
-    return `Information: ${predefined}${required ? " This field is required." : ""}`;
+function inferExpectedValue(control, labelText) {
+  const placeholder = normalizeText(control?.getAttribute("placeholder") || "");
+  if (placeholder) {
+    return placeholder;
   }
 
-  const defaultLabel = labelText ? labelText.toLowerCase() : name;
-  return `Information: Configure ${defaultLabel}.${required ? " This field is required." : ""}`;
+  const type = normalizeText(control?.getAttribute("type") || "").toLowerCase();
+  if (type === "email") {
+    return "A valid email address used by the generated platform.";
+  }
+  if (type === "url") {
+    return "A full URL including protocol (for example https://...).";
+  }
+  if (type === "number") {
+    const min = normalizeText(control?.getAttribute("min") || "");
+    const max = normalizeText(control?.getAttribute("max") || "");
+    if (min || max) {
+      return `A numeric value${min ? ` >= ${min}` : ""}${max ? ` and <= ${max}` : ""}.`;
+    }
+    return "A numeric value.";
+  }
+  if (type === "password") {
+    return "A secure secret value.";
+  }
+  if (control?.tagName?.toLowerCase() === "select") {
+    return "Select the option that best matches your project policy.";
+  }
+  if (control?.tagName?.toLowerCase() === "textarea") {
+    return "Structured content expected by this action.";
+  }
+
+  return `A value for ${labelText || "this field"}.`;
+}
+
+function inferSourceHint(fieldName, formId) {
+  const name = normalizeText(fieldName).toLowerCase();
+  const form = normalizeText(formId).toLowerCase();
+
+  if (name.includes("email")) {
+    return "Usually provided by your organization or identity provider settings.";
+  }
+  if (name.includes("issuer") || name.includes("client") || name.includes("secret")) {
+    return "Provided by your IAM provider registration console.";
+  }
+  if (name.includes("basepackage")) {
+    return "Defined by your Java naming conventions and repository architecture.";
+  }
+  if (name.includes("roles")) {
+    return "Use role codes already defined in your RBAC design.";
+  }
+  if (name.includes("changelog") || name.includes("liquibase")) {
+    return "Taken from your database migration structure in the repository.";
+  }
+  if (form.includes("process")) {
+    return "Derived from your process model design and runtime governance rules.";
+  }
+  if (form.includes("template")) {
+    return "Comes from your override strategy and target source file location.";
+  }
+
+  return "Comes from your project requirements and platform governance choices.";
+}
+
+function inferFormatHint(control) {
+  const type = normalizeText(control?.getAttribute("type") || "").toLowerCase();
+  const step = normalizeText(control?.getAttribute("step") || "");
+  const required = control?.required;
+
+  if (type === "checkbox") {
+    return "Toggle on/off according to the feature policy.";
+  }
+  if (type === "number") {
+    return `Use digits only${step ? ` (step ${step})` : ""}.`;
+  }
+  if (type === "email") {
+    return "Must follow the email format local-part@domain.";
+  }
+  if (type === "url") {
+    return "Must include protocol and host.";
+  }
+  if (control?.tagName?.toLowerCase() === "textarea") {
+    return "Use the exact syntax shown in the placeholder or examples.";
+  }
+  if (control?.tagName?.toLowerCase() === "select") {
+    return "Choose one predefined value.";
+  }
+
+  return required ? "Required field." : "Optional field.";
+}
+
+function resolveFieldDescription(name, labelText, required, control, formId = "") {
+  const predefined = FIELD_INFORMATION[name];
+  const summary = predefined || `Configure ${labelText ? labelText.toLowerCase() : name}.`;
+  const expected = inferExpectedValue(control, labelText);
+  const source = inferSourceHint(name, formId);
+  const format = inferFormatHint(control);
+
+  if (predefined) {
+    return [
+      `Information: ${summary}`,
+      `Expected: ${expected}`,
+      `Source: ${source}`,
+      `Format: ${format}`,
+      required ? "Requirement: This field is mandatory." : "Requirement: This field is optional.",
+    ].join("\n");
+  }
+
+  return [
+    `Information: ${summary}`,
+    `Expected: ${expected}`,
+    `Source: ${source}`,
+    `Format: ${format}`,
+    required ? "Requirement: This field is mandatory." : "Requirement: This field is optional.",
+  ].join("\n");
+}
+
+function setTooltipDescriptor(element, tooltipText) {
+  if (!element) {
+    return;
+  }
+
+  const text = normalizeText(tooltipText);
+  if (!text) {
+    element.removeAttribute(TOOLTIP_ATTRIBUTE);
+    return;
+  }
+
+  element.setAttribute(TOOLTIP_ATTRIBUTE, tooltipText);
+  element.removeAttribute("title");
 }
 
 function ensureInfoBadge(hostElement, tooltipText, documentRef) {
@@ -211,10 +336,20 @@ function ensureInfoBadge(hostElement, tooltipText, documentRef) {
   badge.className = "info-tooltip-badge";
   badge.tabIndex = 0;
   badge.setAttribute("role", "note");
-  badge.title = tooltipText;
   badge.setAttribute("aria-label", tooltipText);
+  setTooltipDescriptor(badge, tooltipText);
   badge.textContent = "i";
-  hostElement.appendChild(badge);
+
+  const isInlineRow = hostElement.classList.contains("pw-inline-row")
+    || hostElement.classList.contains("inline-row");
+  const firstControl = !isInlineRow && hostElement.querySelector(":scope > input, :scope > select, :scope > textarea");
+  const isLeadingToggle = firstControl
+    && (firstControl.matches('input[type="checkbox"]') || firstControl.matches('input[type="radio"]'));
+  if (firstControl && !isLeadingToggle) {
+    hostElement.insertBefore(badge, firstControl);
+  } else {
+    hostElement.appendChild(badge);
+  }
 }
 
 function ensureRequiredMarker(labelElement, documentRef) {
@@ -226,7 +361,17 @@ function ensureRequiredMarker(labelElement, documentRef) {
   marker.className = "required-indicator";
   marker.setAttribute("aria-hidden", "true");
   marker.textContent = "*";
-  labelElement.appendChild(marker);
+
+  const isInlineRow = labelElement.classList.contains("pw-inline-row")
+    || labelElement.classList.contains("inline-row");
+  const firstControl = !isInlineRow && labelElement.querySelector(":scope > input, :scope > select, :scope > textarea");
+  const isLeadingToggle = firstControl
+    && (firstControl.matches('input[type="checkbox"]') || firstControl.matches('input[type="radio"]'));
+  if (firstControl && !isLeadingToggle) {
+    labelElement.insertBefore(marker, firstControl);
+  } else {
+    labelElement.appendChild(marker);
+  }
 }
 
 function resolveLabelText(labelElement) {
@@ -274,11 +419,11 @@ function enforceAlwaysEnabledToggles(documentRef) {
     toggle.checked = true;
     toggle.disabled = true;
     toggle.setAttribute("aria-disabled", "true");
-    toggle.title = toggleConfig.lockMessage;
+    setTooltipDescriptor(toggle, toggleConfig.lockMessage);
 
     const fieldset = toggle.closest("fieldset");
     if (fieldset) {
-      fieldset.title = toggleConfig.lockMessage;
+      setTooltipDescriptor(fieldset, toggleConfig.lockMessage);
     }
 
     const label = toggle.closest("label");
@@ -300,11 +445,12 @@ function applyFieldTooltips(documentRef) {
     if (!name) {
       continue;
     }
+    const formId = normalizeText(control.closest("form")?.id || "");
 
     const labelText = resolveLabelText(labelElement);
-    const tooltip = resolveFieldDescription(name, labelText, Boolean(control.required));
-    labelElement.title = tooltip;
-    control.title = tooltip;
+    const tooltip = resolveFieldDescription(name, labelText, Boolean(control.required), control, formId);
+    setTooltipDescriptor(labelElement, tooltip);
+    setTooltipDescriptor(control, tooltip);
     ensureInfoBadge(labelElement, tooltip, documentRef);
 
     if (control.required) {
@@ -320,12 +466,20 @@ function resolveBlockTooltip(blockElement) {
 
   const byId = BLOCK_INFORMATION[blockElement.id];
   if (byId) {
-    return byId;
+    return [
+      byId,
+      "Purpose: Group related actions so you can complete one development concern at a time.",
+      "How to use: Read each form/action from top to bottom and run the related command.",
+    ].join("\n");
   }
 
   const heading = blockElement.querySelector(":scope > h2, :scope > h3, :scope > h4");
   const headingText = normalizeText(heading?.textContent || blockElement.id || "this block");
-  return `Information: This action block manages ${headingText.toLowerCase()}.`;
+  return [
+    `Information: This action block manages ${headingText.toLowerCase()}.`,
+    "Purpose: Keep workflow actions grouped by concern.",
+    "How to use: Fill required fields, execute, and review feedback before moving on.",
+  ].join("\n");
 }
 
 function applyBlockTooltips(documentRef) {
@@ -334,11 +488,11 @@ function applyBlockTooltips(documentRef) {
   );
   for (const block of blocks) {
     const tooltip = resolveBlockTooltip(block);
-    block.title = tooltip;
+    setTooltipDescriptor(block, tooltip);
 
     const heading = block.querySelector(":scope > h2, :scope > h3, :scope > h4");
     if (heading) {
-      heading.title = tooltip;
+      setTooltipDescriptor(heading, tooltip);
       ensureInfoBadge(heading, tooltip, documentRef);
     }
   }
@@ -350,7 +504,7 @@ function applyActionElementTooltips(documentRef) {
   );
 
   for (const element of actionElements) {
-    if (normalizeText(element.getAttribute("title"))) {
+    if (normalizeText(element.getAttribute(TOOLTIP_ATTRIBUTE))) {
       continue;
     }
 
@@ -359,8 +513,134 @@ function applyActionElementTooltips(documentRef) {
       continue;
     }
 
-    element.title = `Information: ${label}.`;
+    setTooltipDescriptor(element, `Information: ${label}.`);
   }
+}
+
+function wireTooltipLayer(documentRef) {
+  const body = documentRef.body;
+  if (!body || body.dataset.proowebTooltipWired === "true") {
+    return;
+  }
+  body.dataset.proowebTooltipWired = "true";
+
+  const windowRef = documentRef.defaultView || window;
+  const tooltipLayer = documentRef.createElement("div");
+  tooltipLayer.id = TOOLTIP_LAYER_ID;
+  tooltipLayer.className = "prooweb-tooltip-layer";
+  tooltipLayer.setAttribute("role", "tooltip");
+  tooltipLayer.setAttribute("aria-hidden", "true");
+  body.appendChild(tooltipLayer);
+
+  let activeTarget = null;
+
+  function hideTooltip() {
+    activeTarget = null;
+    tooltipLayer.classList.remove("is-visible");
+    tooltipLayer.setAttribute("aria-hidden", "true");
+  }
+
+  function positionTooltip(targetElement) {
+    if (!targetElement) {
+      return;
+    }
+
+    const margin = 10;
+    const rect = targetElement.getBoundingClientRect();
+    const viewportWidth = Math.max(windowRef.innerWidth || 0, 320);
+    const viewportHeight = Math.max(windowRef.innerHeight || 0, 240);
+    const tooltipWidth = tooltipLayer.offsetWidth || 320;
+    const tooltipHeight = tooltipLayer.offsetHeight || 48;
+
+    let left = rect.left + (rect.width / 2);
+    left = left - tooltipWidth / 2;
+    left = Math.max(margin, Math.min(left, viewportWidth - tooltipWidth - margin));
+
+    let top = rect.top - tooltipHeight - margin;
+    if (top < margin) {
+      top = rect.bottom + margin;
+    }
+    if (top + tooltipHeight > viewportHeight - margin) {
+      top = Math.max(margin, viewportHeight - tooltipHeight - margin);
+    }
+
+    tooltipLayer.style.left = `${Math.round(left)}px`;
+    tooltipLayer.style.top = `${Math.round(top)}px`;
+  }
+
+  function showTooltip(targetElement) {
+    const tooltipText = targetElement?.getAttribute(TOOLTIP_ATTRIBUTE);
+    if (!normalizeText(tooltipText)) {
+      hideTooltip();
+      return;
+    }
+
+    activeTarget = targetElement;
+    tooltipLayer.textContent = tooltipText;
+    tooltipLayer.classList.add("is-visible");
+    tooltipLayer.setAttribute("aria-hidden", "false");
+    positionTooltip(targetElement);
+  }
+
+  function toggleTooltip(targetElement) {
+    if (activeTarget === targetElement && tooltipLayer.classList.contains("is-visible")) {
+      hideTooltip();
+      return;
+    }
+    showTooltip(targetElement);
+  }
+
+  documentRef.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const badge = target?.closest(".info-tooltip-badge") || null;
+    if (!badge) {
+      hideTooltip();
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    toggleTooltip(badge);
+  }, true);
+
+  documentRef.addEventListener("keydown", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const badge = target?.closest(".info-tooltip-badge") || null;
+    if (badge && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      toggleTooltip(badge);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      hideTooltip();
+    }
+  });
+
+  documentRef.addEventListener("pointerdown", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const badge = target?.closest(".info-tooltip-badge") || null;
+    if (badge) {
+      return;
+    }
+    hideTooltip();
+  }, true);
+
+  documentRef.addEventListener("contextmenu", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const badge = target?.closest(".info-tooltip-badge") || null;
+    if (badge) {
+      return;
+    }
+    hideTooltip();
+  }, true);
+
+  windowRef.addEventListener("scroll", hideTooltip, true);
+  windowRef.addEventListener("resize", () => {
+    if (activeTarget) {
+      positionTooltip(activeTarget);
+    }
+  });
 }
 
 function wireNativeFormValidation(documentRef) {
@@ -450,6 +730,7 @@ export function applyWorkspaceUxHints({ documentRef = document } = {}) {
   applyFieldTooltips(documentRef);
   applyBlockTooltips(documentRef);
   applyActionElementTooltips(documentRef);
+  wireTooltipLayer(documentRef);
   wirePasswordConfirmations(documentRef);
   wireNativeFormValidation(documentRef);
 }

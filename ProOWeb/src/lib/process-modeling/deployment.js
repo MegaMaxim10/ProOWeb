@@ -111,6 +111,873 @@ function toFileSegment(value) {
     .replace(/^-+|-+$/g, "") || "process";
 }
 
+function toJavaIdentifier(value, fallback = "value") {
+  const normalized = String(value || "")
+    .replace(/[^a-zA-Z0-9_]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((entry, index) => {
+      const lower = entry.toLowerCase();
+      if (index === 0) {
+        return lower;
+      }
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join("");
+  const candidate = normalized || fallback;
+  const safe = /^[a-zA-Z_]/.test(candidate) ? candidate : `v${candidate}`;
+  return safe.replace(/[^a-zA-Z0-9_]/g, "") || fallback;
+}
+
+function toSqlIdentifier(value, fallback = "value") {
+  const normalized = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return (normalized || fallback).slice(0, 63).replace(/_+$/g, "") || fallback;
+}
+
+function toSharedEntityClassName(entityKey) {
+  return `Shared${toPascalCase(entityKey)}Entity`;
+}
+
+function toSharedEntityRepositoryName(entityKey) {
+  return `Shared${toPascalCase(entityKey)}JpaRepository`;
+}
+
+function toSharedEntityTableName(entityKey, tableName) {
+  const candidate = normalizeString(tableName);
+  if (candidate) {
+    return toSqlIdentifier(candidate, `shared_${toSqlIdentifier(entityKey, "entity")}`);
+  }
+  return toSqlIdentifier(`shared_${toSqlIdentifier(entityKey, "entity")}`, "shared_entity");
+}
+
+function toDefaultJoinColumnName(value) {
+  return toSqlIdentifier(`${toSqlIdentifier(value, "related")}_id`, "related_id");
+}
+
+function toDefaultJoinTableName(sourceEntityKey, relationName, targetEntityKey) {
+  return toSqlIdentifier(
+    `shared_rel_${toSqlIdentifier(sourceEntityKey, "source")}_${toSqlIdentifier(relationName, "rel")}_${toSqlIdentifier(targetEntityKey, "target")}`,
+    "shared_rel_source_target",
+  );
+}
+
+function mapSharedFieldTypeToJava(type) {
+  switch (String(type || "").toUpperCase()) {
+    case "TEXT":
+    case "STRING":
+    case "JSON":
+    case "UUID":
+      return "String";
+    case "INTEGER":
+      return "Integer";
+    case "LONG":
+      return "Long";
+    case "DECIMAL":
+      return "java.math.BigDecimal";
+    case "BOOLEAN":
+      return "Boolean";
+    case "DATE":
+      return "java.time.LocalDate";
+    case "DATETIME":
+      return "java.time.Instant";
+    default:
+      return "String";
+  }
+}
+
+function mapSharedFieldTypeToLiquibase(type) {
+  switch (String(type || "").toUpperCase()) {
+    case "TEXT":
+      return "text";
+    case "INTEGER":
+      return "int";
+    case "LONG":
+      return "bigint";
+    case "DECIMAL":
+      return "decimal(19,4)";
+    case "BOOLEAN":
+      return "boolean";
+    case "DATE":
+      return "date";
+    case "DATETIME":
+      return "timestamp";
+    case "JSON":
+      return "text";
+    case "UUID":
+      return "varchar(36)";
+    case "STRING":
+    default:
+      return "varchar(255)";
+  }
+}
+
+function normalizeSharedEntitiesForCompilation(runtimeEntries) {
+  const byKey = new Map();
+
+  for (const runtimeEntry of Array.isArray(runtimeEntries) ? runtimeEntries : []) {
+    const entities = runtimeEntry?.dataContract?.sharedData?.entities;
+    if (!Array.isArray(entities)) {
+      continue;
+    }
+    for (const rawEntity of entities) {
+      if (!rawEntity || rawEntity.modeled !== true) {
+        continue;
+      }
+      const entityKey = normalizeString(rawEntity.entityKey).toLowerCase();
+      if (!entityKey) {
+        continue;
+      }
+      if (!byKey.has(entityKey)) {
+        byKey.set(entityKey, {
+          entityKey,
+          displayName: normalizeString(rawEntity.displayName || entityKey) || entityKey,
+          tableName: toSharedEntityTableName(entityKey, rawEntity.tableName),
+          fields: [],
+          relations: [],
+        });
+      }
+      const entity = byKey.get(entityKey);
+      const fieldByName = new Map(entity.fields.map((entry) => [entry.name, entry]));
+      for (const rawField of Array.isArray(rawEntity.fields) ? rawEntity.fields : []) {
+        const sourceName = String(rawField?.name || "")
+          .trim()
+          .replace(/[^a-zA-Z0-9_]+/g, "_");
+        const fieldName = toJavaIdentifier(sourceName, "");
+        if (!sourceName || !fieldName || fieldByName.has(sourceName)) {
+          continue;
+        }
+        const javaName = fieldName === "id" ? "businessId" : fieldName;
+        const columnName = toSqlIdentifier(rawField?.name || sourceName, sourceName.toLowerCase());
+        const field = {
+          name: sourceName,
+          javaName,
+          columnName,
+          type: String(rawField?.type || "STRING").toUpperCase(),
+          required: Boolean(rawField?.required),
+          indexed: Boolean(rawField?.indexed),
+          unique: Boolean(rawField?.unique),
+        };
+        entity.fields.push(field);
+        fieldByName.set(field.name, field);
+      }
+
+      const relationByName = new Map(entity.relations.map((entry) => [entry.name, entry]));
+      for (const rawRelation of Array.isArray(rawEntity.relations) ? rawEntity.relations : []) {
+        const relationName = toJavaIdentifier(rawRelation?.name, "");
+        if (!relationName || relationByName.has(relationName)) {
+          continue;
+        }
+        const targetEntityKey = normalizeString(rawRelation?.targetEntityKey).toLowerCase();
+        if (!targetEntityKey) {
+          continue;
+        }
+        const type = String(rawRelation?.type || "MANY_TO_ONE").toUpperCase();
+        const mappedBy = toJavaIdentifier(rawRelation?.mappedBy, "");
+        const joinColumn = toSqlIdentifier(
+          rawRelation?.joinColumn || (type === "MANY_TO_ONE" || (type === "ONE_TO_ONE" && !mappedBy)
+            ? toDefaultJoinColumnName(relationName)
+            : ""),
+          "",
+        );
+        const joinTable = toSqlIdentifier(
+          rawRelation?.joinTable || (type === "MANY_TO_MANY" && !mappedBy
+            ? toDefaultJoinTableName(entityKey, relationName, targetEntityKey)
+            : ""),
+          "",
+        );
+        const inverseJoinColumn = toSqlIdentifier(
+          rawRelation?.inverseJoinColumn || (type === "MANY_TO_MANY" && !mappedBy
+            ? toDefaultJoinColumnName(targetEntityKey)
+            : ""),
+          "",
+        );
+
+        const relation = {
+          name: relationName,
+          type,
+          targetEntityKey,
+          mappedBy,
+          joinColumn,
+          joinTable,
+          inverseJoinColumn,
+          required: Boolean(rawRelation?.required),
+        };
+        entity.relations.push(relation);
+        relationByName.set(relation.name, relation);
+      }
+    }
+  }
+
+  const entities = Array.from(byKey.values())
+    .map((entity) => ({
+      ...entity,
+      className: toSharedEntityClassName(entity.entityKey),
+      repositoryName: toSharedEntityRepositoryName(entity.entityKey),
+      fields: entity.fields.length > 0
+        ? entity.fields
+        : [{
+            name: "value",
+            javaName: "value",
+            columnName: "value",
+            type: "JSON",
+            required: false,
+            indexed: false,
+            unique: false,
+          }],
+    }))
+    .sort((left, right) => left.entityKey.localeCompare(right.entityKey));
+
+  return entities;
+}
+
+function toJavaTypeSimpleName(javaType) {
+  if (!javaType.includes(".")) {
+    return javaType;
+  }
+  const parts = javaType.split(".");
+  return parts[parts.length - 1];
+}
+
+function buildSharedDataEntityJpaJava({ basePackage, entity, entityClassByKey }) {
+  const scalarFieldRows = entity.fields.map((field) => {
+    const javaType = toJavaTypeSimpleName(mapSharedFieldTypeToJava(field.type));
+    return `  @Column(name = "${escapeJavaString(field.columnName)}", nullable = ${field.required ? "false" : "true"}, unique = ${field.unique ? "true" : "false"})
+  private ${javaType} ${field.javaName};`;
+  });
+
+  const relationFieldRows = entity.relations.map((relation) => {
+    const targetClassName = entityClassByKey.get(relation.targetEntityKey) || toSharedEntityClassName(relation.targetEntityKey);
+    if (relation.type === "MANY_TO_ONE") {
+      return `  @ManyToOne(fetch = FetchType.LAZY, optional = ${relation.required ? "false" : "true"})
+  @JoinColumn(name = "${escapeJavaString(relation.joinColumn || toDefaultJoinColumnName(relation.name))}", nullable = ${relation.required ? "false" : "true"})
+  private ${targetClassName} ${relation.name};`;
+    }
+    if (relation.type === "ONE_TO_ONE") {
+      if (relation.mappedBy) {
+        return `  @OneToOne(mappedBy = "${escapeJavaString(relation.mappedBy)}", fetch = FetchType.LAZY)
+  private ${targetClassName} ${relation.name};`;
+      }
+      return `  @OneToOne(fetch = FetchType.LAZY, optional = ${relation.required ? "false" : "true"})
+  @JoinColumn(name = "${escapeJavaString(relation.joinColumn || toDefaultJoinColumnName(relation.name))}", nullable = ${relation.required ? "false" : "true"})
+  private ${targetClassName} ${relation.name};`;
+    }
+    if (relation.type === "ONE_TO_MANY") {
+      if (relation.mappedBy) {
+        return `  @OneToMany(mappedBy = "${escapeJavaString(relation.mappedBy)}", fetch = FetchType.LAZY)
+  private Set<${targetClassName}> ${relation.name} = new LinkedHashSet<>();`;
+      }
+      return `  @OneToMany(fetch = FetchType.LAZY)
+  @JoinColumn(name = "${escapeJavaString(relation.joinColumn || toDefaultJoinColumnName(entity.entityKey))}")
+  private Set<${targetClassName}> ${relation.name} = new LinkedHashSet<>();`;
+    }
+    if (relation.mappedBy) {
+      return `  @ManyToMany(mappedBy = "${escapeJavaString(relation.mappedBy)}", fetch = FetchType.LAZY)
+  private Set<${targetClassName}> ${relation.name} = new LinkedHashSet<>();`;
+    }
+    return `  @ManyToMany(fetch = FetchType.LAZY)
+  @JoinTable(
+      name = "${escapeJavaString(relation.joinTable || toDefaultJoinTableName(entity.entityKey, relation.name, relation.targetEntityKey))}",
+      joinColumns = @JoinColumn(name = "${escapeJavaString(relation.joinColumn || toDefaultJoinColumnName(entity.entityKey))}"),
+      inverseJoinColumns = @JoinColumn(name = "${escapeJavaString(relation.inverseJoinColumn || toDefaultJoinColumnName(relation.targetEntityKey))}")
+  )
+  private Set<${targetClassName}> ${relation.name} = new LinkedHashSet<>();`;
+  });
+
+  const accessors = [];
+  const members = [
+    { type: "Long", name: "id" },
+    ...entity.fields.map((field) => ({
+      type: toJavaTypeSimpleName(mapSharedFieldTypeToJava(field.type)),
+      name: field.javaName,
+    })),
+    ...entity.relations.map((relation) => ({
+      type:
+        relation.type === "ONE_TO_MANY" || relation.type === "MANY_TO_MANY"
+          ? `Set<${entityClassByKey.get(relation.targetEntityKey) || toSharedEntityClassName(relation.targetEntityKey)}>`
+          : (entityClassByKey.get(relation.targetEntityKey) || toSharedEntityClassName(relation.targetEntityKey)),
+      name: relation.name,
+    })),
+  ];
+
+  for (const member of members) {
+    const methodSuffix = member.name.charAt(0).toUpperCase() + member.name.slice(1);
+    accessors.push(`  public ${member.type} get${methodSuffix}() {
+    return ${member.name};
+  }`);
+    accessors.push(`  public void set${methodSuffix}(${member.type} ${member.name}) {
+    this.${member.name} = ${member.name};
+  }`);
+  }
+
+  return `package ${basePackage}.system.infrastructure.process.runtime.shareddata.model;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+@Entity
+@Table(name = "${escapeJavaString(entity.tableName)}")
+public class ${entity.className} {
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
+${scalarFieldRows.length > 0 ? `\n${scalarFieldRows.join("\n\n")}` : ""}
+${relationFieldRows.length > 0 ? `\n${relationFieldRows.join("\n\n")}` : ""}
+
+${accessors.join("\n\n")}
+}
+`;
+}
+
+function buildSharedDataRepositoryJava({ basePackage, entity }) {
+  return `package ${basePackage}.system.infrastructure.process.runtime.shareddata.repository;
+
+import ${basePackage}.system.infrastructure.process.runtime.shareddata.model.${entity.className};
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ${entity.repositoryName} extends JpaRepository<${entity.className}, Long> {
+  Optional<${entity.className}> findTopByOrderByIdDesc();
+}
+`;
+}
+
+function buildJpaBackedProcessRuntimeStoreAdapterJava({ basePackage, sharedEntities }) {
+  const hasSharedEntities = Array.isArray(sharedEntities) && sharedEntities.length > 0;
+  const imports = sharedEntities
+    .map((entity) => `import ${basePackage}.system.infrastructure.process.runtime.shareddata.model.${entity.className};`)
+    .join("\n");
+  const repositoryImports = sharedEntities
+    .map((entity) => `import ${basePackage}.system.infrastructure.process.runtime.shareddata.repository.${entity.repositoryName};`)
+    .join("\n");
+  const repositoryFields = sharedEntities
+    .map((entity) => `  private final ${entity.repositoryName} ${toJavaIdentifier(entity.repositoryName)};`)
+    .join("\n");
+  const constructorParameters = sharedEntities
+    .map((entity) => `${entity.repositoryName} ${toJavaIdentifier(entity.repositoryName)}`)
+    .join(",\n      ");
+  const constructorAssignments = sharedEntities
+    .map((entity) => `    this.${toJavaIdentifier(entity.repositoryName)} = ${toJavaIdentifier(entity.repositoryName)};`)
+    .join("\n");
+
+  const readCases = sharedEntities
+    .map((entity) => {
+      const repositoryVar = toJavaIdentifier(entity.repositoryName);
+      const mapRows = [
+        "Map<String, Object> values = new HashMap<>();",
+        "values.put(\"id\", entity.getId());",
+        ...entity.fields.map((field) => `values.put("${field.name}", entity.get${field.javaName.charAt(0).toUpperCase() + field.javaName.slice(1)}());`),
+        ...entity.relations
+          .filter((relation) => relation.type === "MANY_TO_ONE" || (relation.type === "ONE_TO_ONE" && !relation.mappedBy))
+          .map((relation) => `values.put("${relation.name}Id", entity.get${relation.name.charAt(0).toUpperCase() + relation.name.slice(1)}() == null ? null : entity.get${relation.name.charAt(0).toUpperCase() + relation.name.slice(1)}().getId());`),
+      ];
+      return `      case "${entity.entityKey}" -> ${repositoryVar}.findTopByOrderByIdDesc()
+        .map((entity) -> {
+          ${mapRows.join("\n          ")}
+          return Map.copyOf(values);
+        })
+        .orElse(Map.of());`;
+    })
+    .join("\n");
+
+  const writeCases = sharedEntities
+    .map((entity) => {
+      const repositoryVar = toJavaIdentifier(entity.repositoryName);
+      const className = entity.className;
+      const fieldAssignments = entity.fields.map((field) => {
+        const setter = `entity.set${field.javaName.charAt(0).toUpperCase() + field.javaName.slice(1)}`;
+        const javaType = toJavaTypeSimpleName(mapSharedFieldTypeToJava(field.type));
+        if (field.type === "JSON") {
+          return `${setter}(toJsonText(payload.get("${field.name}")));`;
+        }
+        return `${setter}(coerce(payload.get("${field.name}"), ${javaType}.class));`;
+      });
+
+      const relationAssignments = entity.relations
+        .filter((relation) => relation.type === "MANY_TO_ONE" || (relation.type === "ONE_TO_ONE" && !relation.mappedBy))
+        .map((relation) => {
+          const targetEntity = sharedEntities.find((entry) => entry.entityKey === relation.targetEntityKey);
+          if (!targetEntity) {
+            return "";
+          }
+          const targetRepoVar = toJavaIdentifier(targetEntity.repositoryName);
+          const setter = `entity.set${relation.name.charAt(0).toUpperCase() + relation.name.slice(1)}`;
+          return `{
+        Long relationId = coerce(payload.get("${relation.name}Id"), Long.class);
+        ${setter}(relationId == null ? null : ${targetRepoVar}.findById(relationId).orElse(null));
+      }`;
+        })
+        .filter(Boolean);
+
+      return `      case "${entity.entityKey}" -> {
+        Long id = coerce(payload.get("id"), Long.class);
+        ${className} entity = id == null
+          ? new ${className}()
+          : ${repositoryVar}.findById(id).orElseGet(${className}::new);
+        ${fieldAssignments.join("\n        ")}
+        ${relationAssignments.join("\n        ")}
+        ${repositoryVar}.save(entity);
+      }`;
+    })
+    .join("\n");
+
+  const listKeyRows = sharedEntities
+    .map((entity) => `    if (${toJavaIdentifier(entity.repositoryName)}.count() > 0) {
+      keys.add("${entity.entityKey}");
+    }`)
+    .join("\n");
+
+  const deleteCases = sharedEntities
+    .map((entity) => `      case "${entity.entityKey}" -> ${toJavaIdentifier(entity.repositoryName)}.deleteAll();`)
+    .join("\n");
+  const readSwitchRows = readCases
+    ? `${readCases}\n      default -> Map.of();`
+    : "      default -> Map.of();";
+  const writeSwitchRows = writeCases
+    ? `${writeCases}\n      default -> {\n      }`
+    : "      default -> {\n      }";
+  const deleteSwitchRows = deleteCases
+    ? `${deleteCases}\n      default -> {\n      }`
+    : "      default -> {\n      }";
+  const constructorTail = hasSharedEntities
+    ? `,\n      ${constructorParameters}`
+    : "";
+  const constructorAssignmentsBlock = constructorAssignments ? `${constructorAssignments}\n` : "";
+
+  return `package ${basePackage}.system.infrastructure.process.runtime;
+
+import ${basePackage}.system.application.process.runtime.port.out.ProcessRuntimeStorePort;
+${imports}
+${repositoryImports}
+import ${basePackage}.system.domain.process.runtime.ProcessRuntimeInstance;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import org.springframework.context.annotation.Primary;
+import org.springframework.stereotype.Component;
+
+@Primary
+@Component
+public class JpaBackedProcessRuntimeStoreAdapter implements ProcessRuntimeStorePort {
+  private final Map<String, ProcessRuntimeInstance> byInstanceId = new ConcurrentHashMap<>();
+  private final List<ProcessRuntimeStorePort.RuntimeMonitorEvent> monitorEvents = new CopyOnWriteArrayList<>();
+  private final Map<String, ProcessRuntimeStorePort.RuntimeUserPreferences> userPreferencesByUserId = new ConcurrentHashMap<>();
+  private final ObjectMapper objectMapper;
+${repositoryFields}
+  private final List<ProcessRuntimeStorePort.RuntimeUserDescriptor> users = List.of(
+    new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.user", List.of("PROCESS_USER"), "unit.operations", "runtime.supervisor"),
+    new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.supervisor", List.of("PROCESS_MONITOR", "PROCESS_USER"), "unit.operations", "runtime.admin"),
+    new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.approverA", List.of("PROCESS_USER"), "unit.finance", "runtime.supervisor"),
+    new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.approverB", List.of("PROCESS_USER"), "unit.finance", "runtime.supervisor"),
+    new ProcessRuntimeStorePort.RuntimeUserDescriptor("runtime.admin", List.of("ADMINISTRATOR", "PROCESS_MONITOR"), "unit.executive", null)
+  );
+  private final ProcessRuntimeStorePort.RuntimeOrganizationSnapshot organizationSnapshot = new ProcessRuntimeStorePort.RuntimeOrganizationSnapshot(
+    List.of(
+      new ProcessRuntimeStorePort.RuntimeOrganizationUnitDescriptor("unit.executive", null, "runtime.admin", List.of("runtime.admin")),
+      new ProcessRuntimeStorePort.RuntimeOrganizationUnitDescriptor("unit.operations", "unit.executive", "runtime.supervisor", List.of("runtime.user", "runtime.supervisor")),
+      new ProcessRuntimeStorePort.RuntimeOrganizationUnitDescriptor("unit.finance", "unit.executive", "runtime.supervisor", List.of("runtime.approverA", "runtime.approverB"))
+    )
+  );
+
+  public JpaBackedProcessRuntimeStoreAdapter(
+      ObjectMapper objectMapper${constructorTail}) {
+    this.objectMapper = objectMapper;
+${constructorAssignmentsBlock}
+    registerDefaultPreference("runtime.user", "Runtime User", "en", "SYSTEM", "IN_APP_EMAIL", true, "MANUAL_TRIGGER", 0, true);
+    registerDefaultPreference("runtime.supervisor", "Runtime Supervisor", "en", "SYSTEM", "IN_APP_EMAIL", true, "AUTO_IMMEDIATE", 0, true);
+    registerDefaultPreference("runtime.approverA", "Runtime Approver A", "en", "SYSTEM", "IN_APP_EMAIL", true, "AUTO_AFTER_DELAY", 30, true);
+    registerDefaultPreference("runtime.approverB", "Runtime Approver B", "en", "SYSTEM", "IN_APP_EMAIL", true, "MANUAL_TRIGGER", 0, true);
+    registerDefaultPreference("runtime.admin", "Runtime Administrator", "en", "SYSTEM", "IN_APP_EMAIL", true, "AUTO_IMMEDIATE", 0, true);
+  }
+
+  private void registerDefaultPreference(
+      String userId,
+      String displayName,
+      String language,
+      String theme,
+      String channel,
+      boolean notificationsEnabled,
+      String automaticTaskPolicy,
+      int automaticTaskDelaySeconds,
+      boolean automaticTaskNotifyOnly) {
+    userPreferencesByUserId.put(
+      userId,
+      new ProcessRuntimeStorePort.RuntimeUserPreferences(
+        userId,
+        displayName,
+        "",
+        language,
+        theme,
+        channel,
+        notificationsEnabled,
+        automaticTaskPolicy,
+        automaticTaskDelaySeconds,
+        automaticTaskNotifyOnly
+      )
+    );
+  }
+
+  @Override
+  public List<ProcessRuntimeInstance> listInstances() {
+    return new ArrayList<>(byInstanceId.values());
+  }
+
+  @Override
+  public Optional<ProcessRuntimeInstance> findById(String instanceId) {
+    return Optional.ofNullable(byInstanceId.get(instanceId));
+  }
+
+  @Override
+  public void save(ProcessRuntimeInstance instance) {
+    byInstanceId.put(instance.instanceId(), instance);
+  }
+
+  @Override
+  public Map<String, Object> readSharedData(String entityKey) {
+    String normalized = normalizeEntityKey(entityKey);
+    if (normalized == null) {
+      return Map.of();
+    }
+    return switch (normalized) {
+${readSwitchRows}
+    };
+  }
+
+  @Override
+  public void writeSharedData(String entityKey, Map<String, Object> values) {
+    String normalized = normalizeEntityKey(entityKey);
+    if (normalized == null) {
+      return;
+    }
+    Map<String, Object> payload = values == null ? Map.of() : values;
+    switch (normalized) {
+${writeSwitchRows}
+    }
+  }
+
+  @Override
+  public List<String> listSharedDataEntityKeys() {
+    List<String> keys = new ArrayList<>();
+${listKeyRows}
+    keys.sort(String::compareTo);
+    return keys;
+  }
+
+  @Override
+  public void deleteSharedData(String entityKey) {
+    String normalized = normalizeEntityKey(entityKey);
+    if (normalized == null) {
+      return;
+    }
+    switch (normalized) {
+${deleteSwitchRows}
+    }
+  }
+
+  @Override
+  public List<ProcessRuntimeStorePort.RuntimeUserDescriptor> listUsers() {
+    return users;
+  }
+
+  @Override
+  public ProcessRuntimeStorePort.RuntimeOrganizationSnapshot readOrganizationSnapshot() {
+    return organizationSnapshot;
+  }
+
+  @Override
+  public void appendMonitorEvent(ProcessRuntimeStorePort.RuntimeMonitorEvent event) {
+    if (event == null) {
+      return;
+    }
+    monitorEvents.add(
+      new ProcessRuntimeStorePort.RuntimeMonitorEvent(
+        event.eventId(),
+        event.occurredAt() == null ? Instant.now() : event.occurredAt(),
+        event.actionType(),
+        event.actor(),
+        event.actorRoleCodes() == null ? List.of() : List.copyOf(event.actorRoleCodes()),
+        event.targetType(),
+        event.targetId(),
+        event.details(),
+        event.forced()
+      )
+    );
+  }
+
+  @Override
+  public List<ProcessRuntimeStorePort.RuntimeMonitorEvent> listMonitorEvents() {
+    return List.copyOf(monitorEvents);
+  }
+
+  @Override
+  public ProcessRuntimeStorePort.RuntimeUserPreferences readUserPreferences(String userId) {
+    if (userId == null || userId.isBlank()) {
+      return null;
+    }
+    return userPreferencesByUserId.get(userId);
+  }
+
+  @Override
+  public void saveUserPreferences(ProcessRuntimeStorePort.RuntimeUserPreferences preferences) {
+    if (preferences == null || preferences.userId() == null || preferences.userId().isBlank()) {
+      return;
+    }
+    userPreferencesByUserId.put(
+      preferences.userId(),
+      new ProcessRuntimeStorePort.RuntimeUserPreferences(
+        preferences.userId(),
+        preferences.profileDisplayName(),
+        preferences.profilePhotoUrl(),
+        preferences.preferredLanguage(),
+        preferences.preferredTheme(),
+        preferences.notificationChannel(),
+        preferences.notificationsEnabled(),
+        preferences.automaticTaskPolicy(),
+        preferences.automaticTaskDelaySeconds(),
+        preferences.automaticTaskNotifyOnly()
+      )
+    );
+  }
+
+  private String normalizeEntityKey(String value) {
+    if (value == null) {
+      return null;
+    }
+    String normalized = value.trim().toLowerCase().replaceAll("[^a-z0-9._-]+", "-").replaceAll("^-+|-+$", "");
+    return normalized.isBlank() ? null : normalized;
+  }
+
+  private <T> T coerce(Object raw, Class<T> targetType) {
+    if (raw == null) {
+      return null;
+    }
+    try {
+      return objectMapper.convertValue(raw, targetType);
+    } catch (IllegalArgumentException error) {
+      return null;
+    }
+  }
+
+  private String toJsonText(Object raw) {
+    if (raw == null) {
+      return null;
+    }
+    if (raw instanceof String text) {
+      return text;
+    }
+    try {
+      return objectMapper.writeValueAsString(raw);
+    } catch (JsonProcessingException error) {
+      return String.valueOf(raw);
+    }
+  }
+}
+`;
+}
+
+function buildProcessSharedDataLiquibaseChangelogYaml({ sharedEntities }) {
+  const entities = Array.isArray(sharedEntities) ? sharedEntities : [];
+  const rows = ["databaseChangeLog:", "  - changeSet:", "      id: 900-process-shared-data-schema", "      author: prooweb", "      changes:"];
+  const createdIndexes = new Set();
+  const createdForeignKeys = new Set();
+  const createdJoinTables = new Set();
+
+  if (entities.length === 0) {
+    rows.push("        - sql:");
+    rows.push("            splitStatements: false");
+    rows.push("            sql: \"-- No modeled shared entities deployed yet.\"");
+    return `${rows.join("\n")}\n`;
+  }
+
+  for (const entity of entities) {
+    rows.push("        - createTable:");
+    rows.push(`            tableName: ${entity.tableName}`);
+    rows.push("            columns:");
+    rows.push("              - column:");
+    rows.push("                  name: id");
+    rows.push("                  type: bigint");
+    rows.push("                  autoIncrement: true");
+    rows.push("                  constraints:");
+    rows.push("                    primaryKey: true");
+    rows.push(`                    primaryKeyName: pk_${entity.tableName}`);
+
+    for (const field of entity.fields) {
+      rows.push("              - column:");
+      rows.push(`                  name: ${field.columnName}`);
+      rows.push(`                  type: ${mapSharedFieldTypeToLiquibase(field.type)}`);
+      rows.push("                  constraints:");
+      rows.push(`                    nullable: ${field.required ? "false" : "true"}`);
+      if (field.unique) {
+        rows.push("                    unique: true");
+      }
+    }
+
+    for (const relation of entity.relations) {
+      if (relation.type === "MANY_TO_ONE" || (relation.type === "ONE_TO_ONE" && !relation.mappedBy)) {
+        const columnName = relation.joinColumn || toDefaultJoinColumnName(relation.name);
+        rows.push("              - column:");
+        rows.push(`                  name: ${columnName}`);
+        rows.push("                  type: bigint");
+        rows.push("                  constraints:");
+        rows.push(`                    nullable: ${relation.required ? "false" : "true"}`);
+      }
+    }
+  }
+
+  for (const entity of entities) {
+    for (const field of entity.fields.filter((entry) => entry.indexed || entry.unique)) {
+      const indexName = `idx_${entity.tableName}_${field.columnName}`;
+      if (createdIndexes.has(indexName)) {
+        continue;
+      }
+      createdIndexes.add(indexName);
+      rows.push("        - createIndex:");
+      rows.push(`            indexName: ${indexName}`);
+      rows.push(`            tableName: ${entity.tableName}`);
+      if (field.unique) {
+        rows.push("            unique: true");
+      }
+      rows.push("            columns:");
+      rows.push("              - column:");
+      rows.push(`                  name: ${field.columnName}`);
+    }
+
+    for (const relation of entity.relations) {
+      const target = entities.find((entry) => entry.entityKey === relation.targetEntityKey);
+      if (!target) {
+        continue;
+      }
+      if (relation.type === "MANY_TO_ONE" || (relation.type === "ONE_TO_ONE" && !relation.mappedBy)) {
+        const columnName = relation.joinColumn || toDefaultJoinColumnName(relation.name);
+        const foreignKeyName = `fk_${entity.tableName}_${columnName}`;
+        if (createdForeignKeys.has(foreignKeyName)) {
+          continue;
+        }
+        createdForeignKeys.add(foreignKeyName);
+        rows.push("        - addForeignKeyConstraint:");
+        rows.push(`            baseTableName: ${entity.tableName}`);
+        rows.push(`            baseColumnNames: ${columnName}`);
+        rows.push(`            referencedTableName: ${target.tableName}`);
+        rows.push("            referencedColumnNames: id");
+        rows.push(`            constraintName: ${foreignKeyName}`);
+      }
+      if (relation.type === "MANY_TO_MANY" && !relation.mappedBy) {
+        const joinTable = relation.joinTable || toDefaultJoinTableName(entity.entityKey, relation.name, relation.targetEntityKey);
+        const joinColumn = relation.joinColumn || toDefaultJoinColumnName(entity.entityKey);
+        const inverseJoinColumn = relation.inverseJoinColumn || toDefaultJoinColumnName(relation.targetEntityKey);
+        if (createdJoinTables.has(joinTable)) {
+          continue;
+        }
+        createdJoinTables.add(joinTable);
+        const sourceForeignKeyName = `fk_${joinTable}_${joinColumn}`;
+        const targetForeignKeyName = `fk_${joinTable}_${inverseJoinColumn}`;
+        createdForeignKeys.add(sourceForeignKeyName);
+        createdForeignKeys.add(targetForeignKeyName);
+        rows.push("        - createTable:");
+        rows.push(`            tableName: ${joinTable}`);
+        rows.push("            columns:");
+        rows.push("              - column:");
+        rows.push(`                  name: ${joinColumn}`);
+        rows.push("                  type: bigint");
+        rows.push("                  constraints:");
+        rows.push("                    nullable: false");
+        rows.push("              - column:");
+        rows.push(`                  name: ${inverseJoinColumn}`);
+        rows.push("                  type: bigint");
+        rows.push("                  constraints:");
+        rows.push("                    nullable: false");
+        rows.push("        - addPrimaryKey:");
+        rows.push(`            tableName: ${joinTable}`);
+        rows.push(`            columnNames: ${joinColumn}, ${inverseJoinColumn}`);
+        rows.push(`            constraintName: pk_${joinTable}`);
+        rows.push("        - addForeignKeyConstraint:");
+        rows.push(`            baseTableName: ${joinTable}`);
+        rows.push(`            baseColumnNames: ${joinColumn}`);
+        rows.push(`            referencedTableName: ${entity.tableName}`);
+        rows.push("            referencedColumnNames: id");
+        rows.push(`            constraintName: ${sourceForeignKeyName}`);
+        rows.push("        - addForeignKeyConstraint:");
+        rows.push(`            baseTableName: ${joinTable}`);
+        rows.push(`            baseColumnNames: ${inverseJoinColumn}`);
+        rows.push(`            referencedTableName: ${target.tableName}`);
+        rows.push("            referencedColumnNames: id");
+        rows.push(`            constraintName: ${targetForeignKeyName}`);
+      }
+    }
+  }
+
+  return `${rows.join("\n")}\n`;
+}
+
+function normalizeLiquibaseResourcePath(rawPath) {
+  const normalized = String(rawPath || "").trim();
+  if (!normalized) {
+    return "db/changelog/db.changelog-master.yaml";
+  }
+  const withoutClasspathPrefix = normalized.toLowerCase().startsWith("classpath:")
+    ? normalized.slice("classpath:".length)
+    : normalized;
+  return withoutClasspathPrefix.replace(/^\/+/, "") || "db/changelog/db.changelog-master.yaml";
+}
+
+function resolveLiquibaseResourceLayout(workspaceConfig) {
+  const configuredPath = workspaceConfig?.backendOptions?.databaseMigration?.changelogPath;
+  const masterResourcePath = normalizeLiquibaseResourcePath(configuredPath);
+  const masterDirectory = path.posix.dirname(masterResourcePath);
+  const changesetsDirectory = masterDirectory === "." ? "changesets" : `${masterDirectory}/changesets`;
+  return {
+    masterResourcePath,
+    baselineResourcePath: `${changesetsDirectory}/001-baseline-schema.yaml`,
+    referenceDataResourcePath: `${changesetsDirectory}/010-reference-data.yaml`,
+    generatedProcessSharedDataResourcePath: `${changesetsDirectory}/900-process-shared-data.generated.yaml`,
+  };
+}
+
+function buildLiquibaseMasterWithProcessSharedDataYaml(liquibaseLayout) {
+  const layout = liquibaseLayout || resolveLiquibaseResourceLayout({});
+  const masterDirectory = path.posix.dirname(layout.masterResourcePath);
+  const relativeBaseline = path.posix.relative(masterDirectory, layout.baselineResourcePath) || "changesets/001-baseline-schema.yaml";
+  const relativeReference = path.posix.relative(masterDirectory, layout.referenceDataResourcePath) || "changesets/010-reference-data.yaml";
+  const relativeGenerated = path.posix.relative(masterDirectory, layout.generatedProcessSharedDataResourcePath) || "changesets/900-process-shared-data.generated.yaml";
+  return `databaseChangeLog:
+  - include:
+      file: ${relativeBaseline}
+      relativeToChangelogFile: true
+  - include:
+      file: ${relativeReference}
+      relativeToChangelogFile: true
+  - include:
+      file: ${relativeGenerated}
+      relativeToChangelogFile: true
+`;
+}
+
 function escapeJavaSingle(value) {
   return String(value || "")
     .replace(/\\/g, "\\\\")
@@ -570,7 +1437,7 @@ function buildBackendAutomaticTaskCatalogJson({
 }
 
 function buildGeneratedProcessRuntimeCatalogJava({ basePackage, runtimeEntries }) {
-  const processRows = runtimeEntries.map(({ entry, runtimeContract }) => {
+  const processRows = runtimeEntries.map(({ entry, runtimeContract, dataContract }) => {
     const activityRows = (runtimeContract.activities || []).map((activity) => {
       const automaticHandlerRef = activity.automaticExecution?.handlerRef || "";
       const automaticTaskTypeKey = activity.automaticExecution?.taskTypeKey || "core.echo";
@@ -611,16 +1478,41 @@ function buildGeneratedProcessRuntimeCatalogJava({ basePackage, runtimeEntries }
     });
     const transitionRows = (runtimeContract.flow?.transitions || []).map((transition) =>
       `        new TransitionDescriptor(${toJavaString(transition.sourceActivityId)}, ${toJavaString(transition.targetActivityId)})`);
+    const sharedEntityRows = (dataContract?.sharedData?.entities || []).map((sharedEntity) => {
+      const fieldRows = (sharedEntity.fields || []).map((field) =>
+        `            new SharedFieldDescriptor(${toJavaString(field.name || "")}, ${toJavaString(
+          field.type || "STRING",
+        )}, ${Boolean(field.required)}, ${Boolean(field.indexed)}, ${Boolean(field.unique)})`);
+      const fieldsLiteral = fieldRows.length > 0
+        ? `List.of(\n${fieldRows.join(",\n")}\n          )`
+        : "List.of()";
+      const relationRows = (sharedEntity.relations || []).map((relation) =>
+        `            new SharedRelationDescriptor(${toJavaString(relation.name || "")}, ${toJavaString(
+          relation.type || "MANY_TO_ONE",
+        )}, ${toJavaString(relation.targetEntityKey || "")}, ${toJavaString(relation.mappedBy || "")}, ${toJavaString(
+          relation.joinColumn || "",
+        )}, ${toJavaString(relation.joinTable || "")}, ${toJavaString(relation.inverseJoinColumn || "")}, ${Boolean(
+          relation.required,
+        )})`);
+      const relationsLiteral = relationRows.length > 0
+        ? `List.of(\n${relationRows.join(",\n")}\n          )`
+        : "List.of()";
+      return `        new SharedEntityDescriptor(${toJavaString(sharedEntity.entityKey || "")}, ${toJavaString(
+        sharedEntity.displayName || sharedEntity.entityKey || "",
+      )}, ${toJavaString(sharedEntity.tableName || "")}, ${Boolean(sharedEntity.modeled === true)}, ${fieldsLiteral}, ${relationsLiteral})`;
+    });
 
     const activitiesLiteral = activityRows.length > 0 ? `List.of(\n${activityRows.join(",\n")}\n      )` : "List.of()";
     const transitionsLiteral = transitionRows.length > 0 ? `List.of(\n${transitionRows.join(",\n")}\n      )` : "List.of()";
+    const sharedEntitiesLiteral = sharedEntityRows.length > 0 ? `List.of(\n${sharedEntityRows.join(",\n")}\n      )` : "List.of()";
     return `      new ProcessDescriptor(
         ${toJavaString(entry.modelKey)},
         ${entry.versionNumber},
         ${toJavaList(runtimeContract.start?.startableByRoles || [])},
         ${toJavaList(runtimeContract.start?.startActivities || [])},
         ${activitiesLiteral},
-        ${transitionsLiteral}
+        ${transitionsLiteral},
+        ${sharedEntitiesLiteral}
       )`;
   });
 
@@ -671,13 +1563,42 @@ public final class GeneratedProcessRuntimeCatalog {
       String targetActivityId) {
   }
 
+  public record SharedFieldDescriptor(
+      String name,
+      String type,
+      boolean required,
+      boolean indexed,
+      boolean unique) {
+  }
+
+  public record SharedRelationDescriptor(
+      String name,
+      String type,
+      String targetEntityKey,
+      String mappedBy,
+      String joinColumn,
+      String joinTable,
+      String inverseJoinColumn,
+      boolean required) {
+  }
+
+  public record SharedEntityDescriptor(
+      String entityKey,
+      String displayName,
+      String tableName,
+      boolean modeled,
+      List<SharedFieldDescriptor> fields,
+      List<SharedRelationDescriptor> relations) {
+  }
+
   public record ProcessDescriptor(
       String modelKey,
       int versionNumber,
       List<String> startableByRoles,
       List<String> startActivities,
       List<ActivityDescriptor> activities,
-      List<TransitionDescriptor> transitions) {
+      List<TransitionDescriptor> transitions,
+      List<SharedEntityDescriptor> sharedEntities) {
   }
 
   public static List<ProcessDescriptor> deployedProcesses() {
@@ -1011,6 +1932,10 @@ public interface ProcessRuntimeStorePort {
 
   void writeSharedData(String entityKey, Map<String, Object> values);
 
+  List<String> listSharedDataEntityKeys();
+
+  void deleteSharedData(String entityKey);
+
   List<RuntimeUserDescriptor> listUsers();
 
   RuntimeOrganizationSnapshot readOrganizationSnapshot();
@@ -1103,6 +2028,14 @@ public interface ProcessRuntimeEngineUseCase {
 
   List<String> readTimeline(String instanceId);
 
+  List<SharedDataEntityView> listSharedDataEntities(SharedDataQuery query);
+
+  SharedDataEntityView readSharedDataEntity(ReadSharedDataQuery query);
+
+  SharedDataEntityView upsertSharedDataEntity(UpsertSharedDataCommand command);
+
+  boolean deleteSharedDataEntity(DeleteSharedDataCommand command);
+
   record StartOptionsQuery(String actor, List<String> roleCodes) {
   }
 
@@ -1136,6 +2069,25 @@ public interface ProcessRuntimeEngineUseCase {
       String actor,
       List<String> roleCodes,
       String targetUserId) {
+  }
+
+  record SharedDataQuery(String actor, List<String> roleCodes) {
+  }
+
+  record ReadSharedDataQuery(String actor, List<String> roleCodes, String entityKey) {
+  }
+
+  record UpsertSharedDataCommand(
+      String actor,
+      List<String> roleCodes,
+      String entityKey,
+      Map<String, Object> values) {
+  }
+
+  record DeleteSharedDataCommand(
+      String actor,
+      List<String> roleCodes,
+      String entityKey) {
   }
 
   record CompleteTaskCommand(String instanceId, String taskId, String actor, List<String> roleCodes, Map<String, Object> payload) {
@@ -1236,6 +2188,23 @@ public interface ProcessRuntimeEngineUseCase {
       String automaticTaskPolicy,
       int automaticTaskDelaySeconds,
       boolean automaticTaskNotifyOnly) {
+  }
+
+  record SharedDataFieldView(
+      String name,
+      String type,
+      boolean required,
+      boolean indexed,
+      boolean unique) {
+  }
+
+  record SharedDataEntityView(
+      String entityKey,
+      String displayName,
+      String tableName,
+      boolean modeled,
+      List<SharedDataFieldView> fields,
+      Map<String, Object> values) {
   }
 }
 `;
@@ -1737,6 +2706,75 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     }
 
     return toUserPreferencesView(updated);
+  }
+
+  @Override
+  public List<SharedDataEntityView> listSharedDataEntities(SharedDataQuery query) {
+    List<String> roles = query.roleCodes() == null ? List.of() : query.roleCodes();
+    ensureMonitorPrivilege(query.actor(), roles, "read shared process entities");
+    Map<String, GeneratedProcessRuntimeCatalog.SharedEntityDescriptor> catalog = listSharedEntityCatalogByKey();
+    Set<String> keys = new HashSet<>(catalog.keySet());
+    keys.addAll(processRuntimeStorePort.listSharedDataEntityKeys());
+
+    return keys.stream()
+      .sorted()
+      .map((entityKey) -> toSharedDataEntityView(entityKey, catalog.get(entityKey)))
+      .toList();
+  }
+
+  @Override
+  public SharedDataEntityView readSharedDataEntity(ReadSharedDataQuery query) {
+    List<String> roles = query.roleCodes() == null ? List.of() : query.roleCodes();
+    ensureMonitorPrivilege(query.actor(), roles, "read shared process entity data");
+    String entityKey = normalizeSharedEntityKey(query.entityKey());
+    if (entityKey == null) {
+      throw new IllegalArgumentException("entityKey is required.");
+    }
+    Map<String, GeneratedProcessRuntimeCatalog.SharedEntityDescriptor> catalog = listSharedEntityCatalogByKey();
+    return toSharedDataEntityView(entityKey, catalog.get(entityKey));
+  }
+
+  @Override
+  public SharedDataEntityView upsertSharedDataEntity(UpsertSharedDataCommand command) {
+    List<String> roles = command.roleCodes() == null ? List.of() : command.roleCodes();
+    ensureMonitorPrivilege(command.actor(), roles, "update shared process entity data");
+    String entityKey = normalizeSharedEntityKey(command.entityKey());
+    if (entityKey == null) {
+      throw new IllegalArgumentException("entityKey is required.");
+    }
+    processRuntimeStorePort.writeSharedData(entityKey, command.values() == null ? Map.of() : command.values());
+    Map<String, GeneratedProcessRuntimeCatalog.SharedEntityDescriptor> catalog = listSharedEntityCatalogByKey();
+    appendMonitorEvent(
+      "SHARED_DATA_UPSERT",
+      command.actor(),
+      roles,
+      "SHARED_ENTITY",
+      entityKey,
+      "fields=" + (command.values() == null ? 0 : command.values().size()),
+      false
+    );
+    return toSharedDataEntityView(entityKey, catalog.get(entityKey));
+  }
+
+  @Override
+  public boolean deleteSharedDataEntity(DeleteSharedDataCommand command) {
+    List<String> roles = command.roleCodes() == null ? List.of() : command.roleCodes();
+    ensureMonitorPrivilege(command.actor(), roles, "delete shared process entity data");
+    String entityKey = normalizeSharedEntityKey(command.entityKey());
+    if (entityKey == null) {
+      throw new IllegalArgumentException("entityKey is required.");
+    }
+    processRuntimeStorePort.deleteSharedData(entityKey);
+    appendMonitorEvent(
+      "SHARED_DATA_DELETE",
+      command.actor(),
+      roles,
+      "SHARED_ENTITY",
+      entityKey,
+      "deleted=true",
+      false
+    );
+    return true;
   }
 
   @Override
@@ -2258,6 +3296,70 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
     Map<String, Object> update = new HashMap<>();
     update.put("__assignment_rr__" + activityId, Integer.valueOf(nextIndex));
     instance.putContextData(update);
+  }
+
+  private Map<String, GeneratedProcessRuntimeCatalog.SharedEntityDescriptor> listSharedEntityCatalogByKey() {
+    Map<String, GeneratedProcessRuntimeCatalog.SharedEntityDescriptor> byKey = new HashMap<>();
+    for (GeneratedProcessRuntimeCatalog.ProcessDescriptor descriptor : GeneratedProcessRuntimeCatalog.deployedProcesses()) {
+      if (descriptor == null || descriptor.sharedEntities() == null) {
+        continue;
+      }
+      for (GeneratedProcessRuntimeCatalog.SharedEntityDescriptor sharedEntity : descriptor.sharedEntities()) {
+        String entityKey = normalizeSharedEntityKey(sharedEntity == null ? null : sharedEntity.entityKey());
+        if (entityKey == null || byKey.containsKey(entityKey)) {
+          continue;
+        }
+        byKey.put(entityKey, sharedEntity);
+      }
+    }
+    return byKey;
+  }
+
+  private String normalizeSharedEntityKey(String value) {
+    String normalized = normalizeBlank(value).toLowerCase();
+    if (normalized.isBlank()) {
+      return null;
+    }
+    normalized = normalized
+      .replaceAll("[^a-z0-9._-]+", "-")
+      .replaceAll("^-+|-+$", "")
+      .replaceAll("-{2,}", "-");
+    return normalized.isBlank() ? null : normalized;
+  }
+
+  private SharedDataEntityView toSharedDataEntityView(
+      String entityKey,
+      GeneratedProcessRuntimeCatalog.SharedEntityDescriptor descriptor) {
+    String normalizedKey = normalizeSharedEntityKey(entityKey);
+    if (normalizedKey == null) {
+      throw new IllegalArgumentException("entityKey is required.");
+    }
+    Map<String, Object> values = processRuntimeStorePort.readSharedData(normalizedKey);
+    List<SharedDataFieldView> fields = descriptor == null || descriptor.fields() == null
+      ? List.of()
+      : descriptor.fields().stream()
+        .map((field) -> new SharedDataFieldView(
+          field.name(),
+          normalizeUpper(field.type(), "STRING"),
+          field.required(),
+          field.indexed(),
+          field.unique()
+        ))
+        .toList();
+    String displayName = descriptor == null ? normalizedKey : normalizeBlank(descriptor.displayName());
+    if (displayName.isBlank()) {
+      displayName = normalizedKey;
+    }
+    String tableName = descriptor == null ? "" : normalizeBlank(descriptor.tableName());
+    boolean modeled = descriptor != null && descriptor.modeled();
+    return new SharedDataEntityView(
+      normalizedKey,
+      displayName,
+      tableName,
+      modeled,
+      fields,
+      values == null ? Map.of() : Map.copyOf(values)
+    );
   }
 
   private String normalizeActor(String value) {
@@ -2805,7 +3907,11 @@ public class ProcessRuntimeEngineService implements ProcessRuntimeEngineUseCase 
       return instance.readActivityOutput(source.sourceRef());
     }
     if ("SHARED_DATA".equals(sourceType)) {
-      return processRuntimeStorePort.readSharedData(inferSharedEntityKey(source.sourceRef()));
+      String sharedEntityKey = normalizeSharedEntityKey(inferSharedEntityKey(source.sourceRef()));
+      if (sharedEntityKey == null) {
+        return Map.of();
+      }
+      return processRuntimeStorePort.readSharedData(sharedEntityKey);
     }
     if ("BACKEND_SERVICE".equals(sourceType) || "EXTERNAL_SERVICE".equals(sourceType)) {
       return loadServiceSourceData(sourceType, source.sourceRef(), instance);
@@ -3377,10 +4483,11 @@ ${customTaskDispatchCases}
     }
 
     int separatorIndex = normalized.indexOf('.');
-    String entityKey = separatorIndex < 0 ? normalized : normalized.substring(0, separatorIndex);
+    String rawEntityKey = separatorIndex < 0 ? normalized : normalized.substring(0, separatorIndex);
     String fieldPath = separatorIndex < 0 ? "value" : normalized.substring(separatorIndex + 1);
 
-    if (entityKey.isBlank()) {
+    String entityKey = normalizeSharedEntityKey(rawEntityKey);
+    if (entityKey == null) {
       return null;
     }
     if (fieldPath.isBlank()) {
@@ -3393,11 +4500,12 @@ ${customTaskDispatchCases}
   private String inferSharedEntityKey(String sourceRef) {
     SharedTarget target = resolveSharedTarget(sourceRef);
     if (target != null) {
-      return target.entityKey;
+      return normalizeSharedEntityKey(target.entityKey);
     }
     String normalized = normalizePath(sourceRef);
     int separatorIndex = normalized.indexOf('.');
-    return separatorIndex < 0 ? normalized : normalized.substring(0, separatorIndex);
+    String candidate = separatorIndex < 0 ? normalized : normalized.substring(0, separatorIndex);
+    return normalizeSharedEntityKey(candidate);
   }
 
   private Object readPathValue(Map<String, Object> source, String path) {
@@ -3708,6 +4816,19 @@ public class InMemoryProcessRuntimeStoreAdapter implements ProcessRuntimeStorePo
   }
 
   @Override
+  public List<String> listSharedDataEntityKeys() {
+    return sharedDataByEntity.keySet().stream().sorted().toList();
+  }
+
+  @Override
+  public void deleteSharedData(String entityKey) {
+    if (entityKey == null || entityKey.isBlank()) {
+      return;
+    }
+    sharedDataByEntity.remove(entityKey);
+  }
+
+  @Override
   public List<ProcessRuntimeStorePort.RuntimeUserDescriptor> listUsers() {
     return users;
   }
@@ -3804,6 +4925,7 @@ import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -4016,6 +5138,74 @@ public class ProcessRuntimeController {
     );
   }
 
+  @Operation(summary = "List modeled shared process entities and their current values")
+  @GetMapping("/shared-data/entities")
+  public Map<String, Object> listSharedDataEntities(
+    @RequestParam(name = "actor", required = false) String actor,
+    @RequestParam(name = "roles", required = false) List<String> roles
+  ) {
+    return Map.of(
+      "entities",
+      processRuntimeEngineUseCase.listSharedDataEntities(
+        new ProcessRuntimeEngineUseCase.SharedDataQuery(actor, roles)
+      )
+    );
+  }
+
+  @Operation(summary = "Read one shared process entity payload")
+  @GetMapping("/shared-data/entities/{entityKey}")
+  public Map<String, Object> readSharedDataEntity(
+    @PathVariable("entityKey") String entityKey,
+    @RequestParam(name = "actor", required = false) String actor,
+    @RequestParam(name = "roles", required = false) List<String> roles
+  ) {
+    return Map.of(
+      "entity",
+      processRuntimeEngineUseCase.readSharedDataEntity(
+        new ProcessRuntimeEngineUseCase.ReadSharedDataQuery(actor, roles, entityKey)
+      )
+    );
+  }
+
+  @Operation(summary = "Upsert shared process entity data")
+  @PostMapping("/shared-data/entities/{entityKey}")
+  public Map<String, Object> upsertSharedDataEntity(
+    @PathVariable("entityKey") String entityKey,
+    @RequestBody SharedDataMutationPayload payload
+  ) {
+    return Map.of(
+      "entity",
+      processRuntimeEngineUseCase.upsertSharedDataEntity(
+        new ProcessRuntimeEngineUseCase.UpsertSharedDataCommand(
+          payload.actor(),
+          payload.roleCodes(),
+          entityKey,
+          payload.values()
+        )
+      )
+    );
+  }
+
+  @Operation(summary = "Delete shared process entity data")
+  @DeleteMapping("/shared-data/entities/{entityKey}")
+  public Map<String, Object> deleteSharedDataEntity(
+    @PathVariable("entityKey") String entityKey,
+    @RequestBody SharedDataDeletePayload payload
+  ) {
+    return Map.of(
+      "deleted",
+      Boolean.valueOf(
+        processRuntimeEngineUseCase.deleteSharedDataEntity(
+          new ProcessRuntimeEngineUseCase.DeleteSharedDataCommand(
+            payload.actor(),
+            payload.roleCodes(),
+            entityKey
+          )
+        )
+      )
+    );
+  }
+
   public record StartInstancePayload(
     String modelKey,
     int versionNumber,
@@ -4067,8 +5257,21 @@ public class ProcessRuntimeController {
     String notificationChannel,
     boolean notificationsEnabled,
     String automaticTaskPolicy,
-    int automaticTaskDelaySeconds,
-    boolean automaticTaskNotifyOnly
+      int automaticTaskDelaySeconds,
+      boolean automaticTaskNotifyOnly
+  ) {
+  }
+
+  public record SharedDataMutationPayload(
+    String actor,
+    List<String> roleCodes,
+    Map<String, Object> values
+  ) {
+  }
+
+  public record SharedDataDeletePayload(
+    String actor,
+    List<String> roleCodes
   ) {
   }
 }
@@ -4350,6 +5553,19 @@ class ProcessRuntimeEngineUT {
         merged.putAll(values);
       }
       sharedDataByEntity.put(entityKey, merged);
+    }
+
+    @Override
+    public List<String> listSharedDataEntityKeys() {
+      return sharedDataByEntity.keySet().stream().sorted().toList();
+    }
+
+    @Override
+    public void deleteSharedData(String entityKey) {
+      if (entityKey == null || entityKey.isBlank()) {
+        return;
+      }
+      sharedDataByEntity.remove(entityKey);
     }
 
     @Override
@@ -4790,6 +6006,48 @@ export function readProcessRuntimeUserPreferences({ actor = "", roles = [], targ
 export function updateProcessRuntimeUserPreferences(payload) {
   return requestJson(PROCESS_RUNTIME_API_ROOT + "/preferences", {
     method: "POST",
+    body: payload,
+  });
+}
+
+export function listProcessRuntimeSharedDataEntities({ actor = "", roles = [] } = {}) {
+  const query = new URLSearchParams();
+  if (actor) {
+    query.set("actor", actor);
+  }
+  for (const role of roles) {
+    if (role) {
+      query.append("roles", role);
+    }
+  }
+  return requestJson(PROCESS_RUNTIME_API_ROOT + "/shared-data/entities?" + query.toString());
+}
+
+export function readProcessRuntimeSharedDataEntity(entityKey, { actor = "", roles = [] } = {}) {
+  const query = new URLSearchParams();
+  if (actor) {
+    query.set("actor", actor);
+  }
+  for (const role of roles) {
+    if (role) {
+      query.append("roles", role);
+    }
+  }
+  return requestJson(
+    PROCESS_RUNTIME_API_ROOT + "/shared-data/entities/" + encodeURIComponent(entityKey) + "?" + query.toString(),
+  );
+}
+
+export function upsertProcessRuntimeSharedDataEntity(entityKey, payload) {
+  return requestJson(PROCESS_RUNTIME_API_ROOT + "/shared-data/entities/" + encodeURIComponent(entityKey), {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function deleteProcessRuntimeSharedDataEntity(entityKey, payload) {
+  return requestJson(PROCESS_RUNTIME_API_ROOT + "/shared-data/entities/" + encodeURIComponent(entityKey), {
+    method: "DELETE",
     body: payload,
   });
 }
@@ -5399,6 +6657,8 @@ function buildDeploymentFiles({
     basePackage,
     taskTypes: usedCustomAutomaticTaskTypes,
   });
+  const compiledSharedEntities = normalizeSharedEntitiesForCompilation(runtimeEntries);
+  const sharedEntityClassByKey = new Map(compiledSharedEntities.map((entry) => [entry.entityKey, entry.className]));
 
   const backendProcessRoot = path.join(
     "src/backend/springboot/system/system-domain/src/main/java",
@@ -5420,6 +6680,16 @@ function buildDeploymentFiles({
     basePackagePath,
     "system/infrastructure/process/runtime",
   );
+  const backendInfrastructureSharedDataModelRoot = path.join(
+    "src/backend/springboot/system/system-infrastructure/src/main/java",
+    basePackagePath,
+    "system/infrastructure/process/runtime/shareddata/model",
+  );
+  const backendInfrastructureSharedDataRepositoryRoot = path.join(
+    "src/backend/springboot/system/system-infrastructure/src/main/java",
+    basePackagePath,
+    "system/infrastructure/process/runtime/shareddata/repository",
+  );
   const backendInfrastructureConfigRoot = path.join(
     "src/backend/springboot/system/system-infrastructure/src/main/java",
     basePackagePath,
@@ -5440,6 +6710,8 @@ function buildDeploymentFiles({
     basePackagePath,
     "tests/system",
   );
+  const backendResourcesMainRoot = "src/backend/springboot/prooweb-application/src/main/resources";
+  const liquibaseLayout = resolveLiquibaseResourceLayout(workspaceConfig);
   const backendResourcesRoot = path.join("src/backend/springboot/prooweb-application/src/main/resources/processes", model.modelKey);
   const backendBddFeaturesRoot = "src/backend/springboot/tests/system-infrastructure-it/src/test/resources/features";
   const frontendProcessRoot = path.join("src/frontend/web/react/src/modules/processes", model.modelKey);
@@ -5599,6 +6871,37 @@ function buildDeploymentFiles({
       versionNumber: 1,
     },
     {
+      relativePath: toPosixPath(path.join(backendInfrastructureRuntimeRoot, "JpaBackedProcessRuntimeStoreAdapter.java")),
+      content: buildJpaBackedProcessRuntimeStoreAdapterJava({
+        basePackage,
+        sharedEntities: compiledSharedEntities,
+      }),
+      kind: "backend-runtime-infrastructure-jpa-store",
+      modelKey: "_runtime_engine_",
+      versionNumber: 1,
+    },
+    ...compiledSharedEntities.map((entity) => ({
+      relativePath: toPosixPath(path.join(backendInfrastructureSharedDataModelRoot, `${entity.className}.java`)),
+      content: buildSharedDataEntityJpaJava({
+        basePackage,
+        entity,
+        entityClassByKey: sharedEntityClassByKey,
+      }),
+      kind: "backend-runtime-shared-entity-jpa-model",
+      modelKey: "_shared_data_",
+      versionNumber: 1,
+    })),
+    ...compiledSharedEntities.map((entity) => ({
+      relativePath: toPosixPath(path.join(backendInfrastructureSharedDataRepositoryRoot, `${entity.repositoryName}.java`)),
+      content: buildSharedDataRepositoryJava({
+        basePackage,
+        entity,
+      }),
+      kind: "backend-runtime-shared-entity-jpa-repository",
+      modelKey: "_shared_data_",
+      versionNumber: 1,
+    })),
+    {
       relativePath: toPosixPath(path.join(backendInfrastructureConfigRoot, "ProcessRuntimeModuleConfig.java")),
       content: buildProcessRuntimeModuleConfigJava({ basePackage }),
       kind: "backend-runtime-infrastructure-config",
@@ -5704,6 +7007,20 @@ function buildDeploymentFiles({
       content: buildFrontendDataLineageCatalogModule(runtimeEntries),
       kind: "frontend-data-lineage-catalog",
       modelKey: "_data_catalog_",
+      versionNumber: 1,
+    },
+    {
+      relativePath: toPosixPath(path.join(backendResourcesMainRoot, liquibaseLayout.masterResourcePath)),
+      content: buildLiquibaseMasterWithProcessSharedDataYaml(liquibaseLayout),
+      kind: "backend-liquibase-master",
+      modelKey: "_shared_data_",
+      versionNumber: 1,
+    },
+    {
+      relativePath: toPosixPath(path.join(backendResourcesMainRoot, liquibaseLayout.generatedProcessSharedDataResourcePath)),
+      content: buildProcessSharedDataLiquibaseChangelogYaml({ sharedEntities: compiledSharedEntities }),
+      kind: "backend-liquibase-process-shared-data",
+      modelKey: "_shared_data_",
       versionNumber: 1,
     },
     {

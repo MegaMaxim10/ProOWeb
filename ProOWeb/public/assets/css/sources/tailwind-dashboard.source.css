@@ -1,0 +1,226 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+        html { @apply font-sans; }
+        body { @apply text-pw-text dark:text-pw-d-text; }
+        h1, h2, h3, h4, h5, h6 { @apply leading-tight; }
+        p { @apply leading-relaxed; }
+        code { @apply font-mono text-[0.88em]; }
+        a:focus-visible, button:focus-visible, input:focus-visible,
+        select:focus-visible, textarea:focus-visible {
+          @apply outline-2 outline-[#2a78c4] dark:outline-[#61b5ff] outline-offset-2;
+        }
+      }
+
+      @layer components {
+        /* Panel card */
+        .pw-panel {
+          @apply rounded-[18px] bg-pw-panel dark:bg-pw-d-panel
+                 border border-pw-line dark:border-pw-d-line
+                 p-5 shadow-[0_8px_20px_rgba(18,34,52,0.08)]
+                 dark:shadow-[0_10px_24px_rgba(2,8,16,0.35)];
+        }
+
+        /* Typography helpers */
+        .pw-kicker {
+          @apply m-0 text-[0.74rem] font-medium uppercase tracking-[0.12em]
+                 text-pw-muted dark:text-pw-d-muted;
+        }
+        .pw-muted { @apply text-pw-muted dark:text-pw-d-muted; }
+
+        /* Buttons */
+        .pw-btn {
+          @apply mt-1 rounded-xl min-h-[2.55rem] px-4 py-2.5 text-sm font-semibold
+                 bg-pw-action dark:bg-pw-d-action text-white border border-transparent
+                 cursor-pointer transition-all duration-150
+                 hover:bg-[#0d5343] dark:hover:bg-pw-d-action-h
+                 hover:-translate-y-px hover:shadow-[0_8px_16px_rgba(13,83,67,0.22)]
+                 active:translate-y-0 active:shadow-none
+                 disabled:opacity-60 disabled:cursor-not-allowed
+                 disabled:translate-y-0 disabled:shadow-none;
+        }
+        .pw-btn-sm {
+          @apply pw-btn min-h-[2.1rem] px-3 py-1.5 text-xs mt-0;
+        }
+        .pw-btn-secondary {
+          @apply m-0 rounded-xl min-h-[2.4rem] px-3 py-2 text-sm font-semibold
+                 bg-[#e8f1ff] dark:bg-pw-d-surface text-[#154375] dark:text-pw-d-text
+                 border border-pw-line dark:border-pw-d-line
+                 cursor-pointer transition-all duration-150
+                 hover:bg-[#dcecff] dark:hover:bg-[#244260]
+                 hover:-translate-y-px hover:shadow-[0_6px_14px_rgba(45,80,122,0.14)]
+                 active:translate-y-0 active:shadow-none;
+        }
+        .pw-btn-ghost {
+          @apply m-0 rounded-xl px-2.5 py-2 text-sm font-medium
+                 bg-[#eef4fb] dark:bg-[#1d324a]
+                 text-[#1b4876] dark:text-[#cfe4fb]
+                 border border-[#b9cce3] dark:border-[#436285]
+                 cursor-pointer transition-colors
+                 hover:bg-[#deebfa] dark:hover:bg-[#274a71];
+        }
+
+        /* Link-button */
+        .pw-link {
+          @apply inline-flex items-center gap-1.5 rounded-xl min-h-[2.4rem]
+                 border border-pw-line dark:border-pw-d-line
+                 px-3 py-2 text-sm text-[#154375] dark:text-pw-d-text
+                 no-underline bg-[#f1f7ff] dark:bg-pw-d-surface
+                 transition-all duration-150
+                 hover:bg-[#e2eeff] dark:hover:bg-[#244260]
+                 hover:-translate-y-px;
+        }
+        .pw-link.is-active {
+          @apply border-pw-action bg-gradient-to-br from-[#eaf3ff] to-[#e8f8f2]
+                 dark:from-[#203856] dark:to-[#1f3f39] font-bold
+                 shadow-[0_8px_18px_rgba(21,49,74,0.14)];
+        }
+
+        /* Form elements */
+        .pw-label {
+          @apply grid gap-1.5 text-sm font-medium
+                 text-pw-text dark:text-pw-d-text relative;
+        }
+        .pw-input {
+          @apply w-full rounded-xl min-h-[2.55rem] px-3 py-2 text-sm
+                 border border-pw-line dark:border-pw-d-line
+                 bg-pw-soft dark:bg-pw-d-soft
+                 text-pw-text dark:text-pw-d-text
+                 transition-all duration-150
+                 focus:outline-none focus:border-pw-focus dark:focus:border-pw-d-focus
+                 focus:ring-2 focus:ring-[rgba(42,120,196,0.16)]
+                 focus:bg-pw-panel dark:focus:bg-pw-d-panel;
+        }
+        .pw-fieldset {
+          @apply grid gap-3 rounded-[14px] p-3.5
+                 border border-pw-line dark:border-pw-d-line
+                 bg-[#f7fbff] dark:bg-[#162538];
+        }
+        .pw-fieldset legend { @apply font-semibold text-sm; }
+        .pw-form { @apply grid gap-3; }
+        .pw-hint { @apply m-0 text-xs pw-muted; }
+        .pw-inline-row { @apply flex items-center gap-2; }
+        .pw-checkbox-grid { @apply grid grid-cols-3 gap-2; }
+        .pw-required { @apply text-pw-error dark:text-pw-d-error font-bold; }
+
+        /* Feedback */
+        .feedback { @apply text-sm min-h-[1.2rem] mt-1; }
+        .feedback.success { @apply text-pw-success dark:text-pw-d-success; }
+        .feedback.error   { @apply text-pw-error dark:text-pw-d-error; }
+
+        /* Code / tree view */
+        .pw-tree {
+          @apply m-0 font-mono text-sm rounded-xl overflow-x-auto
+                 border border-pw-line dark:border-pw-d-line
+                 bg-[#f6fbff] dark:bg-[#0e1929]
+                 text-pw-text dark:text-pw-d-text p-3;
+        }
+
+        /* Table */
+        .pw-table-wrap {
+          @apply mt-3 overflow-x-auto rounded-xl
+                 border border-pw-line dark:border-pw-d-line
+                 bg-pw-panel dark:bg-pw-d-panel;
+        }
+        .pw-table { @apply w-full border-collapse text-sm min-w-[900px]; }
+        .pw-table th {
+          @apply border-b border-pw-line dark:border-pw-d-line px-3 py-2 text-left
+                 text-[0.78rem] font-semibold uppercase tracking-wide
+                 text-[#41536a] dark:text-[#cde2fa]
+                 bg-[#f4f8fd] dark:bg-[#1d324a];
+        }
+        .pw-table td {
+          @apply border-b border-pw-line dark:border-pw-d-line px-3 py-2 align-top;
+        }
+        .pw-table tr:last-child td { @apply border-b-0; }
+        .pw-table tbody tr:nth-child(even) td {
+          @apply bg-[#fbfdff] dark:bg-[#17283b];
+        }
+
+        /* KPI card */
+        .pw-kpi {
+          @apply rounded-xl border border-pw-line dark:border-pw-d-line
+                 bg-pw-soft dark:bg-pw-d-soft p-3
+                 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)];
+        }
+
+        /* Info block */
+        .pw-info-block {
+          @apply mt-1 p-3 rounded-xl
+                 border border-pw-line dark:border-pw-d-line
+                 bg-pw-soft dark:bg-pw-d-soft;
+        }
+
+        /* Nav link in menu dropdown */
+        .menu-nav-link {
+          @apply flex items-center min-h-8 px-2.5 py-1.5 rounded-lg
+                 border border-transparent no-underline text-sm
+                 text-pw-text dark:text-pw-d-text
+                 transition-colors
+                 hover:bg-[#eef5ff] dark:hover:bg-[#274a71]
+                 hover:border-[#bfd2ea] dark:hover:border-[#5078a7];
+        }
+        .menu-nav-link.is-active {
+          @apply border-pw-action font-bold
+                 bg-gradient-to-br from-[#eaf3ff] to-[#e8f8f2]
+                 dark:from-[#203856] dark:to-[#1f3f39];
+        }
+
+        /* Menu summary (the clickable header of each details) */
+        .menu-summary {
+          @apply list-none cursor-pointer select-none
+                 flex items-center gap-1.5 px-3 py-2 rounded-xl
+                 border border-[#b7d0ef] dark:border-[#45688f]
+                 bg-[#f5f9ff] dark:bg-[#203a57]
+                 text-[#164171] dark:text-[#d3e7ff]
+                 font-semibold text-sm
+                 transition-colors
+                 hover:bg-[#e8f2ff] dark:hover:bg-[#274a71];
+        }
+
+        /* Settings sidebar */
+        .settings-sidebar-link {
+          @apply block no-underline text-sm
+                 text-[#1a4a7a] dark:text-[#cfe4fb]
+                 border border-[#b7d0ef] dark:border-[#436285]
+                 rounded-xl py-2 px-3
+                 bg-[#f5f9ff] dark:bg-[#1d324a]
+                 transition-colors
+                 hover:bg-[#e9f3ff] dark:hover:bg-[#274a71];
+        }
+
+        /* Process studio */
+        .process-studio-toolbar {
+          @apply flex gap-1.5 my-3 p-2 items-center
+                 border border-[#d3dfed] dark:border-pw-d-line
+                 rounded-xl bg-[#f6faff] dark:bg-[#162538];
+        }
+        .studio-select { @apply grid gap-0.5 text-xs flex-shrink-0; }
+        .studio-select select { @apply min-w-[120px]; }
+
+        .process-card {
+          @apply p-3.5 rounded-xl
+                 border-t-[3px] border-t-[#cfe0f3] dark:border-t-[#2c4f73]
+                 border border-pw-line dark:border-pw-d-line
+                 bg-[#fbfdff] dark:bg-pw-d-panel;
+        }
+        .process-mode-nav { @apply flex flex-wrap gap-2 my-3; }
+
+        /* Section heading row (injected by collapse JS) */
+        .section-collapse-toggle {
+          @apply pw-btn-secondary min-h-[2rem] px-2.5 py-1 text-xs mt-0;
+        }
+
+        /* Definition grid */
+        .definition-grid {
+          @apply grid gap-x-3 gap-y-1.5 mt-1.5 text-sm;
+          grid-template-columns: minmax(120px, 220px) minmax(0, 1fr);
+        }
+        .definition-grid dt { @apply font-semibold; }
+        .definition-grid dd { @apply m-0 break-words; }
+
+        /* Command center results */
+        .command-empty { @apply text-sm pw-muted py-1.5; }
+      }

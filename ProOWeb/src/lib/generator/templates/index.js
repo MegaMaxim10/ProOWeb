@@ -151,6 +151,7 @@ const { buildBackendProcessRuntimeJunitPlatformProperties } = require("./backend
 const { buildLiquibaseMasterChangelogYaml } = require("./backend/springboot/buildLiquibaseMasterChangelogYaml");
 const { buildLiquibaseBaselineSchemaChangelogYaml } = require("./backend/springboot/buildLiquibaseBaselineSchemaChangelogYaml");
 const { buildLiquibaseReferenceDataChangelogYaml } = require("./backend/springboot/buildLiquibaseReferenceDataChangelogYaml");
+const { buildLiquibaseProcessSharedDataGeneratedChangelogYaml } = require("./backend/springboot/buildLiquibaseProcessSharedDataGeneratedChangelogYaml");
 const { buildLiquibaseReadmeMd } = require("./backend/springboot/buildLiquibaseReadmeMd");
 const { buildIdentityUserSessionObservationJava } = require("./backend/springboot/buildIdentityUserSessionObservationJava");
 const { buildFrontendPackageJson } = require("./frontend/react/buildFrontendPackageJson");
@@ -388,6 +389,7 @@ module.exports = {
   buildLiquibaseMasterChangelogYaml,
   buildLiquibaseBaselineSchemaChangelogYaml,
   buildLiquibaseReferenceDataChangelogYaml,
+  buildLiquibaseProcessSharedDataGeneratedChangelogYaml,
   buildLiquibaseReadmeMd,
   buildFrontendPackageJson,
   buildFrontendIndexHtml,

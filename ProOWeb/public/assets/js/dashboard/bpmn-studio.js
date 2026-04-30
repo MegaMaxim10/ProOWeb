@@ -30,6 +30,9 @@ const DEFAULT_SPECIFICATION = Object.freeze({
   monitors: {
     monitorRoles: ["PROCESS_MONITOR"],
   },
+  sharedData: {
+    entities: [],
+  },
   activities: {},
 });
 
@@ -78,6 +81,24 @@ const ACTIVITY_TYPES = ["MANUAL", "AUTOMATIC"];
 const OUTPUT_STORAGE_VALUES = ["INSTANCE", "SHARED", "BOTH"];
 const TRIGGER_MODES = ["MANUAL_TRIGGER", "IMMEDIATE", "DEFERRED"];
 const DEFAULT_AUTOMATIC_TASK_TYPE_KEY = "core.echo";
+const SHARED_ENTITY_FIELD_TYPES = [
+  "STRING",
+  "TEXT",
+  "INTEGER",
+  "LONG",
+  "DECIMAL",
+  "BOOLEAN",
+  "DATE",
+  "DATETIME",
+  "JSON",
+  "UUID",
+];
+const SHARED_ENTITY_RELATION_TYPES = [
+  "MANY_TO_ONE",
+  "ONE_TO_MANY",
+  "ONE_TO_ONE",
+  "MANY_TO_MANY",
+];
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -498,6 +519,151 @@ function stringifyInputSources(sources = []) {
   }).join("\n");
 }
 
+function normalizeEntityKey(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function normalizeSharedFieldName(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_]+/g, "_");
+}
+
+function toDefaultSharedTableName(entityKey) {
+  const normalized = String(entityKey || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const safe = normalized || "entity";
+  return (`shared_${safe}`).slice(0, 63).replace(/_+$/g, "");
+}
+
+function parseSharedEntityFields(multiline) {
+  const rows = String(multiline || "").split("\n");
+  const fields = [];
+  const seen = new Set();
+
+  for (const row of rows) {
+    const line = row.trim();
+    if (!line) {
+      continue;
+    }
+
+    const parts = line.split("|").map((entry) => entry.trim());
+    const rawName = String(parts[0] || "");
+    const name = normalizeSharedFieldName(rawName);
+    if (!name || seen.has(name)) {
+      continue;
+    }
+
+    const rawType = String(parts[1] || "STRING").toUpperCase();
+    const type = SHARED_ENTITY_FIELD_TYPES.includes(rawType) ? rawType : "STRING";
+    const required = ["true", "1", "yes", "on"].includes(String(parts[2] || "").toLowerCase());
+    const indexed = ["true", "1", "yes", "on"].includes(String(parts[3] || "").toLowerCase());
+    const unique = ["true", "1", "yes", "on"].includes(String(parts[4] || "").toLowerCase());
+
+    seen.add(name);
+    fields.push({
+      name,
+      type,
+      required,
+      indexed,
+      unique,
+    });
+  }
+
+  return fields;
+}
+
+function parseSharedEntityRelations(multiline) {
+  const rows = String(multiline || "").split("\n");
+  const relations = [];
+  const seen = new Set();
+
+  for (const row of rows) {
+    const line = row.trim();
+    if (!line) {
+      continue;
+    }
+
+    const parts = line.split("|").map((entry) => entry.trim());
+    const rawName = String(parts[0] || "");
+    const name = normalizeSharedFieldName(rawName);
+    if (!name || seen.has(name)) {
+      continue;
+    }
+
+    const rawType = String(parts[1] || "MANY_TO_ONE").toUpperCase();
+    const type = SHARED_ENTITY_RELATION_TYPES.includes(rawType) ? rawType : "MANY_TO_ONE";
+    const targetEntityKey = normalizeEntityKey(parts[2] || "");
+    if (!targetEntityKey) {
+      continue;
+    }
+
+    const mappedBy = normalizeSharedFieldName(parts[3] || "");
+    const joinColumn = String(parts[4] || "").trim().toLowerCase();
+    const joinTable = String(parts[5] || "").trim().toLowerCase();
+    const inverseJoinColumn = String(parts[6] || "").trim().toLowerCase();
+    const required = ["true", "1", "yes", "on"].includes(String(parts[7] || "").toLowerCase());
+
+    seen.add(name);
+    relations.push({
+      name,
+      type,
+      targetEntityKey,
+      mappedBy,
+      joinColumn,
+      joinTable,
+      inverseJoinColumn,
+      required,
+    });
+  }
+
+  return relations;
+}
+
+function stringifySharedEntityFields(fields = []) {
+  if (!Array.isArray(fields) || fields.length === 0) {
+    return "";
+  }
+
+  return fields
+    .map((field) => [
+      String(field?.name || "").trim(),
+      String(field?.type || "STRING").toUpperCase(),
+      field?.required ? "true" : "false",
+      field?.indexed ? "true" : "false",
+      field?.unique ? "true" : "false",
+    ].join("|"))
+    .filter((line) => !line.startsWith("|"))
+    .join("\n");
+}
+
+function stringifySharedEntityRelations(relations = []) {
+  if (!Array.isArray(relations) || relations.length === 0) {
+    return "";
+  }
+
+  return relations
+    .map((relation) => [
+      String(relation?.name || "").trim(),
+      String(relation?.type || "MANY_TO_ONE").toUpperCase(),
+      normalizeEntityKey(relation?.targetEntityKey || ""),
+      String(relation?.mappedBy || "").trim(),
+      String(relation?.joinColumn || "").trim().toLowerCase(),
+      String(relation?.joinTable || "").trim().toLowerCase(),
+      String(relation?.inverseJoinColumn || "").trim().toLowerCase(),
+      relation?.required ? "true" : "false",
+    ].join("|"))
+    .filter((line) => !line.startsWith("|"))
+    .join("\n");
+}
+
 function toHandlerRef(activityId) {
   const normalized = String(activityId || "")
     .replace(/[^A-Za-z0-9]+/g, " ")
@@ -693,6 +859,16 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
   const applyConfigButton = documentRef.getElementById("process-activity-apply");
   const reloadConfigButton = documentRef.getElementById("process-activity-reload");
   const activityFeedbackElement = documentRef.getElementById("process-activity-feedback");
+  const sharedEntitySelect = documentRef.getElementById("process-shared-entity-select");
+  const sharedEntityKeyInput = documentRef.getElementById("process-shared-entity-key");
+  const sharedEntityDisplayInput = documentRef.getElementById("process-shared-entity-display");
+  const sharedEntityTableInput = documentRef.getElementById("process-shared-entity-table");
+  const sharedEntityFieldsTextarea = documentRef.getElementById("process-shared-entity-fields");
+  const sharedEntityRelationsTextarea = documentRef.getElementById("process-shared-entity-relations");
+  const sharedEntityNewButton = documentRef.getElementById("process-shared-entity-new");
+  const sharedEntityApplyButton = documentRef.getElementById("process-shared-entity-apply");
+  const sharedEntityRemoveButton = documentRef.getElementById("process-shared-entity-remove");
+  const sharedEntityFeedbackElement = documentRef.getElementById("process-shared-entity-feedback");
 
   if (!canvasElement || !editorElement || !feedbackElement) {
     return createDisabledStudio(feedbackElement, "BPMN studio containers not found in DOM.");
@@ -702,10 +878,9 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
   let monaco;
 
   try {
-    [BpmnJS, monaco] = await Promise.all([
-      loadBpmnModelerConstructor(),
-      loadMonacoEditor(),
-    ]);
+    // Load BPMN modeler first to avoid AMD/UMD conflicts when Monaco loader is present.
+    BpmnJS = await loadBpmnModelerConstructor();
+    monaco = await loadMonacoEditor();
   } catch (error) {
     return createDisabledStudio(feedbackElement, error.message || "External libraries could not be loaded.");
   }
@@ -716,6 +891,7 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
       bindTo: documentRef,
     },
   });
+  const canvasApi = modeler.get("canvas");
 
   const monacoTheme = documentRef.documentElement?.dataset?.theme === "dark" ? "vs-dark" : "vs";
   const editor = monaco.editor.create(editorElement, {
@@ -757,16 +933,25 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
   let automaticTaskTypes = [];
   let selectedActivityId = "";
   let selectedElementType = "";
+  let selectedSharedEntityKey = "";
   let selectedModelKey = "";
   let selectedVersionNumber = "";
   let currentSpecification = deepClone(DEFAULT_SPECIFICATION);
   let syncingSpecificationEditor = false;
+  let resizeTimer = null;
 
   function setActivityFeedback(message, tone) {
     if (!activityFeedbackElement) {
       return;
     }
     setFeedback(activityFeedbackElement, message, tone);
+  }
+
+  function setSharedEntityFeedback(message, tone) {
+    if (!sharedEntityFeedbackElement) {
+      return;
+    }
+    setFeedback(sharedEntityFeedbackElement, message, tone);
   }
 
   function setCatalog(models = []) {
@@ -873,11 +1058,13 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
 
   function updateSpecificationEditor() {
     if (!specificationEditor) {
+      refreshSharedEntitySelector();
       return;
     }
     syncingSpecificationEditor = true;
     specificationEditor.setValue(toJsonSafeText(currentSpecification));
     syncingSpecificationEditor = false;
+    refreshSharedEntitySelector();
   }
 
   function normalizeSpecificationShape(input) {
@@ -896,11 +1083,269 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
     merged.monitors = merged.monitors && typeof merged.monitors === "object" && !Array.isArray(merged.monitors)
       ? merged.monitors
       : deepClone(DEFAULT_SPECIFICATION.monitors);
+    merged.sharedData = merged.sharedData && typeof merged.sharedData === "object" && !Array.isArray(merged.sharedData)
+      ? merged.sharedData
+      : deepClone(DEFAULT_SPECIFICATION.sharedData);
+    merged.sharedData.entities = Array.isArray(merged.sharedData.entities)
+      ? merged.sharedData.entities
+        .map((entry) => {
+          if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+            return null;
+          }
+          const entityKey = normalizeEntityKey(entry.entityKey || entry.key || entry.name);
+          if (!entityKey) {
+            return null;
+          }
+          const fields = Array.isArray(entry.fields)
+            ? entry.fields
+              .map((field) => {
+                if (!field || typeof field !== "object" || Array.isArray(field)) {
+                  return null;
+                }
+                const name = normalizeSharedFieldName(field.name);
+                if (!name) {
+                  return null;
+                }
+                const rawType = String(field.type || "STRING").toUpperCase();
+                const type = SHARED_ENTITY_FIELD_TYPES.includes(rawType) ? rawType : "STRING";
+                return {
+                  name,
+                  type,
+                  required: Boolean(field.required),
+                  indexed: Boolean(field.indexed),
+                  unique: Boolean(field.unique),
+                };
+              })
+              .filter(Boolean)
+            : [];
+          const relations = Array.isArray(entry.relations)
+            ? entry.relations
+              .map((relation) => {
+                if (!relation || typeof relation !== "object" || Array.isArray(relation)) {
+                  return null;
+                }
+                const relationName = normalizeSharedFieldName(relation.name || relation.relationName);
+                const targetEntityKey = normalizeEntityKey(
+                  relation.targetEntityKey || relation.targetEntity || relation.target,
+                );
+                if (!relationName || !targetEntityKey) {
+                  return null;
+                }
+                const rawType = String(relation.type || "MANY_TO_ONE").toUpperCase();
+                return {
+                  name: relationName,
+                  type: SHARED_ENTITY_RELATION_TYPES.includes(rawType) ? rawType : "MANY_TO_ONE",
+                  targetEntityKey,
+                  mappedBy: normalizeSharedFieldName(relation.mappedBy || ""),
+                  joinColumn: String(relation.joinColumn || "").trim().toLowerCase(),
+                  joinTable: String(relation.joinTable || "").trim().toLowerCase(),
+                  inverseJoinColumn: String(relation.inverseJoinColumn || relation.targetJoinColumn || "").trim().toLowerCase(),
+                  required: Boolean(relation.required),
+                };
+              })
+              .filter(Boolean)
+            : [];
+          const deduplicatedRelations = [];
+          const seenRelationNames = new Set();
+          for (const relation of relations) {
+            const relationName = normalizeSharedFieldName(relation?.name || "");
+            if (!relationName || seenRelationNames.has(relationName)) {
+              continue;
+            }
+            seenRelationNames.add(relationName);
+            deduplicatedRelations.push({
+              ...relation,
+              name: relationName,
+            });
+          }
+          return {
+            entityKey,
+            displayName: String(entry.displayName || entry.title || entityKey).trim() || entityKey,
+            tableName: String(entry.tableName || toDefaultSharedTableName(entityKey)).trim() || toDefaultSharedTableName(entityKey),
+            fields: fields.length > 0
+              ? fields
+              : [{
+                  name: "value",
+                  type: "JSON",
+                  required: false,
+                  indexed: false,
+                  unique: false,
+                }],
+            relations: deduplicatedRelations,
+          };
+        })
+        .filter(Boolean)
+      : [];
+    const deduplicatedEntities = [];
+    const seenSharedEntityKeys = new Set();
+    for (const entity of merged.sharedData.entities) {
+      const entityKey = normalizeEntityKey(entity.entityKey);
+      if (!entityKey || seenSharedEntityKeys.has(entityKey)) {
+        continue;
+      }
+      seenSharedEntityKeys.add(entityKey);
+      deduplicatedEntities.push({
+        ...entity,
+        entityKey,
+      });
+    }
+    merged.sharedData.entities = deduplicatedEntities;
     merged.activities = merged.activities && typeof merged.activities === "object" && !Array.isArray(merged.activities)
       ? merged.activities
       : {};
 
     return merged;
+  }
+
+  function ensureSharedDataContainer() {
+    if (!currentSpecification.sharedData || typeof currentSpecification.sharedData !== "object" || Array.isArray(currentSpecification.sharedData)) {
+      currentSpecification.sharedData = {
+        entities: [],
+      };
+    }
+    if (!Array.isArray(currentSpecification.sharedData.entities)) {
+      currentSpecification.sharedData.entities = [];
+    }
+    return currentSpecification.sharedData;
+  }
+
+  function listSharedEntities() {
+    const sharedData = ensureSharedDataContainer();
+    return sharedData.entities
+      .slice()
+      .sort((left, right) => String(left?.entityKey || "").localeCompare(String(right?.entityKey || "")));
+  }
+
+  function readSharedEntity(entityKey) {
+    const normalizedKey = normalizeEntityKey(entityKey);
+    if (!normalizedKey) {
+      return null;
+    }
+    return ensureSharedDataContainer().entities.find((entry) => entry.entityKey === normalizedKey) || null;
+  }
+
+  function renderSharedEntityForm(entity) {
+    if (sharedEntityKeyInput) {
+      sharedEntityKeyInput.value = entity?.entityKey || "";
+    }
+    if (sharedEntityDisplayInput) {
+      sharedEntityDisplayInput.value = entity?.displayName || "";
+    }
+    if (sharedEntityTableInput) {
+      sharedEntityTableInput.value = entity?.tableName || "";
+    }
+    if (sharedEntityFieldsTextarea) {
+      sharedEntityFieldsTextarea.value = stringifySharedEntityFields(entity?.fields || []);
+    }
+    if (sharedEntityRelationsTextarea) {
+      sharedEntityRelationsTextarea.value = stringifySharedEntityRelations(entity?.relations || []);
+    }
+  }
+
+  function refreshSharedEntitySelector() {
+    const entities = listSharedEntities();
+    if (sharedEntitySelect) {
+      const options = entities.map((entity) => ({
+        value: entity.entityKey,
+        label: `${entity.entityKey} (${entity.tableName || "table"})`,
+      }));
+      fillSelectOptions(
+        documentRef,
+        sharedEntitySelect,
+        options,
+        selectedSharedEntityKey || sharedEntitySelect.value,
+      );
+      selectedSharedEntityKey = String(sharedEntitySelect.value || "");
+    }
+
+    const selected = readSharedEntity(selectedSharedEntityKey) || entities[0] || null;
+    selectedSharedEntityKey = selected?.entityKey || "";
+    if (sharedEntitySelect) {
+      sharedEntitySelect.value = selectedSharedEntityKey;
+    }
+    renderSharedEntityForm(selected);
+  }
+
+  function collectSharedEntityFromForm() {
+    const entityKey = normalizeEntityKey(sharedEntityKeyInput?.value || selectedSharedEntityKey || "");
+    if (!entityKey) {
+      throw new Error("Shared entity key is required.");
+    }
+
+    const displayName = String(sharedEntityDisplayInput?.value || entityKey).trim() || entityKey;
+    const tableName = String(sharedEntityTableInput?.value || toDefaultSharedTableName(entityKey)).trim() || toDefaultSharedTableName(entityKey);
+    const fields = parseSharedEntityFields(sharedEntityFieldsTextarea?.value || "");
+    if (fields.length === 0) {
+      throw new Error("Define at least one shared entity field.");
+    }
+    const relations = parseSharedEntityRelations(sharedEntityRelationsTextarea?.value || "");
+
+    return {
+      entityKey,
+      displayName,
+      tableName,
+      fields,
+      relations,
+    };
+  }
+
+  function createDraftSharedEntity() {
+    const timestamp = Date.now();
+    const key = `shared_entity_${timestamp}`;
+    selectedSharedEntityKey = key;
+    renderSharedEntityForm({
+      entityKey: key,
+      displayName: "Shared Entity",
+      tableName: toDefaultSharedTableName(key),
+      fields: [
+        {
+          name: "id",
+          type: "STRING",
+          required: true,
+          indexed: true,
+          unique: true,
+        },
+      ],
+      relations: [],
+    });
+    setSharedEntityFeedback("Draft shared entity prepared. Apply to persist it in specification.", "success");
+  }
+
+  function applySharedEntityConfiguration() {
+    const nextEntity = collectSharedEntityFromForm();
+    const sharedData = ensureSharedDataContainer();
+    const previousSelectedKey = normalizeEntityKey(selectedSharedEntityKey);
+    if (previousSelectedKey && previousSelectedKey !== nextEntity.entityKey) {
+      sharedData.entities = sharedData.entities.filter((entry) => entry.entityKey !== previousSelectedKey);
+    }
+    const existingIndex = sharedData.entities.findIndex((entry) => entry.entityKey === nextEntity.entityKey);
+    if (existingIndex >= 0) {
+      sharedData.entities[existingIndex] = nextEntity;
+    } else {
+      sharedData.entities.push(nextEntity);
+    }
+    selectedSharedEntityKey = nextEntity.entityKey;
+    updateSpecificationEditor();
+    refreshSharedEntitySelector();
+    setSharedEntityFeedback(`Shared entity '${nextEntity.entityKey}' saved into specification.`, "success");
+  }
+
+  function removeSharedEntity() {
+    const entityKey = normalizeEntityKey(sharedEntitySelect?.value || sharedEntityKeyInput?.value || "");
+    if (!entityKey) {
+      throw new Error("Select a shared entity before removing it.");
+    }
+    const sharedData = ensureSharedDataContainer();
+    const previousSize = sharedData.entities.length;
+    sharedData.entities = sharedData.entities.filter((entry) => entry.entityKey !== entityKey);
+    if (sharedData.entities.length === previousSize) {
+      throw new Error(`Shared entity '${entityKey}' was not found.`);
+    }
+
+    selectedSharedEntityKey = sharedData.entities[0]?.entityKey || "";
+    updateSpecificationEditor();
+    refreshSharedEntitySelector();
+    setSharedEntityFeedback(`Shared entity '${entityKey}' removed.`, "success");
   }
 
   function ensureActivitySpec(activityId, elementType) {
@@ -1371,6 +1816,9 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
     if (!hidden && specificationEditor && shellElement.contains(specEditorElement)) {
       specificationEditor.layout();
     }
+    if (canvasApi && typeof canvasApi.resized === "function") {
+      canvasApi.resized();
+    }
   }
 
   for (const [selectElement, options] of [
@@ -1398,6 +1846,7 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
   setSelectionLine("Select a BPMN activity to configure assignment, automatic execution, and data mappings.");
   setActivityFormEnabled(false);
   applyAutomaticSectionVisibility();
+  refreshSharedEntitySelector();
 
   if (toggleXmlButton && editorShell) {
     toggleXmlButton.addEventListener("click", () => {
@@ -1461,6 +1910,21 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
     }, 220);
   });
 
+  window.addEventListener("resize", () => {
+    if (resizeTimer) {
+      clearTimeout(resizeTimer);
+    }
+    resizeTimer = window.setTimeout(() => {
+      editor.layout();
+      if (specificationEditor) {
+        specificationEditor.layout();
+      }
+      if (canvasApi && typeof canvasApi.resized === "function") {
+        canvasApi.resized();
+      }
+    }, 180);
+  });
+
   const eventBus = modeler.get("eventBus");
   eventBus.on("selection.changed", handleSelectionChanged);
 
@@ -1472,6 +1936,7 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
       try {
         const parsed = JSON.parse(specificationEditor.getValue() || "{}");
         currentSpecification = normalizeSpecificationShape(parsed);
+        refreshSharedEntitySelector();
       } catch (_) {
         // Keep editor free-form; explicit save/validate will surface parsing feedback.
       }
@@ -1501,6 +1966,43 @@ export async function initializeBpmnStudio({ documentRef = document, api = {} } 
       const activitySpec = ensureActivitySpec(selectedActivityId, selectedElementType);
       renderActivityForm(activitySpec);
       setActivityFeedback("Activity configuration reloaded from current specification.", "success");
+    });
+  }
+
+  if (sharedEntitySelect) {
+    sharedEntitySelect.addEventListener("change", () => {
+      selectedSharedEntityKey = String(sharedEntitySelect.value || "");
+      const entity = readSharedEntity(selectedSharedEntityKey);
+      renderSharedEntityForm(entity);
+      if (entity) {
+        setSharedEntityFeedback(`Shared entity '${entity.entityKey}' loaded.`, "success");
+      }
+    });
+  }
+
+  if (sharedEntityNewButton) {
+    sharedEntityNewButton.addEventListener("click", () => {
+      createDraftSharedEntity();
+    });
+  }
+
+  if (sharedEntityApplyButton) {
+    sharedEntityApplyButton.addEventListener("click", () => {
+      try {
+        applySharedEntityConfiguration();
+      } catch (error) {
+        setSharedEntityFeedback(error.message || "Failed to save shared entity.", "error");
+      }
+    });
+  }
+
+  if (sharedEntityRemoveButton) {
+    sharedEntityRemoveButton.addEventListener("click", () => {
+      try {
+        removeSharedEntity();
+      } catch (error) {
+        setSharedEntityFeedback(error.message || "Failed to remove shared entity.", "error");
+      }
     });
   }
 

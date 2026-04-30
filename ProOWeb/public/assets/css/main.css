@@ -1,5 +1,2 @@
-@import "./tokens.css";
-@import "./base.css";
-@import "./components.css";
-@import "./pages/wizard.css";
-@import "./pages/dashboard.css";
+/* Forwarded to custom.css — Tailwind CDN now handles component/base styles. */
+@import "./custom.css";

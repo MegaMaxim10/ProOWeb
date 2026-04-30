@@ -4,362 +4,515 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ProOWeb - Dashboard</title>
+
+    <!-- Anti-FOUC: apply dark class before paint -->
+    <script>
+      (function () {
+        try {
+          var s = localStorage.getItem("prooweb:studio-theme");
+          var d = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (s === "dark" || (!s && d)) document.documentElement.classList.add("dark");
+        } catch (_) {}
+      })();
+    </script>
+
+    <!-- Page routing: set data-workspace-page immediately -->
+    <script>
+      (function bootstrapWorkspacePage() {
+        const supportedPages = new Set([
+          "project-dashboard","project-platform-info","project-platform-settings",
+          "project-migration-center","data-new-shared-entity","data-shared-entities",
+          "processes-new-process-model","processes-process-models","templates-home",
+          "help-project-layout","help-build-run","help-check-updates","help-about",
+        ]);
+        const aliases = {
+          overview: "project-dashboard", migration: "project-migration-center",
+          platform: "project-platform-settings", templates: "templates-home",
+          "process-design": "processes-new-process-model",
+          "process-operations": "processes-process-models",
+          "developer-commands": "help-build-run", "project-layout": "help-project-layout",
+        };
+        let page = "";
+        try {
+          const path = (String(window.location.pathname || "/").toLowerCase().replace(/\/+$/, "") || "/");
+          if (path === "/dashboard" || path === "/project/dashboard") page = "project-dashboard";
+          else if (path === "/project/platform-info") page = "project-platform-info";
+          else if (path === "/project/platform-settings") page = "project-platform-settings";
+          else if (path === "/project/migration-center") page = "project-migration-center";
+          else if (path === "/data/new-shared-entity") page = "data-new-shared-entity";
+          else if (path === "/data/shared-entities") page = "data-shared-entities";
+          else if (path === "/processes/new-process-model") page = "processes-new-process-model";
+          else if (path === "/processes/process-models") page = "processes-process-models";
+          else if (path === "/templates") page = "templates-home";
+          else if (path === "/help/project-layout") page = "help-project-layout";
+          else if (path === "/help/build-run") page = "help-build-run";
+          else if (path === "/help/check-updates") page = "help-check-updates";
+          else if (path === "/help/about") page = "help-about";
+        } catch (_) { page = ""; }
+        page = aliases[page] || page;
+        if (!supportedPages.has(page)) page = "project-dashboard";
+        document.documentElement.setAttribute("data-workspace-page", page);
+      })();
+    </script>
+
+    <!-- Custom (non-Tailwind) rules -->
     <link rel="stylesheet" href="/assets/vendor/bpmn/assets/diagram-js.css" />
     <link rel="stylesheet" href="/assets/vendor/bpmn/assets/bpmn-font/css/bpmn.css" />
-    <link rel="stylesheet" href="/assets/css/main.css" />
+    <link rel="stylesheet" href="/assets/css/tailwind-dashboard.css" />
+    <link rel="stylesheet" href="/assets/css/custom.css" />
+    <link rel="icon" type="image/svg+xml" href="/assets/icons/prooweb-mark.svg" />
   </head>
-  <body class="page dashboard-page">
-    <a class="skip-link" href="#main-content">Skip to workspace content</a>
-    <div class="dashboard-layout">
-      <aside class="sidebar panel">
-        <p class="kicker">ProOWeb Studio</p>
-        <h2>Workspace Navigator</h2>
-        <label class="nav-filter">
-          <span>Find a section</span>
-          <input id="workspace-nav-filter" type="search" placeholder="Search: process, migration, templates..." />
-        </label>
-        <nav id="workspace-nav">
-          <a class="nav-link" data-page-link href="/dashboard/overview">Overview</a>
-          <a class="nav-link" data-page-link href="/dashboard/platform">Platform Configuration</a>
-          <a class="nav-link" data-page-link href="/dashboard/process">Process Studio</a>
-          <a class="nav-link" data-page-link href="/dashboard/developer">Developer Commands</a>
-        </nav>
-        <div class="sidebar-actions">
-          <button id="collapse-sections-button" type="button" class="sidebar-action">Compact View</button>
-          <button id="expand-sections-button" type="button" class="sidebar-action">Expand All</button>
-          <button id="theme-toggle-button" type="button" class="sidebar-action">Dark theme</button>
-        </div>
-        <p class="sidebar-hint muted">Shortcuts: <kbd>Ctrl/Cmd + K</kbd> command center, <kbd>/</kbd> section filter.</p>
-      </aside>
 
-      <main id="main-content" class="content">
-        <section id="workspace-overview" class="panel workspace-header">
-          <div class="workspace-header-main">
-            <p class="kicker">Process-Oriented Web Application Builder</p>
-            <h1 id="project-title">Loading workspace...</h1>
-            <p id="stack-line" class="muted"></p>
+  <body class="dashboard-page min-h-screen font-sans">
+    <a class="skip-link" href="#main-content">Skip to workspace content</a>
+
+    <!-- ═══════════════════════════ LAYOUT ═══════════════════════════ -->
+    <div class="w-full max-w-[1380px] mx-auto px-3 mt-0 mb-16 flex flex-col gap-4">
+
+      <!-- ════════════════════ STICKY MENUBAR (IDE single-row) ════════════════════ -->
+      <header class="studio-menubar sticky top-0 z-[2000] pw-panel flex items-stretch
+                     bg-gradient-to-br from-[rgba(236,247,255,0.97)] to-[rgba(233,248,240,0.95)]
+                     dark:from-[rgba(20,41,61,0.97)] dark:to-[rgba(24,48,43,0.95)]
+                     !rounded-2xl">
+
+        <!-- Brand: compact -->
+        <div class="menubar-brand">
+          <img src="/assets/icons/prooweb-mark.svg" alt="ProOWeb"
+               class="w-7 h-7 rounded-lg border border-[#b8cde6] dark:border-[#3a5a7a] bg-white p-1 flex-shrink-0" />
+          <div class="hidden sm:block min-w-0">
+            <p class="pw-kicker !text-[0.58rem] leading-none">Studio</p>
+            <p class="m-0 text-[0.82rem] font-semibold truncate leading-none mt-0.5 text-pw-text dark:text-pw-d-text">ProOWeb</p>
           </div>
-          <div class="workspace-header-actions">
-            <button id="command-center-open" type="button" class="secondary-action">Command Center</button>
-            <button id="header-migrate-button" type="button" class="secondary-action hidden">Run smart migration</button>
-            <a class="secondary-link" href="/dashboard/process">Open process studio</a>
+        </div>
+
+        <!-- Navigation: single scrollable row, no wrap -->
+        <nav id="workspace-nav" class="menubar-nav" aria-label="Studio menu">
+
+          <!-- Project -->
+          <details class="menu-group">
+            <summary class="menu-summary">
+              <svg class="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M19.5 21a3 3 0 0 0 3-3v-4.5a3 3 0 0 0-3-3h-15a3 3 0 0 0-3 3V18a3 3 0 0 0 3 3h15ZM1.5 10.146V6a3 3 0 0 1 3-3h5.379a2.25 2.25 0 0 1 1.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 0 1 3 3v1.146A4.483 4.483 0 0 0 19.5 12h-15a4.483 4.483 0 0 0-3 1.146V10.146Z"/>
+              </svg>
+              <span class="menu-nav-text">Project</span>
+              <svg class="w-3 h-3 opacity-50 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
+            </summary>
+            <div class="menu-dropdown absolute top-[calc(100%+2px)] left-0 z-[2100] min-w-[220px] rounded-xl border border-[#bfd2ea] dark:border-[#3e6086] bg-white dark:bg-[#14273d] shadow-[0_16px_30px_rgba(22,44,69,0.18)] dark:shadow-[0_16px_30px_rgba(0,0,0,0.45)] p-1.5">
+              <a class="menu-nav-link nav-link" data-page-link href="/project/dashboard">Dashboard</a>
+              <a class="menu-nav-link nav-link" data-page-link href="/project/platform-info">Platform Info</a>
+              <a class="menu-nav-link nav-link" data-page-link href="/project/platform-settings">Platform Settings</a>
+              <a class="menu-nav-link nav-link" data-page-link href="/project/migration-center">Migration Center</a>
+            </div>
+          </details>
+
+          <!-- Data -->
+          <details class="menu-group">
+            <summary class="menu-summary">
+              <svg class="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M21 6.375c0 2.692-4.03 4.875-9 4.875S3 9.067 3 6.375 7.03 1.5 12 1.5s9 2.183 9 4.875Z"/>
+                <path d="M12 12.75c2.685 0 5.19-.586 7.078-1.609a8.283 8.283 0 0 0 1.897-1.384c.016.121.025.244.025.368C21 12.817 16.97 15 12 15s-9-2.183-9-4.875c0-.124.009-.247.025-.368a8.285 8.285 0 0 0 1.897 1.384C6.809 12.164 9.315 12.75 12 12.75Z"/>
+                <path d="M12 16.5c2.685 0 5.19-.586 7.078-1.609a8.282 8.282 0 0 0 1.897-1.384c.016.121.025.244.025.368 0 2.692-4.03 4.875-9 4.875s-9-2.183-9-4.875c0-.124.009-.247.025-.368a8.284 8.284 0 0 0 1.897 1.384C6.809 15.914 9.315 16.5 12 16.5Z"/>
+                <path d="M12 20.25c2.685 0 5.19-.586 7.078-1.609a8.282 8.282 0 0 0 1.897-1.384c.016.121.025.244.025.368C21 20.317 16.97 22.5 12 22.5s-9-2.183-9-4.875c0-.124.009-.247.025-.368a8.284 8.284 0 0 0 1.897 1.384C6.809 19.664 9.315 20.25 12 20.25Z"/>
+              </svg>
+              <span class="menu-nav-text">Data</span>
+              <svg class="w-3 h-3 opacity-50 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
+            </summary>
+            <div class="menu-dropdown absolute top-[calc(100%+2px)] left-0 z-[2100] min-w-[220px] rounded-xl border border-[#bfd2ea] dark:border-[#3e6086] bg-white dark:bg-[#14273d] shadow-[0_16px_30px_rgba(22,44,69,0.18)] dark:shadow-[0_16px_30px_rgba(0,0,0,0.45)] p-1.5">
+              <a class="menu-nav-link nav-link" data-page-link href="/data/new-shared-entity">New Shared Entity</a>
+              <a class="menu-nav-link nav-link" data-page-link href="/data/shared-entities">Shared Entities</a>
+            </div>
+          </details>
+
+          <!-- Processes -->
+          <details class="menu-group">
+            <summary class="menu-summary">
+              <svg class="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M2.25 6a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V6Zm3.97.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.75.75 0 0 1-1.06-1.06l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06Zm4.28 4.28a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" clip-rule="evenodd"/>
+              </svg>
+              <span class="menu-nav-text">Processes</span>
+              <svg class="w-3 h-3 opacity-50 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
+            </summary>
+            <div class="menu-dropdown absolute top-[calc(100%+2px)] left-0 z-[2100] min-w-[220px] rounded-xl border border-[#bfd2ea] dark:border-[#3e6086] bg-white dark:bg-[#14273d] shadow-[0_16px_30px_rgba(22,44,69,0.18)] dark:shadow-[0_16px_30px_rgba(0,0,0,0.45)] p-1.5">
+              <a class="menu-nav-link nav-link" data-page-link href="/processes/new-process-model">New Process Model</a>
+              <a class="menu-nav-link nav-link" data-page-link href="/processes/process-models">Process Models</a>
+            </div>
+          </details>
+
+          <!-- Templates -->
+          <details class="menu-group">
+            <summary class="menu-summary">
+              <svg class="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M11.644 1.59a.75.75 0 0 1 .712 0l9.75 5.25a.75.75 0 0 1 0 1.32l-9.75 5.25a.75.75 0 0 1-.712 0l-9.75-5.25a.75.75 0 0 1 0-1.32l9.75-5.25Z"/>
+                <path d="m3.265 10.602 7.668 4.129a2.25 2.25 0 0 0 2.134 0l7.668-4.13 1.37.739a.75.75 0 0 1 0 1.32l-9.75 5.25a.75.75 0 0 1-.71 0l-9.75-5.25a.75.75 0 0 1 0-1.32l1.37-.738Z"/>
+                <path d="m10.933 19.231-7.668-4.13-1.37.739a.75.75 0 0 0 0 1.32l9.75 5.25c.221.12.489.12.71 0l9.75-5.25a.75.75 0 0 0 0-1.32l-1.37-.738-7.668 4.13a2.25 2.25 0 0 1-2.134-.001Z"/>
+              </svg>
+              <span class="menu-nav-text">Templates</span>
+              <svg class="w-3 h-3 opacity-50 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
+            </summary>
+            <div class="menu-dropdown absolute top-[calc(100%+2px)] left-0 z-[2100] min-w-[220px] rounded-xl border border-[#bfd2ea] dark:border-[#3e6086] bg-white dark:bg-[#14273d] shadow-[0_16px_30px_rgba(22,44,69,0.18)] dark:shadow-[0_16px_30px_rgba(0,0,0,0.45)] p-1.5">
+              <a class="menu-nav-link nav-link" data-page-link href="/templates">Template Governance</a>
+            </div>
+          </details>
+
+          <!-- Help -->
+          <details class="menu-group">
+            <summary class="menu-summary">
+              <svg class="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 0 1-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.513 1.324 1.513 3.518 0 4.842a3.75 3.75 0 0 1-.837.552c-.676.328-1.028.774-1.028 1.152v.75a.75.75 0 0 1-1.5 0v-.75c0-1.279 1.06-2.107 1.875-2.502.182-.088.351-.199.503-.331.83-.727.83-1.857 0-2.584ZM12 18a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd"/>
+              </svg>
+              <span class="menu-nav-text">Help</span>
+              <svg class="w-3 h-3 opacity-50 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
+            </summary>
+            <div class="menu-dropdown absolute top-[calc(100%+2px)] left-0 z-[2100] min-w-[220px] rounded-xl border border-[#bfd2ea] dark:border-[#3e6086] bg-white dark:bg-[#14273d] shadow-[0_16px_30px_rgba(22,44,69,0.18)] dark:shadow-[0_16px_30px_rgba(0,0,0,0.45)] p-1.5">
+              <a class="menu-nav-link nav-link" data-page-link href="/help/project-layout">Project Layout</a>
+              <a class="menu-nav-link nav-link" data-page-link href="/help/build-run">Build &amp; Run</a>
+              <a class="menu-nav-link nav-link" data-page-link href="/help/check-updates">Check for Updates</a>
+              <a class="menu-nav-link nav-link" data-page-link href="/help/about">About ProOWeb</a>
+            </div>
+          </details>
+        </nav>
+
+        <!-- Global actions: icons only on small screens -->
+        <div class="menubar-actions">
+          <button id="command-center-open" type="button"
+                  class="pw-btn-secondary flex items-center gap-1.5 !text-xs !px-2 !py-1.5 !min-h-[2rem] !mt-0">
+            <svg class="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <span class="hidden md:inline">Search</span>
+            <kbd class="hidden lg:inline-flex text-[0.58rem] px-1 py-0.5 rounded border border-current opacity-60">⌘K</kbd>
+          </button>
+          <button id="theme-toggle-button" type="button"
+                  class="pw-btn-ghost flex items-center gap-1 !text-xs !px-2 !py-1.5"
+                  title="Switch theme" aria-label="Switch theme">
+            <svg class="theme-icon-sun w-4 h-4 hidden" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.25a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM18.894 6.166a.75.75 0 0 0-1.06-1.06l-1.591 1.59a.75.75 0 1 0 1.06 1.061l1.591-1.59ZM21.75 12a.75.75 0 0 1-.75.75h-2.25a.75.75 0 0 1 0-1.5H21a.75.75 0 0 1 .75.75ZM17.834 18.894a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 1 0-1.061 1.06l1.59 1.591ZM12 18a.75.75 0 0 1 .75.75V21a.75.75 0 0 1-1.5 0v-2.25A.75.75 0 0 1 12 18ZM7.166 17.834a.75.75 0 0 0-1.06 1.06l1.59 1.591a.75.75 0 1 0 1.061-1.06l-1.59-1.591ZM6 12a.75.75 0 0 1-.75.75H3a.75.75 0 0 1 0-1.5h2.25A.75.75 0 0 1 6 12ZM6.166 6.166a.75.75 0 0 0 1.06 1.06l1.591-1.59a.75.75 0 1 0-1.06-1.061L6.166 6.166Z"/></svg>
+            <svg class="theme-icon-moon w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9.528 1.718a.75.75 0 0 1 .162.819A8.97 8.97 0 0 0 9 6a9 9 0 0 0 9 9 8.97 8.97 0 0 0 3.463-.69.75.75 0 0 1 .981.98 10.503 10.503 0 0 1-9.694 6.46c-5.799 0-10.5-4.7-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 0 1 .818.162Z" clip-rule="evenodd"/></svg>
+            <span class="theme-label hidden lg:inline">Dark</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- ════════════════════ MAIN CONTENT ════════════════════ -->
+      <main id="main-content" class="content grid gap-4">
+
+        <!-- ── Project Dashboard ── -->
+        <section id="workspace-dashboard" class="panel pw-panel">
+          <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div>
+              <p class="pw-kicker">Process-Oriented Web Application Builder</p>
+              <h1 id="project-title" class="mt-1.5 mb-1 text-2xl font-bold">Loading workspace…</h1>
+              <p id="stack-line" class="pw-muted text-sm m-0"></p>
+            </div>
+            <div id="dashboard-header-actions" class="flex flex-wrap gap-2 items-center">
+              <button id="header-migrate-button" type="button" class="pw-btn-secondary hidden">
+                Run smart migration
+              </button>
+              <a class="pw-link" href="/processes/new-process-model">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Process studio
+              </a>
+              <a class="pw-link" href="/data/shared-entities">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                Shared entities
+              </a>
+            </div>
           </div>
-          <div class="workspace-kpi-grid">
-            <article>
-              <p class="kicker">Managed Sources</p>
-              <h3 id="kpi-managed-files">0</h3>
-              <p class="muted">Tracked files in generated application.</p>
+          <!-- KPI cards -->
+          <div class="grid gap-3 mt-4 sm:grid-cols-3">
+            <article class="pw-kpi">
+              <p class="pw-kicker">Managed Sources</p>
+              <h3 id="kpi-managed-files" class="mt-1.5 mb-1 text-[1.6rem] font-bold">0</h3>
+              <p class="pw-muted text-xs m-0">Tracked files in generated application.</p>
             </article>
-            <article>
-              <p class="kicker">Active Feature Packs</p>
-              <h3 id="kpi-feature-packs">0</h3>
-              <p class="muted">Core capabilities currently enabled.</p>
+            <article class="pw-kpi">
+              <p class="pw-kicker">Active Feature Packs</p>
+              <h3 id="kpi-feature-packs" class="mt-1.5 mb-1 text-[1.6rem] font-bold">0</h3>
+              <p class="pw-muted text-xs m-0">Core capabilities currently enabled.</p>
             </article>
-            <article>
-              <p class="kicker">Template Overrides</p>
-              <h3 id="kpi-template-overrides">0</h3>
-              <p class="muted">Durable customizations applied on generation.</p>
+            <article class="pw-kpi">
+              <p class="pw-kicker">Template Overrides</p>
+              <h3 id="kpi-template-overrides" class="mt-1.5 mb-1 text-[1.6rem] font-bold">0</h3>
+              <p class="pw-muted text-xs m-0">Durable customizations applied on generation.</p>
             </article>
           </div>
-          <div id="admin-block" class="admin-block"></div>
-          <div id="project-options" class="admin-block"></div>
+          <!-- Quick navigation cards -->
+          <div class="grid gap-3 mt-4 sm:grid-cols-2 lg:grid-cols-4">
+            <a href="/project/platform-settings" class="pw-link !flex-col !items-start gap-1 !h-auto !py-3 !no-underline">
+              <svg class="w-5 h-5 text-pw-action dark:text-pw-d-action" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.493 7.493 0 0 0-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.875 1.875 0 0 0-2.282.819l-.922 1.597a1.875 1.875 0 0 0 .432 2.385l.84.692c.095.078.17.229.154.43a7.598 7.598 0 0 0 0 1.139c.015.2-.059.352-.153.43l-.841.692a1.875 1.875 0 0 0-.432 2.385l.922 1.597a1.875 1.875 0 0 0 2.282.818l1.019-.382c.115-.043.283-.031.45.082.312.214.641.405.985.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h1.844c.916 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.344-.165.673-.356.985-.57.167-.114.335-.125.45-.082l1.02.382a1.875 1.875 0 0 0 2.28-.819l.923-1.597a1.875 1.875 0 0 0-.432-2.385l-.84-.692c-.095-.078-.17-.229-.154-.43a7.614 7.614 0 0 0 0-1.139c-.016-.2.059-.352.153-.43l.84-.692c.708-.582.891-1.59.433-2.385l-.922-1.597a1.875 1.875 0 0 0-2.282-.818l-1.02.382c-.114.043-.282.031-.449-.083a7.49 7.49 0 0 0-.985-.57c-.183-.087-.277-.227-.297-.348l-.179-1.072a1.875 1.875 0 0 0-1.85-1.567h-1.843ZM12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z" clip-rule="evenodd"/></svg>
+              <span class="font-semibold text-sm">Platform Settings</span>
+              <span class="pw-muted text-xs">Configure modules &amp; infra</span>
+            </a>
+            <a href="/project/migration-center" class="pw-link !flex-col !items-start gap-1 !h-auto !py-3 !no-underline">
+              <svg class="w-5 h-5 text-pw-action dark:text-pw-d-action" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5.625 3.75a2.625 2.625 0 1 0 0 5.25h12.75a2.625 2.625 0 0 0 0-5.25H5.625ZM3.75 11.25a.75.75 0 0 0 0 1.5h16.5a.75.75 0 0 0 0-1.5H3.75ZM3 15.75a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75ZM3.75 18.75a.75.75 0 0 0 0 1.5H12a.75.75 0 0 0 0-1.5H3.75Z"/></svg>
+              <span class="font-semibold text-sm">Migration Center</span>
+              <span class="pw-muted text-xs">Smart migration &amp; upgrade</span>
+            </a>
+            <a href="/processes/new-process-model" class="pw-link !flex-col !items-start gap-1 !h-auto !py-3 !no-underline">
+              <svg class="w-5 h-5 text-pw-action dark:text-pw-d-action" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2.25 6a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V6Zm3.97.97a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1 0 1.06l-2 2a.75.75 0 0 1-1.06-1.06l1.47-1.47-1.47-1.47a.75.75 0 0 1 0-1.06Zm4.28 4.28a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" clip-rule="evenodd"/></svg>
+              <span class="font-semibold text-sm">Process Studio</span>
+              <span class="pw-muted text-xs">Model &amp; deploy processes</span>
+            </a>
+            <a href="/templates" class="pw-link !flex-col !items-start gap-1 !h-auto !py-3 !no-underline">
+              <svg class="w-5 h-5 text-pw-action dark:text-pw-d-action" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.644 1.59a.75.75 0 0 1 .712 0l9.75 5.25a.75.75 0 0 1 0 1.32l-9.75 5.25a.75.75 0 0 1-.712 0l-9.75-5.25a.75.75 0 0 1 0-1.32l9.75-5.25Z"/><path d="m3.265 10.602 7.668 4.129a2.25 2.25 0 0 0 2.134 0l7.668-4.13 1.37.739a.75.75 0 0 1 0 1.32l-9.75 5.25a.75.75 0 0 1-.71 0l-9.75-5.25a.75.75 0 0 1 0-1.32l1.37-.738Z"/></svg>
+              <span class="font-semibold text-sm">Templates</span>
+              <span class="pw-muted text-xs">Manage template overrides</span>
+            </a>
+          </div>
         </section>
 
-        <section id="management" class="panel">
-          <h3>Migration and Version Alignment</h3>
-          <p class="muted">
-            Keep generated sources aligned with the current ProOWeb editor while preserving manual customizations.
-          </p>
-          <p id="management-line" class="muted">Loading management status...</p>
-          <button id="migrate-button" type="button" class="hidden">Run smart migration</button>
+        <!-- ── Platform Info ── -->
+        <section id="workspace-platform-info" class="panel pw-panel">
+          <h3 class="mt-0 mb-1 text-lg font-semibold">Platform Information</h3>
+          <p class="pw-muted text-sm mt-0 mb-3">Technical snapshot of the generated platform, security options, process governance, and bootstrap administrator.</p>
+          <div id="admin-block" class="pw-info-block mb-3"></div>
+          <div id="project-options" class="pw-info-block"></div>
+        </section>
+
+        <!-- ── Migration Center ── -->
+        <section id="management" class="panel pw-panel">
+          <h3 class="mt-0 mb-1 text-lg font-semibold">Migration and Version Alignment</h3>
+          <p class="pw-muted text-sm mt-0 mb-3">Keep generated sources aligned with the current ProOWeb editor while preserving manual customizations.</p>
+          <p id="management-line" class="pw-muted text-sm">Loading management status…</p>
+          <button id="migrate-button" type="button" class="pw-btn hidden">Run smart migration</button>
           <p id="migrate-feedback" class="feedback" aria-live="polite"></p>
         </section>
 
-        <section id="reconfigure" class="panel">
-          <h3>Platform Configuration</h3>
-          <p class="muted">
-            Update project capabilities and infrastructure preferences, then regenerate with a detailed change report.
-          </p>
+        <!-- ── Platform Settings ── -->
+        <section id="reconfigure" class="panel pw-panel">
+          <h3 class="mt-0 mb-1 text-lg font-semibold">Platform Configuration</h3>
+          <p class="pw-muted text-sm mt-0 mb-4">Update project capabilities and infrastructure preferences, then regenerate with a detailed change report.</p>
 
-          <form id="reconfigure-form" class="wizard-form" novalidate>
-            <label>
-              Base package Java (backend)
-              <input type="text" name="basePackage" required />
-            </label>
+          <div class="grid gap-4 lg:grid-cols-[200px_1fr] lg:items-start">
+            <!-- Sidebar: click-driven section navigation -->
+            <nav class="grid gap-1 lg:sticky lg:top-16" aria-label="Platform settings sections">
+              <a class="settings-sidebar-link is-active" href="#" data-settings-link="base">Base &amp; Mode</a>
+              <a class="settings-sidebar-link" href="#" data-settings-link="swagger">Swagger UI</a>
+              <a class="settings-sidebar-link" href="#" data-settings-link="iam">External IAM</a>
+              <a class="settings-sidebar-link" href="#" data-settings-link="session">Session Security</a>
+              <a class="settings-sidebar-link" href="#" data-settings-link="organization">Organization</a>
+              <a class="settings-sidebar-link" href="#" data-settings-link="notifications">Notifications</a>
+              <a class="settings-sidebar-link" href="#" data-settings-link="liquibase">Liquibase</a>
+              <a class="settings-sidebar-link" href="#" data-settings-link="process-modeling">Process Modeling</a>
+              <a class="settings-sidebar-link" href="#" data-settings-link="tests">Test Automation</a>
+            </nav>
 
-            <label>
-              Migration mode
-              <select name="mode">
-                <option value="full">full (application + infra)</option>
-                <option value="infra">infra only</option>
-              </select>
-            </label>
+            <!-- Form: one panel visible at a time -->
+            <div class="min-w-0">
+              <form id="reconfigure-form" class="pw-form" novalidate>
 
-            <fieldset>
-              <legend>Swagger UI backend</legend>
-              <label class="inline-row">
-                <input id="swagger-toggle" type="checkbox" name="swaggerUiEnabled" />
-                Enable Swagger UI
-              </label>
-              <div id="swagger-profiles" class="checkbox-grid">
-                <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="dev" /> dev</label>
-                <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="demo" /> demo</label>
-                <label class="inline-row"><input type="checkbox" name="swaggerProfiles" value="test" /> test</label>
-              </div>
-            </fieldset>
+                <div data-settings-panel="base" class="is-active pw-form">
+                  <h4 class="mt-0 mb-3 text-sm font-semibold text-pw-muted dark:text-pw-d-muted uppercase tracking-wide">Base &amp; Migration Mode</h4>
+                  <label class="pw-label">
+                    Java base package (backend)
+                    <input type="text" name="basePackage" required class="pw-input" />
+                  </label>
+                  <label class="pw-label mt-3">
+                    Migration mode
+                    <select name="mode" class="pw-input">
+                      <option value="full">full (application + infra)</option>
+                      <option value="infra">infra only</option>
+                    </select>
+                  </label>
+                </div>
 
-            <fieldset>
-              <legend>External IAM (Authentication only)</legend>
-              <label class="inline-row">
-                <input id="external-iam-toggle" type="checkbox" name="externalIamEnabled" />
-                Enable external IAM authentication
-              </label>
-              <div id="external-iam-config">
-                <label>
-                  Provider ID
-                  <input type="text" name="externalIamProviderId" />
-                </label>
-                <label>
-                  Issuer URI
-                  <input type="url" name="externalIamIssuerUri" />
-                </label>
-                <label>
-                  Client ID
-                  <input type="text" name="externalIamClientId" />
-                </label>
-                <label>
-                  Client Secret (optional)
-                  <input type="password" name="externalIamClientSecret" />
-                </label>
-                <label>
-                  Confirm Client Secret (optional)
-                  <input
-                    type="password"
-                    name="externalIamClientSecretConfirm"
-                    data-confirm-for="externalIamClientSecret"
-                  />
-                </label>
-                <label>
-                  Shared Secret HS256 (optional)
-                  <input type="password" name="externalIamSharedSecret" />
-                </label>
-                <label>
-                  Confirm Shared Secret HS256 (optional)
-                  <input
-                    type="password"
-                    name="externalIamSharedSecretConfirm"
-                    data-confirm-for="externalIamSharedSecret"
-                  />
-                </label>
-                <label>
-                  Username claim
-                  <input type="text" name="externalIamUsernameClaim" />
-                </label>
-                <label>
-                  Email claim
-                  <input type="text" name="externalIamEmailClaim" />
-                </label>
-              </div>
-            </fieldset>
+                <div data-settings-panel="swagger" class="pw-form">
+                  <h4 class="mt-0 mb-3 text-sm font-semibold text-pw-muted dark:text-pw-d-muted uppercase tracking-wide">Swagger UI</h4>
+                  <fieldset class="pw-fieldset">
+                    <legend>Backend Swagger UI</legend>
+                    <label class="pw-inline-row">
+                      <input id="swagger-toggle" type="checkbox" name="swaggerUiEnabled" class="rounded accent-pw-action dark:accent-pw-d-action" />
+                      Enable Swagger UI
+                    </label>
+                    <div id="swagger-profiles" class="pw-checkbox-grid mt-2">
+                      <label class="pw-inline-row"><input type="checkbox" name="swaggerProfiles" value="dev" /> dev</label>
+                      <label class="pw-inline-row"><input type="checkbox" name="swaggerProfiles" value="demo" /> demo</label>
+                      <label class="pw-inline-row"><input type="checkbox" name="swaggerProfiles" value="test" /> test</label>
+                    </div>
+                  </fieldset>
+                </div>
 
-            <fieldset>
-              <legend>Session & Device Security</legend>
-              <label class="inline-row">
-                <input id="session-security-toggle" type="checkbox" name="sessionSecurityEnabled" />
-                Enable session and device monitoring
-              </label>
-              <div id="session-security-config">
-                <label>
-                  Suspicious window (minutes)
-                  <input type="number" min="1" max="1440" name="sessionSecurityWindowMinutes" />
-                </label>
-                <label>
-                  Max distinct devices in window
-                  <input type="number" min="1" max="64" name="sessionSecurityMaxDistinctDevices" />
-                </label>
-              </div>
-            </fieldset>
+                <div data-settings-panel="iam" class="pw-form">
+                  <h4 class="mt-0 mb-3 text-sm font-semibold text-pw-muted dark:text-pw-d-muted uppercase tracking-wide">External IAM</h4>
+                  <fieldset class="pw-fieldset">
+                    <legend>External IAM (Authentication only)</legend>
+                    <label class="pw-inline-row">
+                      <input id="external-iam-toggle" type="checkbox" name="externalIamEnabled" />
+                      Enable external IAM authentication
+                    </label>
+                    <div id="external-iam-config" class="grid gap-3 mt-2">
+                      <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="pw-label">Provider ID<input type="text" name="externalIamProviderId" class="pw-input" /></label>
+                        <label class="pw-label">Issuer URI<input type="url" name="externalIamIssuerUri" class="pw-input" /></label>
+                        <label class="pw-label">Client ID<input type="text" name="externalIamClientId" class="pw-input" /></label>
+                        <label class="pw-label">Username claim<input type="text" name="externalIamUsernameClaim" class="pw-input" /></label>
+                        <label class="pw-label">Email claim<input type="text" name="externalIamEmailClaim" class="pw-input" /></label>
+                      </div>
+                      <label class="pw-label">Client Secret (optional)<input type="password" name="externalIamClientSecret" class="pw-input" /></label>
+                      <label class="pw-label">Confirm Client Secret (optional)<input type="password" name="externalIamClientSecretConfirm" data-confirm-for="externalIamClientSecret" class="pw-input" /></label>
+                      <label class="pw-label">Shared Secret HS256 (optional)<input type="password" name="externalIamSharedSecret" class="pw-input" /></label>
+                      <label class="pw-label">Confirm Shared Secret HS256 (optional)<input type="password" name="externalIamSharedSecretConfirm" data-confirm-for="externalIamSharedSecret" class="pw-input" /></label>
+                    </div>
+                  </fieldset>
+                </div>
 
-            <fieldset>
-              <legend>Organization Hierarchy</legend>
-              <label class="inline-row">
-                <input id="organization-hierarchy-toggle" type="checkbox" name="organizationHierarchyEnabled" />
-                Enable organizational hierarchy module
-              </label>
-              <div id="organization-hierarchy-config">
-                <label>
-                  Default assignment strategy
-                  <select name="organizationDefaultAssignmentStrategy">
-                    <option value="SUPERVISOR_THEN_ANCESTORS">SUPERVISOR_THEN_ANCESTORS</option>
-                    <option value="SUPERVISOR_ONLY">SUPERVISOR_ONLY</option>
-                    <option value="UNIT_MEMBERS">UNIT_MEMBERS</option>
-                  </select>
-                </label>
-                <label>
-                  Max traversal depth
-                  <input type="number" min="1" max="16" name="organizationMaxTraversalDepth" />
-                </label>
-              </div>
-            </fieldset>
+                <div data-settings-panel="session" class="pw-form">
+                  <h4 class="mt-0 mb-3 text-sm font-semibold text-pw-muted dark:text-pw-d-muted uppercase tracking-wide">Session &amp; Device Security</h4>
+                  <fieldset class="pw-fieldset">
+                    <legend>Session Security</legend>
+                    <label class="pw-inline-row">
+                      <input id="session-security-toggle" type="checkbox" name="sessionSecurityEnabled" />
+                      Enable session and device monitoring
+                    </label>
+                    <div id="session-security-config" class="grid gap-3 mt-2 sm:grid-cols-2">
+                      <label class="pw-label">Suspicious window (minutes)<input type="number" min="1" max="1440" name="sessionSecurityWindowMinutes" class="pw-input" /></label>
+                      <label class="pw-label">Max distinct devices in window<input type="number" min="1" max="64" name="sessionSecurityMaxDistinctDevices" class="pw-input" /></label>
+                    </div>
+                  </fieldset>
+                </div>
 
-            <fieldset>
-              <legend>Notification Workflows</legend>
-              <label class="inline-row">
-                <input id="notifications-toggle" type="checkbox" name="notificationsEnabled" />
-                Enable email notifications + audit trail
-              </label>
-              <div id="notifications-config">
-                <label>
-                  Sender address
-                  <input type="email" name="notificationsSenderAddress" />
-                </label>
-                <label class="inline-row">
-                  <input type="checkbox" name="notificationsAuditEnabled" />
-                  Enable notifications audit channel
-                </label>
-              </div>
-            </fieldset>
+                <div data-settings-panel="organization" class="pw-form">
+                  <h4 class="mt-0 mb-3 text-sm font-semibold text-pw-muted dark:text-pw-d-muted uppercase tracking-wide">Organization Hierarchy</h4>
+                  <fieldset class="pw-fieldset">
+                    <legend>Organization Hierarchy</legend>
+                    <label class="pw-inline-row">
+                      <input id="organization-hierarchy-toggle" type="checkbox" name="organizationHierarchyEnabled" />
+                      Enable organizational hierarchy module
+                    </label>
+                    <div id="organization-hierarchy-config" class="grid gap-3 mt-2 sm:grid-cols-2">
+                      <label class="pw-label">Default assignment strategy
+                        <select name="organizationDefaultAssignmentStrategy" class="pw-input">
+                          <option value="SUPERVISOR_THEN_ANCESTORS">SUPERVISOR_THEN_ANCESTORS</option>
+                          <option value="SUPERVISOR_ONLY">SUPERVISOR_ONLY</option>
+                          <option value="UNIT_MEMBERS">UNIT_MEMBERS</option>
+                        </select>
+                      </label>
+                      <label class="pw-label">Max traversal depth<input type="number" min="1" max="16" name="organizationMaxTraversalDepth" class="pw-input" /></label>
+                    </div>
+                  </fieldset>
+                </div>
 
-            <fieldset>
-              <legend>Database Migrations (Liquibase)</legend>
-              <label class="inline-row">
-                <input id="liquibase-toggle" type="checkbox" name="liquibaseEnabled" />
-                Enable Liquibase baseline
-              </label>
-              <div id="liquibase-config">
-                <label>
-                  Changelog path
-                  <input type="text" name="liquibaseChangelogPath" />
-                </label>
-                <label>
-                  Liquibase contexts
-                  <input type="text" name="liquibaseContexts" />
-                </label>
-              </div>
-            </fieldset>
+                <div data-settings-panel="notifications" class="pw-form">
+                  <h4 class="mt-0 mb-3 text-sm font-semibold text-pw-muted dark:text-pw-d-muted uppercase tracking-wide">Notification Workflows</h4>
+                  <fieldset class="pw-fieldset">
+                    <legend>Email Notifications</legend>
+                    <label class="pw-inline-row">
+                      <input id="notifications-toggle" type="checkbox" name="notificationsEnabled" />
+                      Enable email notifications + audit trail
+                    </label>
+                    <div id="notifications-config" class="grid gap-3 mt-2">
+                      <label class="pw-label">Sender address<input type="email" name="notificationsSenderAddress" class="pw-input" /></label>
+                      <label class="pw-inline-row">
+                        <input type="checkbox" name="notificationsAuditEnabled" />
+                        Enable notifications audit channel
+                      </label>
+                    </div>
+                  </fieldset>
+                </div>
 
-            <fieldset>
-              <legend>Process Modeling (Editor Side)</legend>
-              <label class="inline-row">
-                <input id="process-modeling-toggle" type="checkbox" name="processModelingEnabled" />
-                Enable process catalog in ProOWeb
-              </label>
-              <div id="process-modeling-config">
-                <label>
-                  Versioning strategy
-                  <select name="processVersioningStrategy">
-                    <option value="LINEAR">LINEAR</option>
-                  </select>
-                </label>
-                <label>
-                  Max versions per model
-                  <input type="number" min="2" max="200" name="processMaxVersionsPerModel" />
-                </label>
-                <label class="inline-row">
-                  <input type="checkbox" name="processAllowDirectDeployment" />
-                  Allow direct deployment from DRAFT
-                </label>
-              </div>
-            </fieldset>
+                <div data-settings-panel="liquibase" class="pw-form">
+                  <h4 class="mt-0 mb-3 text-sm font-semibold text-pw-muted dark:text-pw-d-muted uppercase tracking-wide">Database Migrations</h4>
+                  <fieldset class="pw-fieldset">
+                    <legend>Liquibase</legend>
+                    <label class="pw-inline-row">
+                      <input id="liquibase-toggle" type="checkbox" name="liquibaseEnabled" />
+                      Enable Liquibase baseline
+                    </label>
+                    <div id="liquibase-config" class="grid gap-3 mt-2">
+                      <label class="pw-label">Changelog path<input type="text" name="liquibaseChangelogPath" class="pw-input" /></label>
+                      <label class="pw-label">Liquibase contexts<input type="text" name="liquibaseContexts" class="pw-input" /></label>
+                    </div>
+                  </fieldset>
+                </div>
 
-            <fieldset>
-              <legend>Test Automation</legend>
-              <label class="inline-row">
-                <input id="backend-cucumber-toggle" type="checkbox" name="backendBddCucumberEnabled" />
-                Generate backend BDD E2E tests (Cucumber + Spring Boot)
-              </label>
-              <p class="fieldset-hint">
-                Adds Cucumber features, Spring glue, and aggregated cucumber reporting.
-              </p>
-              <label class="inline-row">
-                <input id="frontend-cypress-toggle" type="checkbox" name="frontendE2eCypressEnabled" />
-                Generate frontend E2E tests (Cypress)
-              </label>
-              <p class="fieldset-hint">
-                Adds Cypress config/specs and CI-ready scripts (<code>test:e2e:ci</code>).
-              </p>
-            </fieldset>
+                <div data-settings-panel="process-modeling" class="pw-form">
+                  <h4 class="mt-0 mb-3 text-sm font-semibold text-pw-muted dark:text-pw-d-muted uppercase tracking-wide">Process Modeling</h4>
+                  <fieldset class="pw-fieldset">
+                    <legend>Process Catalog (Editor Side)</legend>
+                    <label class="pw-inline-row">
+                      <input id="process-modeling-toggle" type="checkbox" name="processModelingEnabled" />
+                      Enable process catalog in ProOWeb
+                    </label>
+                    <div id="process-modeling-config" class="grid gap-3 mt-2 sm:grid-cols-2">
+                      <label class="pw-label">Versioning strategy
+                        <select name="processVersioningStrategy" class="pw-input"><option value="LINEAR">LINEAR</option></select>
+                      </label>
+                      <label class="pw-label">Max versions per model<input type="number" min="2" max="200" name="processMaxVersionsPerModel" class="pw-input" /></label>
+                      <label class="pw-inline-row sm:col-span-2">
+                        <input type="checkbox" name="processAllowDirectDeployment" />
+                        Allow direct deployment from DRAFT
+                      </label>
+                    </div>
+                  </fieldset>
+                </div>
 
-            <button id="reconfigure-button" type="submit">Apply configuration update</button>
-            <p id="reconfigure-feedback" class="feedback" aria-live="polite"></p>
-          </form>
+                <div data-settings-panel="tests" class="pw-form">
+                  <h4 class="mt-0 mb-3 text-sm font-semibold text-pw-muted dark:text-pw-d-muted uppercase tracking-wide">Test Automation</h4>
+                  <fieldset class="pw-fieldset">
+                    <legend>Test scaffolding generation</legend>
+                    <label class="pw-inline-row">
+                      <input id="backend-cucumber-toggle" type="checkbox" name="backendBddCucumberEnabled" />
+                      Generate backend BDD E2E tests (Cucumber + Spring Boot)
+                    </label>
+                    <p class="pw-hint mt-1">Adds Cucumber features, Spring glue, and aggregated cucumber reporting.</p>
+                    <label class="pw-inline-row mt-3">
+                      <input id="frontend-cypress-toggle" type="checkbox" name="frontendE2eCypressEnabled" />
+                      Generate frontend E2E tests (Cypress)
+                    </label>
+                    <p class="pw-hint mt-1">Adds Cypress config/specs and CI-ready scripts (<code>test:e2e:ci</code>).</p>
+                  </fieldset>
+                </div>
 
-          <pre id="reconfigure-report" class="tree-view"></pre>
+                <div class="pt-3 border-t border-pw-line dark:border-pw-d-line">
+                  <button id="reconfigure-button" type="submit" class="pw-btn w-full sm:w-auto">Apply configuration update</button>
+                  <p id="reconfigure-feedback" class="feedback" aria-live="polite"></p>
+                </div>
+              </form>
+              <pre id="reconfigure-report" class="pw-tree hidden mt-3"></pre>
+            </div>
+          </div>
         </section>
 
-        <section id="template-governance" class="panel">
-          <h3>Template Governance</h3>
-          <p class="muted">
-            Define durable template overrides under <code>.prooweb/template-overrides</code> so upgrades and regenerations keep your custom behavior.
-          </p>
+        <!-- ── Template Governance ── -->
+        <section id="template-governance" class="panel pw-panel">
+          <h3 class="mt-0 mb-1 text-lg font-semibold">Template Governance</h3>
+          <p class="pw-muted text-sm mt-0 mb-4">Define durable template overrides under <code>.prooweb/template-overrides</code> so upgrades and regenerations keep your custom behavior.</p>
 
-          <form id="template-override-form" class="wizard-form" novalidate>
-            <label>
-              Override ID (optional for create, required to update exact entry)
-              <input type="text" name="id" placeholder="frontend-shell-branding" />
-            </label>
-            <label>
-              Target project path
-              <input type="text" name="targetPath" placeholder="src/frontend/web/react/src/ShellApp.jsx" required />
-            </label>
-            <label>
-              Source file path (optional)
-              <input type="text" name="sourcePath" placeholder=".prooweb/template-overrides/frontend-shell-branding.txt" />
-            </label>
-            <label>
-              Strategy
-              <select name="strategy">
-                <option value="replace">replace</option>
-                <option value="prepend">prepend</option>
-                <option value="append">append</option>
-                <option value="replace-block">replace-block</option>
-              </select>
-            </label>
-            <label>
-              Priority (higher executes first)
-              <input type="number" name="priority" value="100" />
-            </label>
-            <label class="inline-row">
-              <input type="checkbox" name="enabled" checked />
-              Enabled
-            </label>
-            <label>
-              Match text (for <code>replace-block</code>)
-              <textarea name="matchText" rows="3" placeholder="text to replace in generated content"></textarea>
-            </label>
-            <label>
-              Replacement text (optional, for <code>replace-block</code>)
-              <textarea name="replacementText" rows="3" placeholder="leave empty to use source content"></textarea>
-            </label>
-            <label>
-              Description
-              <input type="text" name="description" placeholder="Branding header override" />
-            </label>
-            <label>
-              Source content (saved to source file)
-              <textarea name="sourceContent" rows="8" placeholder="Override content"></textarea>
-            </label>
-            <div class="inline-row">
-              <button type="submit">Save override</button>
-              <button id="template-override-clear" type="button">Clear form</button>
+          <form id="template-override-form" class="pw-form" novalidate>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <label class="pw-label">Override ID (optional for create, required to update exact entry)<input type="text" name="id" placeholder="frontend-shell-branding" class="pw-input" /></label>
+              <label class="pw-label">Target project path<input type="text" name="targetPath" placeholder="src/frontend/web/react/src/ShellApp.jsx" required class="pw-input" /></label>
+              <label class="pw-label">Source file path (optional)<input type="text" name="sourcePath" placeholder=".prooweb/template-overrides/..." class="pw-input" /></label>
+              <label class="pw-label">Strategy
+                <select name="strategy" class="pw-input">
+                  <option value="replace">replace</option>
+                  <option value="prepend">prepend</option>
+                  <option value="append">append</option>
+                  <option value="replace-block">replace-block</option>
+                </select>
+              </label>
+              <label class="pw-label">Priority (higher executes first)<input type="number" name="priority" value="100" class="pw-input" /></label>
+              <label class="pw-inline-row self-end pb-2">
+                <input type="checkbox" name="enabled" checked /> Enabled
+              </label>
+            </div>
+            <label class="pw-label">Match text (for <code>replace-block</code>)<textarea name="matchText" rows="3" placeholder="text to replace in generated content" class="pw-input"></textarea></label>
+            <label class="pw-label">Replacement text (optional, for <code>replace-block</code>)<textarea name="replacementText" rows="3" placeholder="leave empty to use source content" class="pw-input"></textarea></label>
+            <label class="pw-label">Description<input type="text" name="description" placeholder="Branding header override" class="pw-input" /></label>
+            <label class="pw-label">Source content (saved to source file)<textarea name="sourceContent" rows="8" placeholder="Override content" class="pw-input"></textarea></label>
+            <div class="flex gap-3">
+              <button type="submit" class="pw-btn">Save override</button>
+              <button id="template-override-clear" type="button" class="pw-btn-secondary">Clear form</button>
             </div>
             <p id="template-override-feedback" class="feedback" aria-live="polite"></p>
           </form>
 
-          <pre id="template-override-summary" class="tree-view"></pre>
+          <pre id="template-override-summary" class="pw-tree mt-4"></pre>
 
-          <div class="table-wrapper">
-            <table class="data-table">
+          <div class="pw-table-wrap">
+            <table class="pw-table">
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Target path</th>
-                  <th>Strategy</th>
-                  <th>Priority</th>
-                  <th>Status</th>
-                  <th>Source path</th>
-                  <th>Edit</th>
-                  <th>Delete</th>
+                  <th>ID</th><th>Target path</th><th>Strategy</th>
+                  <th>Priority</th><th>Status</th><th>Source path</th>
+                  <th>Edit</th><th>Delete</th>
                 </tr>
               </thead>
               <tbody id="template-override-rows"></tbody>
@@ -367,508 +520,348 @@
           </div>
         </section>
 
-        <section id="process-model" class="panel">
-          <h3>Process Engineering Studio</h3>
-          <p class="muted">
+        <!-- ── Process Engineering Studio ── -->
+        <section id="process-model" class="panel pw-panel">
+          <h3 class="mt-0 mb-1 text-lg font-semibold">Process Engineering Studio</h3>
+          <p class="pw-muted text-sm mt-0 mb-3">
             Process models are managed in ProOWeb and stored under <code>.prooweb/process-models</code>.
             Source code is generated in the app only when a version is deployed.
           </p>
+          <div class="process-mode-nav">
+            <a class="pw-link" href="/processes/new-process-model">Modeling workspace</a>
+            <a class="pw-link" href="/processes/process-models">Operations workspace</a>
+          </div>
 
-          <div class="process-studio panel">
-            <h4>BPMN Studio (graphical + XML)</h4>
-            <p class="muted">
-              Model processes graphically. Configure each selected activity from the side panel. XML and specification JSON are optional advanced views.
-            </p>
+          <!-- BPMN Studio -->
+          <div class="process-studio pw-panel !border-t-[3px] !border-t-[#cde3d6] dark:!border-t-[#2d5a4a] process-mode-shell process-mode-design process-shared-entity-studio mb-4">
+            <h4 class="mt-0 mb-1 font-semibold">BPMN Studio (graphical + XML)</h4>
+            <p class="pw-muted text-xs mt-0 mb-3">Model processes graphically. Configure each selected activity from the side panel. XML and specification JSON are optional advanced views.</p>
             <div class="process-studio-toolbar">
-              <button id="process-bpmn-new" type="button">New diagram</button>
-              <button id="process-bpmn-import-trigger" type="button">Import BPMN</button>
-              <button id="process-bpmn-export" type="button">Export BPMN</button>
-              <button id="process-bpmn-validate" type="button">Validate XML</button>
-              <button id="process-bpmn-toggle-xml" type="button">Show BPMN XML</button>
-              <button id="process-bpmn-toggle-spec-json" type="button">Show specification JSON</button>
-              <label class="studio-select">
-                Model
-                <select id="process-bpmn-load-model"></select>
-              </label>
-              <label class="studio-select">
-                Version
-                <select id="process-bpmn-load-version"></select>
-              </label>
-              <button id="process-bpmn-load-version-button" type="button">Load version</button>
-              <button id="process-bpmn-save-snapshot" type="button">Save snapshot</button>
-              <button id="process-bpmn-undo" type="button">Undo</button>
-              <button id="process-bpmn-redo" type="button">Redo</button>
-              <button id="process-bpmn-validate-spec" type="button">Validate specification</button>
-              <button id="process-bpmn-save-spec" type="button">Save specification</button>
-              <button id="process-bpmn-fill-create" type="button">Use in Create Model</button>
-              <button id="process-bpmn-fill-version" type="button">Use in Create Version</button>
+              <!-- File -->
+              <div class="toolbar-group">
+                <button id="process-bpmn-new" type="button" class="pw-btn-sm">New</button>
+                <button id="process-bpmn-import-trigger" type="button" class="pw-btn-sm">Import</button>
+                <button id="process-bpmn-export" type="button" class="pw-btn-sm">Export</button>
+              </div>
+              <span class="toolbar-sep" aria-hidden="true"></span>
+              <!-- Edit -->
+              <div class="toolbar-group">
+                <button id="process-bpmn-undo" type="button" class="pw-btn-sm">↩ Undo</button>
+                <button id="process-bpmn-redo" type="button" class="pw-btn-sm">↪ Redo</button>
+              </div>
+              <span class="toolbar-sep" aria-hidden="true"></span>
+              <!-- Load version -->
+              <div class="toolbar-group">
+                <label class="studio-select">Model<select id="process-bpmn-load-model" class="pw-input !min-h-[2rem] !text-xs"></select></label>
+                <label class="studio-select">Version<select id="process-bpmn-load-version" class="pw-input !min-h-[2rem] !text-xs"></select></label>
+                <button id="process-bpmn-load-version-button" type="button" class="pw-btn-sm">Load</button>
+              </div>
+              <span class="toolbar-sep" aria-hidden="true"></span>
+              <!-- Save / snapshot -->
+              <div class="toolbar-group">
+                <button id="process-bpmn-save-snapshot" type="button" class="pw-btn-sm">Save snapshot</button>
+                <button id="process-bpmn-validate-spec" type="button" class="pw-btn-sm">Validate spec</button>
+                <button id="process-bpmn-save-spec" type="button" class="pw-btn-sm">Save spec</button>
+              </div>
+              <span class="toolbar-sep" aria-hidden="true"></span>
+              <!-- View toggles -->
+              <div class="toolbar-group">
+                <button id="process-bpmn-validate" type="button" class="pw-btn-sm">Validate XML</button>
+                <button id="process-bpmn-toggle-xml" type="button" class="pw-btn-sm">XML editor</button>
+                <button id="process-bpmn-toggle-spec-json" type="button" class="pw-btn-sm">Spec JSON</button>
+              </div>
+              <span class="toolbar-sep" aria-hidden="true"></span>
+              <!-- Use in forms -->
+              <div class="toolbar-group">
+                <button id="process-bpmn-fill-create" type="button" class="pw-btn-sm">→ Create</button>
+                <button id="process-bpmn-fill-version" type="button" class="pw-btn-sm">→ Version</button>
+              </div>
               <input id="process-bpmn-import-file" type="file" accept=".bpmn,.xml,text/xml,application/xml" class="hidden" />
             </div>
-            <div class="process-studio-grid process-bpmn-grid">
-              <div id="process-bpmn-canvas" class="process-bpmn-canvas"></div>
-              <div class="process-activity-panel">
-                <h5>Selected Activity Configuration</h5>
-                <p id="process-selected-activity-line" class="muted">
-                  Select a BPMN activity to configure assignment, automatic execution, and data mappings.
-                </p>
-                <form id="process-activity-config-form" class="wizard-form process-inline-form" novalidate>
-                  <label>
-                    Activity ID
-                    <input id="process-activity-id" name="processActivityId" type="text" readonly />
-                  </label>
-                  <label>
-                    BPMN element type
-                    <input id="process-activity-kind" name="processActivityKind" type="text" readonly />
-                  </label>
-                  <label>
-                    Activity type
-                    <select id="process-activity-type" name="processActivityType"></select>
-                  </label>
-                  <label>
-                    Candidate roles (comma-separated)
-                    <input id="process-candidate-roles" name="processCandidateRoles" type="text" placeholder="PROCESS_USER, MANAGER" />
-                  </label>
-
-                  <fieldset>
-                    <legend>Assignment</legend>
-                    <label>
-                      Assignment mode
-                      <select id="process-assignment-mode" name="processAssignmentMode"></select>
-                    </label>
-                    <label>
-                      Assignment strategy
-                      <select id="process-assignment-strategy" name="processAssignmentStrategy"></select>
-                    </label>
-                    <label class="inline-row">
-                      <input id="process-allow-prev-assigned" name="processAllowPreviouslyAssigned" type="checkbox" checked />
-                      Allow previously assigned user in this instance
-                    </label>
-                    <label>
-                      Manual assigner roles (comma-separated)
-                      <input id="process-manual-assigner-roles" name="processManualAssignerRoles" type="text" placeholder="PROCESS_MONITOR, ADMINISTRATOR" />
-                    </label>
-                    <label>
-                      Max assignees
-                      <input id="process-max-assignees" name="processMaxAssignees" type="number" min="1" value="1" />
-                    </label>
+            <div class="grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,1fr)]">
+              <div id="process-bpmn-canvas" class="process-bpmn-canvas border border-pw-line dark:border-pw-d-line bg-white dark:bg-[#111c2c]"></div>
+              <div class="process-activity-panel border border-pw-line dark:border-pw-d-line rounded-xl bg-white dark:bg-[#111c2c] min-h-[360px] p-3 overflow-auto">
+                <h5 class="mt-0 mb-1 font-semibold text-sm">Selected Activity Configuration</h5>
+                <p id="process-selected-activity-line" class="pw-muted text-xs">Select a BPMN activity to configure assignment, automatic execution, and data mappings.</p>
+                <form id="process-activity-config-form" class="pw-form !gap-2 mt-3" novalidate>
+                  <label class="pw-label !text-xs">Activity ID<input id="process-activity-id" name="processActivityId" type="text" readonly class="pw-input !text-xs" /></label>
+                  <label class="pw-label !text-xs">BPMN element type<input id="process-activity-kind" name="processActivityKind" type="text" readonly class="pw-input !text-xs" /></label>
+                  <label class="pw-label !text-xs">Activity type<select id="process-activity-type" name="processActivityType" class="pw-input !text-xs"></select></label>
+                  <label class="pw-label !text-xs">Candidate roles (comma-separated)<input id="process-candidate-roles" name="processCandidateRoles" type="text" placeholder="PROCESS_USER, MANAGER" class="pw-input !text-xs" /></label>
+                  <fieldset class="pw-fieldset !py-2 !px-3">
+                    <legend class="!text-xs">Assignment</legend>
+                    <div class="grid gap-2">
+                      <label class="pw-label !text-xs">Assignment mode<select id="process-assignment-mode" name="processAssignmentMode" class="pw-input !text-xs"></select></label>
+                      <label class="pw-label !text-xs">Assignment strategy<select id="process-assignment-strategy" name="processAssignmentStrategy" class="pw-input !text-xs"></select></label>
+                      <label class="pw-inline-row !text-xs"><input id="process-allow-prev-assigned" name="processAllowPreviouslyAssigned" type="checkbox" checked />Allow previously assigned</label>
+                      <label class="pw-label !text-xs">Manual assigner roles<input id="process-manual-assigner-roles" name="processManualAssignerRoles" type="text" placeholder="PROCESS_MONITOR, ADMINISTRATOR" class="pw-input !text-xs" /></label>
+                      <label class="pw-label !text-xs">Max assignees<input id="process-max-assignees" name="processMaxAssignees" type="number" min="1" value="1" class="pw-input !text-xs" /></label>
+                    </div>
                   </fieldset>
-
-                  <fieldset id="process-automatic-config">
-                    <legend>Automatic task behavior</legend>
-                    <label>
-                      Task type
-                      <select id="process-automatic-task-type" name="processAutomaticTaskType"></select>
-                    </label>
-                    <label>
-                      Handler reference
-                      <input id="process-automatic-handler-ref" name="processAutomaticHandlerRef" type="text" placeholder="handlers.sendApprovalEmail" />
-                    </label>
-                    <label>
-                      Trigger mode
-                      <select id="process-automatic-trigger-mode" name="processAutomaticTriggerMode"></select>
-                    </label>
-                    <label>
-                      Deferred delay (minutes, optional)
-                      <input id="process-automatic-delay-minutes" name="processAutomaticDelayMinutes" type="number" min="1" />
-                    </label>
-                    <label>
-                      Task configuration (JSON object)
-                      <textarea id="process-automatic-config-json" name="processAutomaticConfigurationJson" rows="5" placeholder="{ &quot;template&quot;: &quot;approval&quot; }"></textarea>
-                    </label>
+                  <fieldset id="process-automatic-config" class="pw-fieldset !py-2 !px-3">
+                    <legend class="!text-xs">Automatic task behavior</legend>
+                    <div class="grid gap-2">
+                      <label class="pw-label !text-xs">Task type<select id="process-automatic-task-type" name="processAutomaticTaskType" class="pw-input !text-xs"></select></label>
+                      <label class="pw-label !text-xs">Handler reference<input id="process-automatic-handler-ref" name="processAutomaticHandlerRef" type="text" placeholder="handlers.sendApprovalEmail" class="pw-input !text-xs" /></label>
+                      <label class="pw-label !text-xs">Trigger mode<select id="process-automatic-trigger-mode" name="processAutomaticTriggerMode" class="pw-input !text-xs"></select></label>
+                      <label class="pw-label !text-xs">Deferred delay (minutes)<input id="process-automatic-delay-minutes" name="processAutomaticDelayMinutes" type="number" min="1" class="pw-input !text-xs" /></label>
+                      <label class="pw-label !text-xs">Task configuration (JSON)<textarea id="process-automatic-config-json" name="processAutomaticConfigurationJson" rows="4" placeholder='{ "template": "approval" }' class="pw-input !text-xs"></textarea></label>
+                    </div>
                   </fieldset>
-
-                  <fieldset>
-                    <legend>Input and Output data mappings</legend>
-                    <label>
-                      Input sources
-                      <textarea
-                        id="process-input-sources"
-                        name="processInputSources"
-                        rows="4"
-                        placeholder="SOURCE_TYPE|sourceRef|from->to,from2->to2&#10;PROCESS_CONTEXT|context.request|request.amount->payload.amount"
-                      ></textarea>
-                    </label>
-                    <label>
-                      Output storage
-                      <select id="process-output-storage" name="processOutputStorage"></select>
-                    </label>
-                    <label>
-                      Output mappings
-                      <textarea id="process-output-mappings" name="processOutputMappings" rows="4" placeholder="result.id -> context.lastResultId"></textarea>
-                    </label>
+                  <fieldset class="pw-fieldset !py-2 !px-3">
+                    <legend class="!text-xs">Input / Output mappings</legend>
+                    <div class="grid gap-2">
+                      <label class="pw-label !text-xs">Input sources<textarea id="process-input-sources" name="processInputSources" rows="3" placeholder="SOURCE_TYPE|sourceRef|from->to" class="pw-input !text-xs font-mono"></textarea></label>
+                      <label class="pw-label !text-xs">Output storage<select id="process-output-storage" name="processOutputStorage" class="pw-input !text-xs"></select></label>
+                      <label class="pw-label !text-xs">Output mappings<textarea id="process-output-mappings" name="processOutputMappings" rows="3" placeholder="result.id -> context.lastResultId" class="pw-input !text-xs font-mono"></textarea></label>
+                    </div>
                   </fieldset>
-
-                  <fieldset>
-                    <legend>Visibility by role</legend>
-                    <label>
-                      Activity viewer roles
-                      <input id="process-activity-viewer-roles" name="processActivityViewerRoles" type="text" placeholder="PROCESS_USER, PROCESS_MONITOR" />
-                    </label>
-                    <label>
-                      Data viewer roles
-                      <input id="process-data-viewer-roles" name="processDataViewerRoles" type="text" placeholder="PROCESS_USER, PROCESS_MONITOR" />
-                    </label>
+                  <fieldset class="pw-fieldset !py-2 !px-3">
+                    <legend class="!text-xs">Visibility by role</legend>
+                    <div class="grid gap-2">
+                      <label class="pw-label !text-xs">Activity viewer roles<input id="process-activity-viewer-roles" name="processActivityViewerRoles" type="text" placeholder="PROCESS_USER, PROCESS_MONITOR" class="pw-input !text-xs" /></label>
+                      <label class="pw-label !text-xs">Data viewer roles<input id="process-data-viewer-roles" name="processDataViewerRoles" type="text" placeholder="PROCESS_USER, PROCESS_MONITOR" class="pw-input !text-xs" /></label>
+                    </div>
                   </fieldset>
-
-                  <div class="inline-row">
-                    <button id="process-activity-apply" type="button">Apply configuration</button>
-                    <button id="process-activity-reload" type="button">Reload</button>
+                  <div class="flex gap-2">
+                    <button id="process-activity-apply" type="button" class="pw-btn-sm">Apply</button>
+                    <button id="process-activity-reload" type="button" class="pw-btn-secondary !text-xs !px-2.5 !py-1 !min-h-[2rem]">Reload</button>
                   </div>
                   <p id="process-activity-feedback" class="feedback" aria-live="polite"></p>
                 </form>
+
+                <!-- Shared entities panel -->
+                <div class="process-shared-entities-editor border-t border-pw-line dark:border-pw-d-line mt-3 pt-3 grid gap-2" id="process-shared-entities-panel">
+                  <h5 class="mt-0 mb-0 font-semibold text-xs">Shared Data Entities</h5>
+                  <p class="pw-muted text-xs m-0">Model shared database entities referenced by process activities.</p>
+                  <label class="pw-label !text-xs">Shared entity<select id="process-shared-entity-select" class="pw-input !text-xs"></select></label>
+                  <div class="flex flex-wrap gap-2">
+                    <button id="process-shared-entity-new" type="button" class="pw-btn-sm">New</button>
+                    <button id="process-shared-entity-apply" type="button" class="pw-btn-sm">Apply</button>
+                    <button id="process-shared-entity-remove" type="button" class="pw-btn-secondary !text-xs !px-2.5 !py-1 !min-h-[2rem]">Remove</button>
+                  </div>
+                  <label class="pw-label !text-xs">Entity key<input id="process-shared-entity-key" type="text" placeholder="employee_profile" class="pw-input !text-xs" /></label>
+                  <label class="pw-label !text-xs">Display name<input id="process-shared-entity-display" type="text" placeholder="Employee Profile" class="pw-input !text-xs" /></label>
+                  <label class="pw-label !text-xs">SQL table name<input id="process-shared-entity-table" type="text" placeholder="shared_employee_profile" class="pw-input !text-xs" /></label>
+                  <label class="pw-label !text-xs">Fields<textarea id="process-shared-entity-fields" rows="4" placeholder="fieldName|TYPE|required|indexed|unique" class="pw-input !text-xs font-mono"></textarea></label>
+                  <label class="pw-label !text-xs">Relations<textarea id="process-shared-entity-relations" rows="4" placeholder="relationName|TYPE|targetEntityKey|..." class="pw-input !text-xs font-mono"></textarea></label>
+                  <p id="process-shared-entity-feedback" class="feedback" aria-live="polite"></p>
+                </div>
               </div>
             </div>
-            <div id="process-bpmn-editor-shell" class="hidden">
-              <p class="muted">Advanced BPMN XML editor</p>
-              <div id="process-bpmn-editor" class="process-bpmn-editor"></div>
+            <div id="process-bpmn-editor-shell" class="hidden mt-3">
+              <p class="pw-muted text-xs mb-1">Advanced BPMN XML editor</p>
+              <div id="process-bpmn-editor" class="process-bpmn-editor border border-pw-line dark:border-pw-d-line bg-white dark:bg-[#111c2c]"></div>
             </div>
-            <div id="process-spec-editor-shell" class="hidden">
-              <p class="muted">Advanced specification JSON editor (spec-v1)</p>
-              <div id="process-spec-editor" class="process-spec-editor"></div>
+            <div id="process-spec-editor-shell" class="hidden mt-3">
+              <p class="pw-muted text-xs mb-1">Advanced specification JSON editor (spec-v1)</p>
+              <div id="process-spec-editor" class="process-spec-editor border border-pw-line dark:border-pw-d-line bg-white dark:bg-[#111c2c]"></div>
             </div>
-            <p id="process-bpmn-feedback" class="feedback" aria-live="polite"></p>
+            <p id="process-bpmn-feedback" class="feedback mt-2" aria-live="polite"></p>
           </div>
 
-          <div class="process-studio panel">
-            <h4>Automatic Task Catalog Studio</h4>
-            <p class="muted">
-              Maintain reusable automatic task types graphically and edit custom Java handlers stored in <code>.prooweb</code>.
-            </p>
+          <!-- Automatic Task Catalog -->
+          <div class="process-studio pw-panel !border-t-[3px] !border-t-[#cde3d6] dark:!border-t-[#2d5a4a] process-mode-shell process-mode-design mb-4">
+            <h4 class="mt-0 mb-1 font-semibold">Automatic Task Catalog Studio</h4>
+            <p class="pw-muted text-xs mt-0 mb-3">Maintain reusable automatic task types graphically and edit custom Java handlers stored in <code>.prooweb</code>.</p>
             <div class="process-studio-toolbar">
-              <button id="process-auto-catalog-load" type="button">Load catalog</button>
-              <button id="process-auto-catalog-save" type="button">Save catalog</button>
-              <button id="process-auto-catalog-toggle-json" type="button">Show catalog JSON</button>
-              <label class="studio-select">
-                Task type
-                <select id="process-auto-task-type-select"></select>
-              </label>
-              <button id="process-auto-task-new" type="button">New task type</button>
-              <button id="process-auto-task-apply" type="button">Apply details</button>
-              <button id="process-auto-task-remove" type="button">Remove custom task type</button>
-              <button id="process-auto-task-source-load" type="button">Load custom source</button>
-              <button id="process-auto-task-source-save" type="button">Save custom source</button>
+              <!-- Catalog I/O -->
+              <div class="toolbar-group">
+                <button id="process-auto-catalog-load" type="button" class="pw-btn-sm">Load catalog</button>
+                <button id="process-auto-catalog-save" type="button" class="pw-btn-sm">Save catalog</button>
+                <button id="process-auto-catalog-toggle-json" type="button" class="pw-btn-sm">JSON view</button>
+              </div>
+              <span class="toolbar-sep" aria-hidden="true"></span>
+              <!-- Task type selection + CRUD -->
+              <div class="toolbar-group">
+                <label class="studio-select">Task type<select id="process-auto-task-type-select" class="pw-input !min-h-[2rem] !text-xs"></select></label>
+                <button id="process-auto-task-new" type="button" class="pw-btn-sm">New</button>
+                <button id="process-auto-task-apply" type="button" class="pw-btn-sm">Apply</button>
+                <button id="process-auto-task-remove" type="button" class="pw-btn-secondary !text-xs !px-2.5 !py-1 !min-h-[2rem]">Remove</button>
+              </div>
+              <span class="toolbar-sep" aria-hidden="true"></span>
+              <!-- Source handler -->
+              <div class="toolbar-group">
+                <button id="process-auto-task-source-load" type="button" class="pw-btn-sm">Load source</button>
+                <button id="process-auto-task-source-save" type="button" class="pw-btn-sm">Save source</button>
+              </div>
             </div>
-            <div class="process-studio-grid process-auto-catalog-grid process-auto-catalog-form-grid">
-              <form id="process-auto-task-form" class="wizard-form process-inline-form" novalidate>
-                <label>
-                  Task type key
-                  <input id="process-auto-task-key" name="processAutoTaskKey" type="text" placeholder="core.integration.notify" required />
-                </label>
-                <label>
-                  Display name
-                  <input id="process-auto-task-display" name="processAutoTaskDisplay" type="text" placeholder="Notify external channel" required />
-                </label>
-                <label>
-                  Kind
-                  <select id="process-auto-task-kind" name="processAutoTaskKind"></select>
-                </label>
-                <label>
-                  Category
-                  <input id="process-auto-task-category" name="processAutoTaskCategory" type="text" placeholder="communication" />
-                </label>
-                <label class="inline-row">
-                  <input id="process-auto-task-enabled" name="processAutoTaskEnabled" type="checkbox" checked />
-                  Enabled
-                </label>
-                <label>
-                  Description
-                  <textarea id="process-auto-task-description" name="processAutoTaskDescription" rows="3"></textarea>
-                </label>
-                <label>
-                  Dependencies (library keys)
-                  <input id="process-auto-task-dependencies" name="processAutoTaskDependencies" type="text" placeholder="spring-web, spring-boot-mail" />
-                </label>
-                <label>
-                  Allowed input source types
-                  <input id="process-auto-task-input-sources" name="processAutoTaskInputSources" type="text" placeholder="PROCESS_CONTEXT, SHARED_DATA" />
-                </label>
-                <label>
-                  Minimum input sources
-                  <input id="process-auto-task-min-sources" name="processAutoTaskMinSources" type="number" min="0" value="0" />
-                </label>
-                <label>
-                  Default output storage
-                  <select id="process-auto-task-output-storage" name="processAutoTaskOutputStorage"></select>
-                </label>
-                <label>
-                  Configuration schema (JSON object)
-                  <textarea id="process-auto-task-config-schema" name="processAutoTaskConfigSchema" rows="6"></textarea>
-                </label>
+            <div class="grid gap-3 lg:grid-cols-2 process-auto-catalog-grid process-auto-catalog-form-grid">
+              <form id="process-auto-task-form" class="pw-form !gap-2" novalidate>
+                <label class="pw-label !text-xs">Task type key<input id="process-auto-task-key" name="processAutoTaskKey" type="text" placeholder="core.integration.notify" required class="pw-input !text-xs" /></label>
+                <label class="pw-label !text-xs">Display name<input id="process-auto-task-display" name="processAutoTaskDisplay" type="text" placeholder="Notify external channel" required class="pw-input !text-xs" /></label>
+                <label class="pw-label !text-xs">Kind<select id="process-auto-task-kind" name="processAutoTaskKind" class="pw-input !text-xs"></select></label>
+                <label class="pw-label !text-xs">Category<input id="process-auto-task-category" name="processAutoTaskCategory" type="text" placeholder="communication" class="pw-input !text-xs" /></label>
+                <label class="pw-inline-row !text-xs"><input id="process-auto-task-enabled" name="processAutoTaskEnabled" type="checkbox" checked />Enabled</label>
+                <label class="pw-label !text-xs">Description<textarea id="process-auto-task-description" name="processAutoTaskDescription" rows="2" class="pw-input !text-xs"></textarea></label>
+                <label class="pw-label !text-xs">Dependencies (library keys)<input id="process-auto-task-dependencies" name="processAutoTaskDependencies" type="text" placeholder="spring-web, spring-boot-mail" class="pw-input !text-xs" /></label>
+                <label class="pw-label !text-xs">Allowed input source types<input id="process-auto-task-input-sources" name="processAutoTaskInputSources" type="text" placeholder="PROCESS_CONTEXT, SHARED_DATA" class="pw-input !text-xs" /></label>
+                <label class="pw-label !text-xs">Minimum input sources<input id="process-auto-task-min-sources" name="processAutoTaskMinSources" type="number" min="0" value="0" class="pw-input !text-xs" /></label>
+                <label class="pw-label !text-xs">Default output storage<select id="process-auto-task-output-storage" name="processAutoTaskOutputStorage" class="pw-input !text-xs"></select></label>
+                <label class="pw-label !text-xs">Configuration schema (JSON)<textarea id="process-auto-task-config-schema" name="processAutoTaskConfigSchema" rows="5" class="pw-input !text-xs font-mono"></textarea></label>
                 <p id="process-auto-task-form-feedback" class="feedback" aria-live="polite"></p>
               </form>
               <div>
-                <p id="process-auto-task-source-path" class="muted">Custom source path: -</p>
-                <div id="process-auto-task-source-editor" class="process-spec-editor"></div>
+                <p id="process-auto-task-source-path" class="pw-muted text-xs mb-1">Custom source path: -</p>
+                <div id="process-auto-task-source-editor" class="process-spec-editor border border-pw-line dark:border-pw-d-line bg-white dark:bg-[#111c2c]"></div>
               </div>
             </div>
-            <div id="process-auto-catalog-editor-shell" class="hidden">
-              <p class="muted">Advanced catalog JSON editor</p>
-              <div id="process-auto-catalog-editor" class="process-spec-editor"></div>
+            <div id="process-auto-catalog-editor-shell" class="hidden mt-3">
+              <p class="pw-muted text-xs mb-1">Advanced catalog JSON editor</p>
+              <div id="process-auto-catalog-editor" class="process-spec-editor border border-pw-line dark:border-pw-d-line bg-white dark:bg-[#111c2c]"></div>
             </div>
-            <p id="process-auto-catalog-feedback" class="feedback" aria-live="polite"></p>
+            <p id="process-auto-catalog-feedback" class="feedback mt-2" aria-live="polite"></p>
           </div>
 
-          <div class="process-grid">
-            <form id="process-model-create-form" class="wizard-form process-card" novalidate>
-              <h4>Create process model</h4>
-              <label>
-                Model key
-                <input type="text" name="modelKey" placeholder="purchase-request" required />
-              </label>
-              <label>
-                Title
-                <input type="text" name="title" placeholder="Purchase Request" required />
-              </label>
-              <label>
-                Description
-                <input type="text" name="description" placeholder="Approval workflow for purchase requests" />
-              </label>
-              <label>
-                Initial version summary
-                <input type="text" name="summary" placeholder="Initial draft" />
-              </label>
-              <label>
-                BPMN XML
-                <textarea name="bpmnXml" rows="7" placeholder="Leave empty to use the BPMN Studio XML"></textarea>
-              </label>
-              <button type="submit">Create model</button>
+          <!-- Process action cards grid -->
+          <div class="process-grid grid gap-3 sm:grid-cols-2">
+            <form id="process-model-create-form" class="process-card pw-form process-mode-shell process-mode-design" novalidate>
+              <h4 class="mt-0 mb-2 font-semibold text-sm">Create process model</h4>
+              <label class="pw-label !text-xs">Model key<input type="text" name="modelKey" placeholder="purchase-request" required class="pw-input !text-xs" /></label>
+              <label class="pw-label !text-xs">Title<input type="text" name="title" placeholder="Purchase Request" required class="pw-input !text-xs" /></label>
+              <label class="pw-label !text-xs">Description<input type="text" name="description" placeholder="Approval workflow for purchase requests" class="pw-input !text-xs" /></label>
+              <label class="pw-label !text-xs">Initial version summary<input type="text" name="summary" placeholder="Initial draft" class="pw-input !text-xs" /></label>
+              <label class="pw-label !text-xs">BPMN XML<textarea name="bpmnXml" rows="5" placeholder="Leave empty to use the BPMN Studio XML" class="pw-input !text-xs font-mono"></textarea></label>
+              <button type="submit" class="pw-btn-sm">Create model</button>
               <p id="process-model-create-feedback" class="feedback" aria-live="polite"></p>
             </form>
 
-            <form id="process-model-version-form" class="wizard-form process-card" novalidate>
-              <h4>Create model version</h4>
-              <label>
-                Model
-                <select id="process-version-model" name="modelKey"></select>
-              </label>
-              <label>
-                Version summary
-                <input type="text" name="summary" placeholder="Add escalation gateway" />
-              </label>
-              <label>
-                BPMN XML
-                <textarea name="bpmnXml" rows="7" placeholder="Leave empty to use the BPMN Studio XML"></textarea>
-              </label>
-              <button type="submit">Create version</button>
+            <form id="process-model-version-form" class="process-card pw-form process-mode-shell process-mode-design" novalidate>
+              <h4 class="mt-0 mb-2 font-semibold text-sm">Create model version</h4>
+              <label class="pw-label !text-xs">Model<select id="process-version-model" name="modelKey" class="pw-input !text-xs"></select></label>
+              <label class="pw-label !text-xs">Version summary<input type="text" name="summary" placeholder="Add escalation gateway" class="pw-input !text-xs" /></label>
+              <label class="pw-label !text-xs">BPMN XML<textarea name="bpmnXml" rows="5" placeholder="Leave empty to use the BPMN Studio XML" class="pw-input !text-xs font-mono"></textarea></label>
+              <button type="submit" class="pw-btn-sm">Create version</button>
               <p id="process-model-version-feedback" class="feedback" aria-live="polite"></p>
             </form>
 
-            <form id="process-model-diff-form" class="wizard-form process-card" novalidate>
-              <h4>Compare versions</h4>
-              <label>
-                Model
-                <select id="process-diff-model" name="modelKey"></select>
-              </label>
-              <label>
-                Source version
-                <select id="process-diff-source-version" name="sourceVersion"></select>
-              </label>
-              <label>
-                Target version
-                <select id="process-diff-target-version" name="targetVersion"></select>
-              </label>
-              <button type="submit">Compute diff</button>
+            <form id="process-model-diff-form" class="process-card pw-form process-mode-shell process-mode-design" novalidate>
+              <h4 class="mt-0 mb-2 font-semibold text-sm">Compare versions</h4>
+              <label class="pw-label !text-xs">Model<select id="process-diff-model" name="modelKey" class="pw-input !text-xs"></select></label>
+              <label class="pw-label !text-xs">Source version<select id="process-diff-source-version" name="sourceVersion" class="pw-input !text-xs"></select></label>
+              <label class="pw-label !text-xs">Target version<select id="process-diff-target-version" name="targetVersion" class="pw-input !text-xs"></select></label>
+              <button type="submit" class="pw-btn-sm">Compute diff</button>
               <p id="process-model-diff-feedback" class="feedback" aria-live="polite"></p>
             </form>
 
-            <form id="process-model-transition-form" class="wizard-form process-card" novalidate>
-              <h4>Transition version</h4>
-              <label>
-                Model
-                <select id="process-transition-model" name="modelKey"></select>
-              </label>
-              <label>
-                Version
-                <select id="process-transition-version" name="versionNumber"></select>
-              </label>
-              <label>
-                Target status
-                <select name="targetStatus">
+            <form id="process-model-transition-form" class="process-card pw-form process-mode-shell process-mode-operations" novalidate>
+              <h4 class="mt-0 mb-2 font-semibold text-sm">Transition version</h4>
+              <label class="pw-label !text-xs">Model<select id="process-transition-model" name="modelKey" class="pw-input !text-xs"></select></label>
+              <label class="pw-label !text-xs">Version<select id="process-transition-version" name="versionNumber" class="pw-input !text-xs"></select></label>
+              <label class="pw-label !text-xs">Target status
+                <select name="targetStatus" class="pw-input !text-xs">
                   <option value="VALIDATED">VALIDATED</option>
                   <option value="DRAFT">DRAFT</option>
                   <option value="RETIRED">RETIRED</option>
                 </select>
               </label>
-              <button type="submit">Apply transition</button>
+              <button type="submit" class="pw-btn-sm">Apply transition</button>
               <p id="process-model-transition-feedback" class="feedback" aria-live="polite"></p>
             </form>
 
-            <form id="process-model-deploy-form" class="wizard-form process-card" novalidate>
-              <h4>Deploy version</h4>
-              <label>
-                Model
-                <select id="process-deploy-model" name="modelKey"></select>
-              </label>
-              <label>
-                Version
-                <select id="process-deploy-version" name="versionNumber"></select>
-              </label>
-              <button type="submit">Deploy and generate code</button>
+            <form id="process-model-deploy-form" class="process-card pw-form process-mode-shell process-mode-operations" novalidate>
+              <h4 class="mt-0 mb-2 font-semibold text-sm">Deploy version</h4>
+              <label class="pw-label !text-xs">Model<select id="process-deploy-model" name="modelKey" class="pw-input !text-xs"></select></label>
+              <label class="pw-label !text-xs">Version<select id="process-deploy-version" name="versionNumber" class="pw-input !text-xs"></select></label>
+              <button type="submit" class="pw-btn-sm">Deploy and generate code</button>
               <p id="process-model-deploy-feedback" class="feedback" aria-live="polite"></p>
             </form>
 
-            <form id="process-model-simulate-form" class="wizard-form process-card" novalidate>
-              <h4>Simulate version (pre-deployment)</h4>
-              <label>
-                Model
-                <select id="process-simulate-model" name="modelKey"></select>
-              </label>
-              <label>
-                Version
-                <select id="process-simulate-version" name="versionNumber"></select>
-              </label>
-              <label class="inline-row">
-                <input type="checkbox" name="strictWarnings" />
-                Fail simulation when warnings are present
-              </label>
-              <label>
-                Max timeline entries
-                <input type="number" name="maxTimelineSteps" min="10" value="80" />
-              </label>
-              <button type="submit">Run simulation</button>
+            <form id="process-model-simulate-form" class="process-card pw-form process-mode-shell process-mode-operations" novalidate>
+              <h4 class="mt-0 mb-2 font-semibold text-sm">Simulate version (pre-deployment)</h4>
+              <label class="pw-label !text-xs">Model<select id="process-simulate-model" name="modelKey" class="pw-input !text-xs"></select></label>
+              <label class="pw-label !text-xs">Version<select id="process-simulate-version" name="versionNumber" class="pw-input !text-xs"></select></label>
+              <label class="pw-inline-row !text-xs"><input type="checkbox" name="strictWarnings" />Fail simulation when warnings are present</label>
+              <label class="pw-label !text-xs">Max timeline entries<input type="number" name="maxTimelineSteps" min="10" value="80" class="pw-input !text-xs" /></label>
+              <button type="submit" class="pw-btn-sm">Run simulation</button>
               <p id="process-model-simulate-feedback" class="feedback" aria-live="polite"></p>
             </form>
 
-            <form id="process-model-promote-form" class="wizard-form process-card" novalidate>
-              <h4>Safe promotion pipeline</h4>
-              <label>
-                Model
-                <select id="process-promote-model" name="modelKey"></select>
-              </label>
-              <label>
-                Version
-                <select id="process-promote-version" name="versionNumber"></select>
-              </label>
-              <label class="inline-row">
-                <input type="checkbox" name="runSimulation" checked />
-                Run simulation gate
-              </label>
-              <label class="inline-row">
-                <input type="checkbox" name="runQualityGates" checked />
-                Run quality gates (tests + coverage)
-              </label>
-              <label class="inline-row">
-                <input type="checkbox" name="deployOnPass" checked />
-                Deploy automatically on pass
-              </label>
-              <label class="inline-row">
-                <input type="checkbox" name="strictWarnings" />
-                Block promotion on simulation warnings
-              </label>
-              <label>
-                Quality command profile
-                <select name="commandProfile">
+            <form id="process-model-promote-form" class="process-card pw-form process-mode-shell process-mode-operations" novalidate>
+              <h4 class="mt-0 mb-2 font-semibold text-sm">Safe promotion pipeline</h4>
+              <label class="pw-label !text-xs">Model<select id="process-promote-model" name="modelKey" class="pw-input !text-xs"></select></label>
+              <label class="pw-label !text-xs">Version<select id="process-promote-version" name="versionNumber" class="pw-input !text-xs"></select></label>
+              <div class="grid gap-1">
+                <label class="pw-inline-row !text-xs"><input type="checkbox" name="runSimulation" checked />Run simulation gate</label>
+                <label class="pw-inline-row !text-xs"><input type="checkbox" name="runQualityGates" checked />Run quality gates</label>
+                <label class="pw-inline-row !text-xs"><input type="checkbox" name="deployOnPass" checked />Deploy automatically on pass</label>
+                <label class="pw-inline-row !text-xs"><input type="checkbox" name="strictWarnings" />Block promotion on warnings</label>
+              </div>
+              <label class="pw-label !text-xs">Quality command profile
+                <select name="commandProfile" class="pw-input !text-xs">
                   <option value="verify-only">verify-only</option>
                   <option value="expanded">expanded</option>
                 </select>
               </label>
-              <label>
-                Backend line coverage threshold (%)
-                <input type="number" name="backendLinePct" min="1" max="100" value="60" />
-              </label>
-              <label>
-                Frontend line coverage threshold (%) (optional)
-                <input type="number" name="frontendLinePct" min="1" max="100" placeholder="Disabled when empty" />
-              </label>
-              <label>
-                Overall line coverage threshold (%)
-                <input type="number" name="overallLinePct" min="1" max="100" value="60" />
-              </label>
-              <label class="inline-row">
-                <input type="checkbox" name="requireCoverageReports" />
-                Require explicit coverage files to pass
-              </label>
-              <button type="submit">Run safe promotion</button>
+              <div class="grid gap-2 sm:grid-cols-3">
+                <label class="pw-label !text-xs">Backend line coverage (%)<input type="number" name="backendLinePct" min="1" max="100" value="60" class="pw-input !text-xs" /></label>
+                <label class="pw-label !text-xs">Frontend coverage (%)<input type="number" name="frontendLinePct" min="1" max="100" placeholder="Disabled" class="pw-input !text-xs" /></label>
+                <label class="pw-label !text-xs">Overall coverage (%)<input type="number" name="overallLinePct" min="1" max="100" value="60" class="pw-input !text-xs" /></label>
+              </div>
+              <label class="pw-inline-row !text-xs"><input type="checkbox" name="requireCoverageReports" />Require explicit coverage files</label>
+              <button type="submit" class="pw-btn-sm">Run safe promotion</button>
               <p id="process-model-promote-feedback" class="feedback" aria-live="polite"></p>
             </form>
 
-            <form id="process-model-rollback-form" class="wizard-form process-card" novalidate>
-              <h4>Rollback latest promotion</h4>
-              <label>
-                Model
-                <select id="process-rollback-model" name="modelKey"></select>
-              </label>
-              <label>
-                Version
-                <select id="process-rollback-version" name="versionNumber"></select>
-              </label>
-              <label>
-                Promotion id (optional)
-                <input type="text" name="promotionId" placeholder="promotion-2026-..." />
-              </label>
-              <label class="inline-row">
-                <input type="checkbox" name="force" />
-                Force rollback even if current deployed version changed
-              </label>
-              <button type="submit">Rollback promotion</button>
+            <form id="process-model-rollback-form" class="process-card pw-form process-mode-shell process-mode-operations" novalidate>
+              <h4 class="mt-0 mb-2 font-semibold text-sm">Rollback latest promotion</h4>
+              <label class="pw-label !text-xs">Model<select id="process-rollback-model" name="modelKey" class="pw-input !text-xs"></select></label>
+              <label class="pw-label !text-xs">Version<select id="process-rollback-version" name="versionNumber" class="pw-input !text-xs"></select></label>
+              <label class="pw-label !text-xs">Promotion id (optional)<input type="text" name="promotionId" placeholder="promotion-2026-…" class="pw-input !text-xs" /></label>
+              <label class="pw-inline-row !text-xs"><input type="checkbox" name="force" />Force rollback even if deployed version changed</label>
+              <button type="submit" class="pw-btn-sm">Rollback promotion</button>
               <p id="process-model-rollback-feedback" class="feedback" aria-live="polite"></p>
             </form>
 
-            <form id="process-model-undeploy-form" class="wizard-form process-card" novalidate>
-              <h4>Undeploy version</h4>
-              <label>
-                Model
-                <select id="process-undeploy-model" name="modelKey"></select>
-              </label>
-              <label>
-                Version
-                <select id="process-undeploy-version" name="versionNumber"></select>
-              </label>
-              <button type="submit">Undeploy and clean managed artifacts</button>
+            <form id="process-model-undeploy-form" class="process-card pw-form process-mode-shell process-mode-operations" novalidate>
+              <h4 class="mt-0 mb-2 font-semibold text-sm">Undeploy version</h4>
+              <label class="pw-label !text-xs">Model<select id="process-undeploy-model" name="modelKey" class="pw-input !text-xs"></select></label>
+              <label class="pw-label !text-xs">Version<select id="process-undeploy-version" name="versionNumber" class="pw-input !text-xs"></select></label>
+              <button type="submit" class="pw-btn-sm">Undeploy and clean artifacts</button>
               <p id="process-model-undeploy-feedback" class="feedback" aria-live="polite"></p>
             </form>
 
-            <form id="process-model-runtime-contract-form" class="wizard-form process-card" novalidate>
-              <h4>Preview runtime contract</h4>
-              <label>
-                Model
-                <select id="process-runtime-contract-model" name="modelKey"></select>
-              </label>
-              <label>
-                Version
-                <select id="process-runtime-contract-version" name="versionNumber"></select>
-              </label>
-              <button type="submit">Load runtime contract</button>
+            <form id="process-model-runtime-contract-form" class="process-card pw-form process-mode-shell process-mode-operations" novalidate>
+              <h4 class="mt-0 mb-2 font-semibold text-sm">Preview runtime contract</h4>
+              <label class="pw-label !text-xs">Model<select id="process-runtime-contract-model" name="modelKey" class="pw-input !text-xs"></select></label>
+              <label class="pw-label !text-xs">Version<select id="process-runtime-contract-version" name="versionNumber" class="pw-input !text-xs"></select></label>
+              <button type="submit" class="pw-btn-sm">Load runtime contract</button>
               <p id="process-model-runtime-contract-feedback" class="feedback" aria-live="polite"></p>
             </form>
 
-            <form id="process-model-data-contract-form" class="wizard-form process-card" novalidate>
-              <h4>Preview data contract and lineage</h4>
-              <label>
-                Model
-                <select id="process-data-contract-model" name="modelKey"></select>
-              </label>
-              <label>
-                Version
-                <select id="process-data-contract-version" name="versionNumber"></select>
-              </label>
-              <button type="submit">Load data contract</button>
+            <form id="process-model-data-contract-form" class="process-card pw-form process-mode-shell process-mode-operations" novalidate>
+              <h4 class="mt-0 mb-2 font-semibold text-sm">Preview data contract and lineage</h4>
+              <label class="pw-label !text-xs">Model<select id="process-data-contract-model" name="modelKey" class="pw-input !text-xs"></select></label>
+              <label class="pw-label !text-xs">Version<select id="process-data-contract-version" name="versionNumber" class="pw-input !text-xs"></select></label>
+              <button type="submit" class="pw-btn-sm">Load data contract</button>
               <p id="process-model-data-contract-feedback" class="feedback" aria-live="polite"></p>
             </form>
           </div>
 
-          <p class="muted">Catalog snapshot</p>
-          <pre id="process-model-catalog" class="tree-view"></pre>
-          <p class="muted">Latest action report</p>
-          <pre id="process-model-report" class="tree-view"></pre>
+          <p class="pw-muted text-xs mt-3 mb-1 process-mode-shell process-mode-design">Catalog snapshot</p>
+          <pre id="process-model-catalog" class="pw-tree process-mode-shell process-mode-design"></pre>
+          <p class="pw-muted text-xs mt-3 mb-1 process-mode-shell">Latest action report</p>
+          <pre id="process-model-report" class="pw-tree process-mode-shell"></pre>
         </section>
 
-        <section id="codegen" class="panel">
-          <h3>Developer Command Shortcuts</h3>
-          <ul class="command-list">
-            <li><code>npm run compile</code> - build backend + frontend</li>
-            <li><code>npm test</code> - execute backend + frontend tests</li>
-            <li><code>npm run start:dev</code> - docker compose profile dev</li>
-            <li><code>npm run start:demo</code> - docker compose profile demo</li>
-            <li><code>npm run start:test</code> - docker compose profile test</li>
-            <li><code>npm run start:preprod</code> - docker compose profile preprod</li>
-            <li><code>npm run start:prod</code> - docker compose profile prod</li>
+        <!-- ── Build & Run ── -->
+        <section id="codegen" class="panel pw-panel">
+          <h3 class="mt-0 mb-3 text-lg font-semibold">Developer Command Shortcuts</h3>
+          <ul class="grid gap-2 pl-0 list-none">
+            <li class="flex items-center gap-3 text-sm"><code class="bg-pw-soft dark:bg-pw-d-soft border border-pw-line dark:border-pw-d-line rounded px-2 py-1 text-xs">npm run compile</code><span class="pw-muted">build backend + frontend</span></li>
+            <li class="flex items-center gap-3 text-sm"><code class="bg-pw-soft dark:bg-pw-d-soft border border-pw-line dark:border-pw-d-line rounded px-2 py-1 text-xs">npm test</code><span class="pw-muted">execute backend + frontend tests</span></li>
+            <li class="flex items-center gap-3 text-sm"><code class="bg-pw-soft dark:bg-pw-d-soft border border-pw-line dark:border-pw-d-line rounded px-2 py-1 text-xs">npm run start:dev</code><span class="pw-muted">docker compose profile dev</span></li>
+            <li class="flex items-center gap-3 text-sm"><code class="bg-pw-soft dark:bg-pw-d-soft border border-pw-line dark:border-pw-d-line rounded px-2 py-1 text-xs">npm run start:demo</code><span class="pw-muted">docker compose profile demo</span></li>
+            <li class="flex items-center gap-3 text-sm"><code class="bg-pw-soft dark:bg-pw-d-soft border border-pw-line dark:border-pw-d-line rounded px-2 py-1 text-xs">npm run start:test</code><span class="pw-muted">docker compose profile test</span></li>
+            <li class="flex items-center gap-3 text-sm"><code class="bg-pw-soft dark:bg-pw-d-soft border border-pw-line dark:border-pw-d-line rounded px-2 py-1 text-xs">npm run start:preprod</code><span class="pw-muted">docker compose profile preprod</span></li>
+            <li class="flex items-center gap-3 text-sm"><code class="bg-pw-soft dark:bg-pw-d-soft border border-pw-line dark:border-pw-d-line rounded px-2 py-1 text-xs">npm run start:prod</code><span class="pw-muted">docker compose profile prod</span></li>
           </ul>
         </section>
 
-        <section id="deployment" class="panel">
-          <h3>Generated Project Layout (Repository Root)</h3>
-          <pre class="tree-view">src/
+        <!-- ── Project Layout ── -->
+        <section id="deployment" class="panel pw-panel">
+          <h3 class="mt-0 mb-3 text-lg font-semibold">Generated Project Layout (Repository Root)</h3>
+          <pre class="pw-tree">src/
   backend/springboot/
   frontend/web/react/
   frontend/mobile/
@@ -880,23 +873,95 @@ deployment/docker/
   docker-compose.prod.yml
 .prooweb-managed.json</pre>
         </section>
+
+        <!-- ── Check for Updates ── -->
+        <section id="help-check-updates" class="panel pw-panel">
+          <h3 class="mt-0 mb-2 text-lg font-semibold">Check for Updates</h3>
+          <p class="pw-muted text-sm">
+            ProOWeb compares your workspace editor version with the running studio version.
+            Open <a href="/project/migration-center" class="text-pw-action dark:text-pw-d-action underline">Migration Center</a> to apply intelligent upgrades with backups and conflict report.
+          </p>
+        </section>
+
+        <!-- ── About ── -->
+        <section id="help-about" class="panel pw-panel">
+          <h3 class="mt-0 mb-3 text-lg font-semibold">About ProOWeb</h3>
+          <p class="text-sm mb-2">
+            ProOWeb is a process-oriented development workbench that lets teams model business processes and generate auditable backend/frontend source code while keeping full ownership of repositories.
+          </p>
+          <p class="pw-muted text-sm m-0">
+            Version info and workspace metadata are available in <a href="/project/platform-info" class="text-pw-action dark:text-pw-d-action underline">Platform Info</a>.
+          </p>
+        </section>
+
       </main>
     </div>
 
+    <!-- ════════════════════ COMMAND CENTER ════════════════════ -->
     <div id="command-center" class="command-center hidden" role="dialog" aria-modal="true" aria-labelledby="command-center-title">
-      <div class="command-center-panel">
-        <div class="command-center-head">
-          <h2 id="command-center-title">Command Center</h2>
-          <button id="command-center-close" type="button" class="secondary-action">Close</button>
+      <div class="w-full max-w-[680px] mt-16 pw-panel !rounded-2xl shadow-[0_24px_48px_rgba(16,34,53,0.33)] dark:shadow-[0_24px_48px_rgba(0,0,0,0.6)]">
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <h2 id="command-center-title" class="m-0 text-base font-semibold">Command Center</h2>
+          <button id="command-center-close" type="button" class="pw-btn-secondary !min-h-[2rem] !px-3 !py-1 text-xs">Close</button>
         </div>
-        <label class="command-center-search">
-          <span>Find an action or destination</span>
-          <input id="command-center-query" type="search" placeholder="Try: process studio, migration, template governance..." />
+        <label class="grid gap-1">
+          <span class="text-xs pw-muted">Find an action or destination</span>
+          <input id="command-center-query" type="search" placeholder="Try: process studio, migration, template governance…" class="pw-input" />
         </label>
-        <ul id="command-center-results" class="command-center-results"></ul>
+        <ul id="command-center-results" class="mt-3 p-0 list-none grid gap-1.5 max-h-[380px] overflow-auto"></ul>
       </div>
     </div>
-    <button id="back-to-top-button" type="button" class="back-to-top hidden" aria-label="Back to top">Top</button>
+
+    <!-- Back to top -->
+    <button id="back-to-top-button" type="button" class="hidden m-0 px-3 py-2 rounded-full border border-[#8abcae] dark:border-[#3f6f9f]
+             bg-gradient-to-br from-[#e8faf3] to-[#e0f0ff]
+             dark:from-[#1f4f45] dark:to-[#224a72]
+             text-[#114f45] dark:text-[#d5e7fb]
+             text-xs font-bold
+             shadow-[0_8px_20px_rgba(18,34,52,0.14)]
+             hover:shadow-[0_12px_26px_rgba(18,34,52,0.22)]
+             transition-all"
+            aria-label="Back to top">
+      ↑ Top
+    </button>
+
+    <!-- Settings sidebar navigation (click-driven section visibility) -->
+    <script>
+      (function () {
+        function initSettingsSidebar() {
+          const links = Array.from(document.querySelectorAll("[data-settings-link]"));
+          const panels = Array.from(document.querySelectorAll("[data-settings-panel]"));
+          if (!links.length || !panels.length) return;
+
+          function activateSection(key) {
+            links.forEach(function (l) {
+              l.classList.toggle("is-active", l.dataset.settingsLink === key);
+            });
+            panels.forEach(function (p) {
+              p.classList.toggle("is-active", p.dataset.settingsPanel === key);
+            });
+          }
+
+          links.forEach(function (link) {
+            link.addEventListener("click", function (e) {
+              e.preventDefault();
+              activateSection(link.dataset.settingsLink);
+            });
+          });
+
+          // Activate first section by default
+          const firstKey = links[0]?.dataset.settingsLink;
+          if (firstKey) activateSection(firstKey);
+        }
+
+        // Run after DOM is ready (deferred slightly so the page may have navigated)
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", initSettingsSidebar);
+        } else {
+          initSettingsSidebar();
+        }
+      })();
+    </script>
 
     <script type="module" src="/assets/js/dashboard/index.js"></script>
   </body>

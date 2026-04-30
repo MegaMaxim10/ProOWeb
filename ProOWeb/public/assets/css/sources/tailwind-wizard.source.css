@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+        html { @apply font-sans; }
+        body { @apply text-pw-text dark:text-pw-d-text; }
+        p { @apply leading-relaxed; }
+        code { @apply font-mono text-[0.88em]; }
+      }
+      @layer components {
+        .pw-panel {
+          @apply rounded-[18px] bg-pw-panel dark:bg-pw-d-panel
+                 border border-pw-line dark:border-pw-d-line
+                 p-6 shadow-[0_8px_20px_rgba(18,34,52,0.08)]
+                 dark:shadow-[0_10px_24px_rgba(2,8,16,0.35)];
+        }
+        .pw-kicker {
+          @apply m-0 text-[0.74rem] font-medium uppercase tracking-[0.12em]
+                 text-pw-muted dark:text-pw-d-muted;
+        }
+        .pw-muted { @apply text-pw-muted dark:text-pw-d-muted; }
+        .pw-btn {
+          @apply mt-1 rounded-xl min-h-[2.55rem] px-5 py-2.5 text-sm font-semibold
+                 bg-pw-action dark:bg-pw-d-action text-white border border-transparent
+                 cursor-pointer transition-all duration-150
+                 hover:bg-[#0d5343] dark:hover:bg-[#1f8a6a]
+                 hover:-translate-y-px hover:shadow-[0_8px_16px_rgba(13,83,67,0.22)]
+                 active:translate-y-0 active:shadow-none
+                 disabled:opacity-60 disabled:cursor-not-allowed
+                 disabled:translate-y-0 disabled:shadow-none;
+        }
+        .pw-btn-nav {
+          @apply m-0 rounded-xl min-h-[2.55rem] px-5 py-2.5 text-sm font-semibold
+                 bg-[#f3f7fc] dark:bg-pw-d-soft
+                 text-[#24425d] dark:text-pw-d-text
+                 border border-pw-line dark:border-pw-d-line
+                 cursor-pointer transition-colors
+                 hover:bg-[#e5edf7] dark:hover:bg-[#243a54];
+        }
+        .pw-input {
+          @apply w-full rounded-xl min-h-[2.55rem] px-3 py-2 text-sm
+                 border border-pw-line dark:border-pw-d-line
+                 bg-pw-soft dark:bg-pw-d-soft
+                 text-pw-text dark:text-pw-d-text
+                 transition-all duration-150
+                 focus:outline-none focus:border-pw-focus dark:focus:border-pw-d-focus
+                 focus:ring-2 focus:ring-[rgba(42,120,196,0.16)]
+                 focus:bg-pw-panel dark:focus:bg-pw-d-panel;
+        }
+        .pw-label {
+          @apply grid gap-1.5 text-sm font-medium
+                 text-pw-text dark:text-pw-d-text;
+        }
+        .pw-fieldset {
+          @apply grid gap-3 rounded-[14px] p-4
+                 border border-pw-line dark:border-pw-d-line
+                 bg-[#f7fbff] dark:bg-pw-d-soft;
+        }
+        .pw-fieldset legend { @apply font-semibold text-sm; }
+        .pw-hint { @apply m-0 text-xs pw-muted; }
+        .pw-inline-row { @apply flex items-center gap-2; }
+        .feedback { @apply text-sm min-h-[1.2rem] mt-1; }
+        .feedback.success { @apply text-pw-success dark:text-pw-d-success; }
+        .feedback.error   { @apply text-pw-error dark:text-pw-d-error; }
+        /* Wizard step track buttons */
+        .wizard-step-track {
+          @apply grid grid-cols-2 sm:grid-cols-4 gap-2 list-none p-0 m-0;
+        }
+        .wizard-step-btn {
+          @apply relative w-full m-0 pl-8 pr-2 py-2.5 rounded-xl
+                 border border-[#c4d1e2] dark:border-pw-d-line
+                 bg-[#f3f7fc] dark:bg-pw-d-soft
+                 text-[#294463] dark:text-pw-d-text
+                 text-left text-sm font-semibold
+                 cursor-pointer transition-colors
+                 hover:bg-[#e8eff8] dark:hover:bg-[#243a54];
+        }
+        .wizard-step-btn.is-active {
+          @apply border-pw-action dark:border-pw-d-action
+                 bg-[#e7f7f1] dark:bg-[#1d3d34] text-[#0d4e3f] dark:text-pw-d-text;
+        }
+        .wizard-step-btn.is-complete {
+          @apply border-[#91c7b7] dark:border-[#2d6050]
+                 bg-[#ecf8f3] dark:bg-[#1c3830];
+        }
+      }

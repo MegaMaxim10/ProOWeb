@@ -4,8 +4,35 @@ const SHARED_DATA_PREFIXES = Object.freeze([
   "shareddata.",
 ]);
 
+const SHARED_ENTITY_FIELD_TYPES = Object.freeze([
+  "STRING",
+  "TEXT",
+  "INTEGER",
+  "LONG",
+  "DECIMAL",
+  "BOOLEAN",
+  "DATE",
+  "DATETIME",
+  "JSON",
+  "UUID",
+]);
+const SHARED_ENTITY_RELATION_TYPES = Object.freeze([
+  "MANY_TO_ONE",
+  "ONE_TO_MANY",
+  "ONE_TO_ONE",
+  "MANY_TO_MANY",
+]);
+
 function normalizeString(value) {
   return String(value || "").trim();
+}
+
+function normalizeEntityKey(value) {
+  return normalizeString(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
 }
 
 function uniqueSorted(values) {
@@ -57,7 +84,7 @@ function stripSharedPrefix(pathValue) {
 function inferSharedEntityKey(pathValue) {
   const cleaned = stripSharedPrefix(pathValue);
   const entity = firstSegment(cleaned);
-  return normalizeString(entity);
+  return normalizeEntityKey(entity);
 }
 
 function toStorageTargets(storage) {
@@ -108,8 +135,79 @@ function normalizeInputSources(rawSources) {
   return items;
 }
 
-function upsertSharedEntity(entityIndex, entityKey) {
-  const normalizedKey = normalizeString(entityKey);
+function normalizeSharedEntityDefinitions(specification) {
+  const source = toObject(specification);
+  const sharedData = toObject(source.sharedData);
+  const rawEntities = Array.isArray(sharedData.entities) ? sharedData.entities : [];
+  const index = new Map();
+
+  for (const entry of rawEntities) {
+    const entity = toObject(entry);
+    const entityKey = normalizeEntityKey(entity.entityKey || entity.key || entity.name);
+    if (!entityKey || index.has(entityKey)) {
+      continue;
+    }
+
+    const rawFields = Array.isArray(entity.fields) ? entity.fields : [];
+    const fields = [];
+    const seenFieldNames = new Set();
+    for (const rawField of rawFields) {
+      const field = toObject(rawField);
+      const name = normalizeString(field.name).replace(/[^a-zA-Z0-9_]+/g, "_");
+      if (!name || seenFieldNames.has(name)) {
+        continue;
+      }
+      seenFieldNames.add(name);
+      const normalizedType = normalizeString(field.type || "STRING").toUpperCase();
+      fields.push({
+        name,
+        type: SHARED_ENTITY_FIELD_TYPES.includes(normalizedType) ? normalizedType : "STRING",
+        required: Boolean(field.required),
+        indexed: Boolean(field.indexed),
+        unique: Boolean(field.unique),
+      });
+    }
+
+    const rawRelations = Array.isArray(entity.relations) ? entity.relations : [];
+    const relations = [];
+    const seenRelationNames = new Set();
+    for (const rawRelation of rawRelations) {
+      const relation = toObject(rawRelation);
+      const name = normalizeString(relation.name || relation.relationName).replace(/[^a-zA-Z0-9_]+/g, "_");
+      const targetEntityKey = normalizeEntityKey(
+        relation.targetEntityKey || relation.targetEntity || relation.target,
+      );
+      if (!name || !targetEntityKey || seenRelationNames.has(name)) {
+        continue;
+      }
+      seenRelationNames.add(name);
+      const normalizedType = normalizeString(relation.type || "MANY_TO_ONE").toUpperCase();
+      relations.push({
+        name,
+        type: SHARED_ENTITY_RELATION_TYPES.includes(normalizedType) ? normalizedType : "MANY_TO_ONE",
+        targetEntityKey,
+        mappedBy: normalizeString(relation.mappedBy || "").replace(/[^a-zA-Z0-9_]+/g, "_"),
+        joinColumn: normalizeString(relation.joinColumn || "").toLowerCase(),
+        joinTable: normalizeString(relation.joinTable || "").toLowerCase(),
+        inverseJoinColumn: normalizeString(relation.inverseJoinColumn || relation.targetJoinColumn || "").toLowerCase(),
+        required: Boolean(relation.required),
+      });
+    }
+
+    index.set(entityKey, {
+      entityKey,
+      displayName: normalizeString(entity.displayName || entity.title || entityKey) || entityKey,
+      tableName: normalizeString(entity.tableName || ""),
+      fields,
+      relations,
+    });
+  }
+
+  return index;
+}
+
+function upsertSharedEntity(entityIndex, entityKey, definition = null) {
+  const normalizedKey = normalizeEntityKey(entityKey);
   if (!normalizedKey) {
     return null;
   }
@@ -117,19 +215,46 @@ function upsertSharedEntity(entityIndex, entityKey) {
   if (!entityIndex.has(normalizedKey)) {
     entityIndex.set(normalizedKey, {
       entityKey: normalizedKey,
+      displayName: normalizeString(definition?.displayName || normalizedKey) || normalizedKey,
+      tableName: normalizeString(definition?.tableName || ""),
+      fields: Array.isArray(definition?.fields)
+        ? definition.fields.map((entry) => ({ ...entry }))
+        : [],
+      relations: Array.isArray(definition?.relations)
+        ? definition.relations.map((entry) => ({ ...entry }))
+        : [],
+      modeled: Boolean(definition),
       producedByActivities: new Set(),
       consumedByActivities: new Set(),
       fieldPaths: new Set(),
     });
   }
 
-  return entityIndex.get(normalizedKey);
+  const current = entityIndex.get(normalizedKey);
+  if (definition) {
+    current.displayName = normalizeString(definition.displayName || current.displayName || normalizedKey) || normalizedKey;
+    current.tableName = normalizeString(definition.tableName || current.tableName || "");
+    if (Array.isArray(definition.fields) && definition.fields.length > 0 && (!Array.isArray(current.fields) || current.fields.length === 0)) {
+      current.fields = definition.fields.map((entry) => ({ ...entry }));
+    }
+    if (Array.isArray(definition.relations) && definition.relations.length > 0 && (!Array.isArray(current.relations) || current.relations.length === 0)) {
+      current.relations = definition.relations.map((entry) => ({ ...entry }));
+    }
+    current.modeled = true;
+  }
+
+  return current;
 }
 
 function buildSharedEntityList(entityIndex) {
   const entities = Array.from(entityIndex.values())
     .map((entry) => ({
       entityKey: entry.entityKey,
+      displayName: entry.displayName || entry.entityKey,
+      tableName: entry.tableName || null,
+      fields: Array.isArray(entry.fields) ? entry.fields.map((field) => ({ ...field })) : [],
+      relations: Array.isArray(entry.relations) ? entry.relations.map((relation) => ({ ...relation })) : [],
+      modeled: entry.modeled === true,
       producedByActivities: Array.from(entry.producedByActivities).sort((left, right) => left.localeCompare(right)),
       consumedByActivities: Array.from(entry.consumedByActivities).sort((left, right) => left.localeCompare(right)),
       fieldPaths: Array.from(entry.fieldPaths).sort((left, right) => left.localeCompare(right)),
@@ -148,6 +273,10 @@ function buildDataSummary({
   sharedEntities,
   warnings,
 }) {
+  const relationCount = (Array.isArray(sharedEntities) ? sharedEntities : []).reduce(
+    (count, entry) => count + (Array.isArray(entry?.relations) ? entry.relations.length : 0),
+    0,
+  );
   return {
     activityCount: activities.length,
     inputSourceCount,
@@ -155,6 +284,9 @@ function buildDataSummary({
     outputMappingCount,
     lineageEdgeCount: lineageEdges.length,
     sharedDataEntityCount: sharedEntities.length,
+    sharedDataRelationCount: relationCount,
+    modeledSharedDataEntityCount: sharedEntities.filter((entry) => entry.modeled === true).length,
+    inferredSharedDataEntityCount: sharedEntities.filter((entry) => entry.modeled !== true).length,
     warningCount: warnings.length,
   };
 }
@@ -168,9 +300,14 @@ function buildDataContract({ model, version, runtimeContract }) {
   const lineageEdges = [];
   const warnings = [];
   const sharedEntityIndex = new Map();
+  const sharedDefinitionIndex = normalizeSharedEntityDefinitions(version?.specification);
   let inputSourceCount = 0;
   let inputMappingCount = 0;
   let outputMappingCount = 0;
+
+  for (const definition of sharedDefinitionIndex.values()) {
+    upsertSharedEntity(sharedEntityIndex, definition.entityKey, definition);
+  }
 
   for (const activity of activityList) {
     const activityId = normalizeString(activity?.activityId);
@@ -201,13 +338,21 @@ function buildDataContract({ model, version, runtimeContract }) {
 
       if (source.sourceType === "SHARED_DATA") {
         const inferredFromRef = inferSharedEntityKey(source.sourceRef);
-        const entityFromRef = upsertSharedEntity(sharedEntityIndex, inferredFromRef);
+        const definition = sharedDefinitionIndex.get(inferredFromRef) || null;
+        const entityFromRef = upsertSharedEntity(sharedEntityIndex, inferredFromRef, definition);
         if (entityFromRef) {
           entityFromRef.consumedByActivities.add(activityId);
           if (source.sourceRef) {
             entityFromRef.fieldPaths.add(source.sourceRef);
           }
           consumedEntitySet.add(entityFromRef.entityKey);
+          if (sharedDefinitionIndex.size > 0 && !definition) {
+            warnings.push({
+              code: "UNMODELED_SHARED_ENTITY_CONSUMED",
+              message: `Activity '${activityId}' consumes shared entity '${entityFromRef.entityKey}' not present in sharedData.entities.`,
+              path: `activities.${activityId}.input.sources[${sourceIndex}].sourceRef`,
+            });
+          }
         }
       }
 
@@ -225,7 +370,8 @@ function buildDataContract({ model, version, runtimeContract }) {
 
         if (source.sourceType === "SHARED_DATA") {
           const inferredEntity = inferSharedEntityKey(source.sourceRef || mapping.from);
-          const entity = upsertSharedEntity(sharedEntityIndex, inferredEntity);
+          const definition = sharedDefinitionIndex.get(inferredEntity) || null;
+          const entity = upsertSharedEntity(sharedEntityIndex, inferredEntity, definition);
           if (entity) {
             entity.consumedByActivities.add(activityId);
             entity.fieldPaths.add(mapping.from);
@@ -250,11 +396,19 @@ function buildDataContract({ model, version, runtimeContract }) {
 
       if (outputTargets.includes("SHARED_DATA")) {
         const inferredEntity = inferSharedEntityKey(mapping.to);
-        const entity = upsertSharedEntity(sharedEntityIndex, inferredEntity);
+        const definition = sharedDefinitionIndex.get(inferredEntity) || null;
+        const entity = upsertSharedEntity(sharedEntityIndex, inferredEntity, definition);
         if (entity) {
           entity.producedByActivities.add(activityId);
           entity.fieldPaths.add(mapping.to);
           producedEntitySet.add(entity.entityKey);
+          if (sharedDefinitionIndex.size > 0 && !definition) {
+            warnings.push({
+              code: "UNMODELED_SHARED_ENTITY_PRODUCED",
+              message: `Activity '${activityId}' writes shared entity '${entity.entityKey}' not present in sharedData.entities.`,
+              path: `activities.${activityId}.output.mappings[${mappingIndex}].to`,
+            });
+          }
         }
       }
     });
@@ -309,6 +463,8 @@ function buildDataContract({ model, version, runtimeContract }) {
     },
     sharedData: {
       entities: sharedEntities,
+      modeledEntityKeys: sharedEntities.filter((entry) => entry.modeled === true).map((entry) => entry.entityKey),
+      inferredEntityKeys: sharedEntities.filter((entry) => entry.modeled !== true).map((entry) => entry.entityKey),
     },
     warnings,
     summary,

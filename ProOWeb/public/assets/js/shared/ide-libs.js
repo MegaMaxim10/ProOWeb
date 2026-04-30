@@ -1,7 +1,10 @@
-const LOCAL_MONACO_BASE_URL = "/assets/vendor/monaco/min/vs";
-const LOCAL_MONACO_LOADER_URL = `${LOCAL_MONACO_BASE_URL}/loader.js`;
-const FALLBACK_MONACO_BASE_URL = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs";
-const FALLBACK_MONACO_LOADER_URL = `${FALLBACK_MONACO_BASE_URL}/loader.js`;
+const LOCAL_MONACO_ROOT_URL = "/assets/vendor/monaco/min";
+const LOCAL_MONACO_VS_URL = `${LOCAL_MONACO_ROOT_URL}/vs`;
+const LOCAL_MONACO_LOADER_URL = `${LOCAL_MONACO_VS_URL}/loader.js`;
+const LOCAL_MONACO_WORKER_PROXY_URL = "/assets/vendor/monaco/worker-proxy.js";
+const FALLBACK_MONACO_ROOT_URL = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min";
+const FALLBACK_MONACO_VS_URL = `${FALLBACK_MONACO_ROOT_URL}/vs`;
+const FALLBACK_MONACO_LOADER_URL = `${FALLBACK_MONACO_VS_URL}/loader.js`;
 
 const LOCAL_BPMN_MODELER_URL = "/assets/vendor/bpmn/bpmn-modeler.production.min.js";
 const FALLBACK_BPMN_MODELER_URL = "https://unpkg.com/bpmn-js@17.9.2/dist/bpmn-modeler.production.min.js";
@@ -11,7 +14,8 @@ function getIdeRegistry() {
     window.__proowebIdeRegistry = {
       scripts: new Map(),
       monacoPromise: null,
-      monacoBaseUrl: LOCAL_MONACO_BASE_URL,
+      monacoRootUrl: LOCAL_MONACO_ROOT_URL,
+      monacoVsUrl: LOCAL_MONACO_VS_URL,
       bpmnPromise: null,
     };
   }
@@ -47,7 +51,10 @@ function loadScriptOnce(scriptUrl, scriptKey = scriptUrl) {
     return registry.scripts.get(scriptKey);
   }
 
-  const existing = document.querySelector(`script[data-prooweb-lib="${scriptKey}"]`);
+  const existingSelector = scriptKey === "monaco-loader"
+    ? `script[data-prooweb-lib="${scriptKey}"], script[src$="/vs/loader.js"], script[src*="monaco-editor"][src*="/vs/loader.js"]`
+    : `script[data-prooweb-lib="${scriptKey}"]`;
+  const existing = document.querySelector(existingSelector);
   if (existing) {
     const existingPromise = waitForScript(existing, scriptKey);
     registry.scripts.set(scriptKey, existingPromise);
@@ -76,26 +83,64 @@ function loadScriptOnce(scriptUrl, scriptKey = scriptUrl) {
   return promise;
 }
 
-function createMonacoWorkerUrl(baseUrl) {
-  const workerSource =
-    `self.MonacoEnvironment={baseUrl:'${baseUrl}'};` +
-    `importScripts('${baseUrl}/base/worker/workerMain.js');`;
-  return `data:text/javascript;charset=utf-8,${encodeURIComponent(workerSource)}`;
+function toAbsoluteUrl(url) {
+  const source = String(url || "").trim();
+  if (!source) {
+    return "";
+  }
+
+  try {
+    return new URL(source, window.location.origin).toString().replace(/\/+$/, "");
+  } catch (_) {
+    return source.replace(/\/+$/, "");
+  }
+}
+
+function createMonacoWorkerProxyUrl(rootUrl) {
+  const absoluteRootUrl = toAbsoluteUrl(rootUrl);
+  const absoluteProxyUrl = toAbsoluteUrl(LOCAL_MONACO_WORKER_PROXY_URL);
+  const search = `baseUrl=${encodeURIComponent(absoluteRootUrl)}`;
+  return `${absoluteProxyUrl}?${search}`;
+}
+
+function resolveBpmnConstructor() {
+  return window.BpmnJS || window.BpmnModeler || globalThis.BpmnJS || globalThis.BpmnModeler || null;
 }
 
 async function resolveMonacoLoader() {
   const registry = getIdeRegistry();
+  if (window.require && typeof window.require.config === "function" && window.define?.amd) {
+    registry.monacoRootUrl = LOCAL_MONACO_ROOT_URL;
+    registry.monacoVsUrl = LOCAL_MONACO_VS_URL;
+    return {
+      rootUrl: LOCAL_MONACO_ROOT_URL,
+      vsUrl: LOCAL_MONACO_VS_URL,
+    };
+  }
+
   const candidates = [
-    { loaderUrl: LOCAL_MONACO_LOADER_URL, baseUrl: LOCAL_MONACO_BASE_URL },
-    { loaderUrl: FALLBACK_MONACO_LOADER_URL, baseUrl: FALLBACK_MONACO_BASE_URL },
+    {
+      loaderUrl: LOCAL_MONACO_LOADER_URL,
+      rootUrl: LOCAL_MONACO_ROOT_URL,
+      vsUrl: LOCAL_MONACO_VS_URL,
+    },
+    {
+      loaderUrl: FALLBACK_MONACO_LOADER_URL,
+      rootUrl: FALLBACK_MONACO_ROOT_URL,
+      vsUrl: FALLBACK_MONACO_VS_URL,
+    },
   ];
 
   let lastError = null;
   for (const candidate of candidates) {
     try {
       await loadScriptOnce(candidate.loaderUrl, "monaco-loader");
-      registry.monacoBaseUrl = candidate.baseUrl;
-      return candidate.baseUrl;
+      registry.monacoRootUrl = candidate.rootUrl;
+      registry.monacoVsUrl = candidate.vsUrl;
+      return {
+        rootUrl: candidate.rootUrl,
+        vsUrl: candidate.vsUrl,
+      };
     } catch (error) {
       lastError = error;
     }
@@ -112,21 +157,32 @@ export function loadMonacoEditor() {
   const registry = getIdeRegistry();
   if (!registry.monacoPromise) {
     registry.monacoPromise = (async () => {
-      const baseUrl = await resolveMonacoLoader();
+      const resolvedUrls = await resolveMonacoLoader();
+      const absoluteRootUrl = toAbsoluteUrl(resolvedUrls.rootUrl);
+      const absoluteVsUrl = toAbsoluteUrl(resolvedUrls.vsUrl);
       const amdRequire = window.require;
       if (!amdRequire) {
         throw new Error("Monaco AMD loader is not available.");
       }
 
-      amdRequire.config({ paths: { vs: baseUrl } });
+      amdRequire.config({
+        paths: { vs: absoluteVsUrl },
+        ignoreDuplicateModules: ["vs/editor/editor.main"],
+      });
       window.MonacoEnvironment = {
-        getWorkerUrl() {
-          return createMonacoWorkerUrl(baseUrl);
+        baseUrl: absoluteRootUrl,
+        getWorkerUrl(moduleId, label) {
+          return createMonacoWorkerProxyUrl(absoluteRootUrl);
         },
       };
 
       await new Promise((resolve, reject) => {
         if (window.monaco?.editor) {
+          resolve();
+          return;
+        }
+
+        if (typeof amdRequire.defined === "function" && amdRequire.defined("vs/editor/editor.main")) {
           resolve();
           return;
         }
@@ -139,15 +195,19 @@ export function loadMonacoEditor() {
       }
 
       return window.monaco;
-    })();
+    })().catch((error) => {
+      registry.monacoPromise = null;
+      throw error;
+    });
   }
 
   return registry.monacoPromise;
 }
 
 export function loadBpmnModelerConstructor() {
-  if (window.BpmnJS) {
-    return Promise.resolve(window.BpmnJS);
+  const existing = resolveBpmnConstructor();
+  if (existing) {
+    return Promise.resolve(existing);
   }
 
   const registry = getIdeRegistry();
@@ -159,8 +219,9 @@ export function loadBpmnModelerConstructor() {
       for (const candidate of candidates) {
         try {
           await loadScriptOnce(candidate, "bpmn-modeler");
-          if (window.BpmnJS) {
-            return window.BpmnJS;
+          const constructor = resolveBpmnConstructor();
+          if (constructor) {
+            return constructor;
           }
         } catch (error) {
           lastError = error;

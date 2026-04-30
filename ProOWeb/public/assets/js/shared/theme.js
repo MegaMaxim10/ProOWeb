@@ -45,10 +45,17 @@ function updateButtonLabel(button, theme) {
   if (!button) {
     return;
   }
-  const nextThemeLabel = theme === THEMES.DARK ? "Light theme" : "Dark theme";
-  button.textContent = nextThemeLabel;
-  button.setAttribute("aria-label", `Switch to ${nextThemeLabel.toLowerCase()}`);
-  button.title = `Information: Switch ProOWeb visual theme to ${nextThemeLabel.toLowerCase()}.`;
+  const isDark = theme === THEMES.DARK;
+  const nextLabel = isDark ? "Light theme" : "Dark theme";
+  button.setAttribute("aria-label", `Switch to ${nextLabel.toLowerCase()}`);
+  button.title = `Switch ProOWeb visual theme to ${nextLabel.toLowerCase()}.`;
+  // Update icon visibility if the button has sun/moon icons
+  const sunIcon = button.querySelector(".theme-icon-sun");
+  const moonIcon = button.querySelector(".theme-icon-moon");
+  const labelSpan = button.querySelector(".theme-label");
+  if (sunIcon) sunIcon.classList.toggle("hidden", !isDark);
+  if (moonIcon) moonIcon.classList.toggle("hidden", isDark);
+  if (labelSpan) labelSpan.textContent = nextLabel;
 }
 
 export function initializeTheme({ documentRef = document, windowRef = window } = {}) {
@@ -60,7 +67,11 @@ export function initializeTheme({ documentRef = document, windowRef = window } =
 
   function applyTheme(theme) {
     const normalized = normalizeTheme(theme);
-    rootElement.setAttribute("data-theme", normalized);
+    if (normalized === THEMES.DARK) {
+      rootElement.classList.add("dark");
+    } else {
+      rootElement.classList.remove("dark");
+    }
     updateButtonLabel(toggleButton, normalized);
     persistTheme(storage, normalized);
     return normalized;

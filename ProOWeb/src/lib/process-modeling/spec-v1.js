@@ -20,7 +20,30 @@ const INPUT_SOURCE_TYPE_VALUES = Object.freeze([
   "EXTERNAL_SERVICE",
 ]);
 const OUTPUT_STORAGE_VALUES = Object.freeze(["INSTANCE", "SHARED", "BOTH"]);
+const SHARED_ENTITY_FIELD_TYPE_VALUES = Object.freeze([
+  "STRING",
+  "TEXT",
+  "INTEGER",
+  "LONG",
+  "DECIMAL",
+  "BOOLEAN",
+  "DATE",
+  "DATETIME",
+  "JSON",
+  "UUID",
+]);
+const SHARED_ENTITY_RELATION_TYPE_VALUES = Object.freeze([
+  "MANY_TO_ONE",
+  "ONE_TO_MANY",
+  "ONE_TO_ONE",
+  "MANY_TO_MANY",
+]);
 const DEFAULT_AUTOMATIC_TASK_TYPE_KEY = "core.echo";
+const SHARED_DATA_PATH_PREFIXES = Object.freeze([
+  "shared.",
+  "shared_data.",
+  "shareddata.",
+]);
 
 const BPMN_ACTIVITY_TAGS = Object.freeze([
   "task",
@@ -80,6 +103,68 @@ function normalizeRoleCode(value) {
     .toUpperCase()
     .replace(/[^A-Z0-9_]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
+
+function normalizeEntityKey(value) {
+  return normalizeString(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function isValidEntityKey(value) {
+  return /^[a-z0-9][a-z0-9._-]{1,63}$/.test(String(value || ""));
+}
+
+function normalizeSharedFieldName(value) {
+  return normalizeString(value).replace(/[^a-zA-Z0-9_]+/g, "_");
+}
+
+function isValidSharedFieldName(value) {
+  return /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(String(value || ""));
+}
+
+function toDefaultSharedTableName(entityKey) {
+  const normalized = String(entityKey || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const base = normalized || "entity";
+  const prefixed = `shared_${base}`.slice(0, 63);
+  return prefixed.replace(/_+$/g, "") || "shared_entity";
+}
+
+function isValidTableName(value) {
+  return /^[a-z][a-z0-9_]{1,62}$/.test(String(value || ""));
+}
+
+function toDefaultJoinColumnName(relationName) {
+  const normalized = normalizeString(relationName)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const base = normalized || "related";
+  const prefixed = `${base}_id`.slice(0, 63);
+  return prefixed.replace(/_+$/g, "") || "related_id";
+}
+
+function toDefaultJoinTableName(sourceEntityKey, relationName, targetEntityKey) {
+  const left = normalizeString(sourceEntityKey)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const middle = normalizeString(relationName)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const right = normalizeString(targetEntityKey)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const value = `shared_rel_${left || "source"}_${middle || "rel"}_${right || "target"}`;
+  const truncated = value.slice(0, 63);
+  return truncated.replace(/_+$/g, "") || "shared_rel_source_target";
 }
 
 function isValidRoleCode(value) {
@@ -353,6 +438,404 @@ function normalizeInputSources(rawSources, path, errors) {
   }
 
   return normalized;
+}
+
+function resolveSharedTargetPath(pathValue) {
+  const raw = normalizeString(pathValue);
+  if (!raw) {
+    return null;
+  }
+
+  const lowered = raw.toLowerCase();
+  let stripped = "";
+  for (const prefix of SHARED_DATA_PATH_PREFIXES) {
+    if (lowered.startsWith(prefix)) {
+      stripped = raw.slice(prefix.length);
+      break;
+    }
+  }
+  if (!stripped) {
+    return null;
+  }
+
+  const clean = stripped
+    .replace(/^\.+/, "")
+    .replace(/\[(\d+)\]/g, "")
+    .trim();
+  if (!clean) {
+    return null;
+  }
+
+  const separator = clean.indexOf(".");
+  const entityKey = normalizeEntityKey(separator < 0 ? clean : clean.slice(0, separator));
+  const fieldPath = separator < 0 ? "value" : normalizeString(clean.slice(separator + 1));
+  if (!entityKey) {
+    return null;
+  }
+
+  return {
+    entityKey,
+    fieldPath: fieldPath || "value",
+  };
+}
+
+function inferSharedEntityKeyFromSource(sourceRef) {
+  const sharedTarget = resolveSharedTargetPath(sourceRef);
+  if (sharedTarget) {
+    return sharedTarget.entityKey;
+  }
+
+  const normalized = normalizeString(sourceRef)
+    .replace(/^\.+/, "")
+    .replace(/\[(\d+)\]/g, "");
+  const separator = normalized.search(/[.:/]/);
+  if (separator < 0) {
+    return normalizeEntityKey(normalized);
+  }
+  return normalizeEntityKey(normalized.slice(0, separator));
+}
+
+function normalizeSharedEntityFields(rawFields, path, errors) {
+  const source = Array.isArray(rawFields) ? rawFields : [];
+  const fields = [];
+  const seenNames = new Set();
+
+  for (let index = 0; index < source.length; index += 1) {
+    const entry = source[index];
+    const entryPath = `${path}[${index}]`;
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      pushIssue(errors, entryPath, "Shared entity field must be an object.");
+      continue;
+    }
+
+    const rawName = normalizeString(entry.name);
+    const name = normalizeSharedFieldName(rawName);
+    if (!name) {
+      pushIssue(errors, `${entryPath}.name`, "Shared entity field name is required.");
+      continue;
+    }
+    if (!isValidSharedFieldName(name)) {
+      pushIssue(
+        errors,
+        `${entryPath}.name`,
+        `Invalid shared field name '${rawName}'. Expected [a-zA-Z][a-zA-Z0-9_]{0,63}.`,
+      );
+      continue;
+    }
+    if (seenNames.has(name)) {
+      pushIssue(errors, `${entryPath}.name`, `Duplicate shared field '${name}'.`);
+      continue;
+    }
+
+    seenNames.add(name);
+    fields.push({
+      name,
+      type: normalizeEnum(
+        entry.type,
+        SHARED_ENTITY_FIELD_TYPE_VALUES,
+        "STRING",
+        `${entryPath}.type`,
+        errors,
+      ),
+      required: normalizeBoolean(entry.required, false),
+      indexed: normalizeBoolean(entry.indexed, false),
+      unique: normalizeBoolean(entry.unique, false),
+    });
+  }
+
+  return fields;
+}
+
+function normalizeSharedEntityRelations(rawRelations, path, errors, sourceEntity, knownEntityKeys) {
+  const source = Array.isArray(rawRelations) ? rawRelations : [];
+  const relations = [];
+  const seenNames = new Set();
+  const sourceFields = Array.isArray(sourceEntity?.fields)
+    ? new Set(sourceEntity.fields.map((field) => field.name))
+    : new Set();
+
+  for (let index = 0; index < source.length; index += 1) {
+    const entry = source[index];
+    const entryPath = `${path}[${index}]`;
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      pushIssue(errors, entryPath, "Shared entity relation must be an object.");
+      continue;
+    }
+
+    const rawName = normalizeString(
+      entry.name
+      || entry.relationName
+      || entry.targetEntityKey
+      || entry.targetEntity
+      || entry.target,
+    );
+    const relationName = normalizeSharedFieldName(rawName);
+    if (!relationName) {
+      pushIssue(errors, `${entryPath}.name`, "Shared entity relation name is required.");
+      continue;
+    }
+    if (!isValidSharedFieldName(relationName)) {
+      pushIssue(
+        errors,
+        `${entryPath}.name`,
+        `Invalid shared relation name '${rawName}'. Expected [a-zA-Z][a-zA-Z0-9_]{0,63}.`,
+      );
+      continue;
+    }
+    if (seenNames.has(relationName)) {
+      pushIssue(errors, `${entryPath}.name`, `Duplicate shared relation '${relationName}'.`);
+      continue;
+    }
+    if (sourceFields.has(relationName)) {
+      pushIssue(
+        errors,
+        `${entryPath}.name`,
+        `Relation '${relationName}' conflicts with an existing field name in entity '${sourceEntity.entityKey}'.`,
+      );
+      continue;
+    }
+
+    const relationType = normalizeEnum(
+      entry.type,
+      SHARED_ENTITY_RELATION_TYPE_VALUES,
+      "MANY_TO_ONE",
+      `${entryPath}.type`,
+      errors,
+    );
+
+    const rawTargetEntityKey = normalizeString(entry.targetEntityKey || entry.targetEntity || entry.target || "");
+    const targetEntityKey = normalizeEntityKey(rawTargetEntityKey);
+    if (!targetEntityKey) {
+      pushIssue(errors, `${entryPath}.targetEntityKey`, "Shared entity relation targetEntityKey is required.");
+      continue;
+    }
+    if (!knownEntityKeys.has(targetEntityKey)) {
+      pushIssue(
+        errors,
+        `${entryPath}.targetEntityKey`,
+        `Shared relation target '${targetEntityKey}' is not modeled in sharedData.entities.`,
+      );
+    }
+
+    const mappedBy = normalizeSharedFieldName(entry.mappedBy || "");
+    let joinColumn = normalizeString(entry.joinColumn);
+    let joinTable = normalizeString(entry.joinTable);
+    let inverseJoinColumn = normalizeString(entry.inverseJoinColumn || entry.targetJoinColumn);
+
+    if (relationType === "MANY_TO_ONE" || (relationType === "ONE_TO_ONE" && !mappedBy)) {
+      joinColumn = joinColumn || toDefaultJoinColumnName(relationName);
+    }
+    if (relationType === "MANY_TO_MANY" && !mappedBy) {
+      joinTable = joinTable || toDefaultJoinTableName(sourceEntity.entityKey, relationName, targetEntityKey);
+      joinColumn = joinColumn || toDefaultJoinColumnName(sourceEntity.entityKey || "source");
+      inverseJoinColumn = inverseJoinColumn || toDefaultJoinColumnName(targetEntityKey || "target");
+    }
+
+    if (joinColumn && !isValidTableName(joinColumn)) {
+      pushIssue(
+        errors,
+        `${entryPath}.joinColumn`,
+        `Invalid joinColumn '${joinColumn}'. Expected [a-z][a-z0-9_]{1,62}.`,
+      );
+      joinColumn = "";
+    }
+    if (joinTable && !isValidTableName(joinTable)) {
+      pushIssue(
+        errors,
+        `${entryPath}.joinTable`,
+        `Invalid joinTable '${joinTable}'. Expected [a-z][a-z0-9_]{1,62}.`,
+      );
+      joinTable = "";
+    }
+    if (inverseJoinColumn && !isValidTableName(inverseJoinColumn)) {
+      pushIssue(
+        errors,
+        `${entryPath}.inverseJoinColumn`,
+        `Invalid inverseJoinColumn '${inverseJoinColumn}'. Expected [a-z][a-z0-9_]{1,62}.`,
+      );
+      inverseJoinColumn = "";
+    }
+
+    if (relationType === "ONE_TO_MANY" && !mappedBy) {
+      pushIssue(
+        errors,
+        `${entryPath}.mappedBy`,
+        "ONE_TO_MANY relations require mappedBy to point to the owning field on target entity.",
+      );
+    }
+    if (relationType === "MANY_TO_MANY" && mappedBy && (joinTable || joinColumn || inverseJoinColumn)) {
+      pushIssue(
+        errors,
+        entryPath,
+        "MANY_TO_MANY inverse side (mappedBy) cannot define joinTable/joinColumn/inverseJoinColumn.",
+      );
+    }
+
+    seenNames.add(relationName);
+    relations.push({
+      name: relationName,
+      type: relationType,
+      targetEntityKey,
+      mappedBy: mappedBy || "",
+      joinColumn: joinColumn || "",
+      joinTable: joinTable || "",
+      inverseJoinColumn: inverseJoinColumn || "",
+      required: normalizeBoolean(entry.required, false),
+    });
+  }
+
+  return relations;
+}
+
+function normalizeSharedDataEntities(rawEntities, path, errors) {
+  const source = Array.isArray(rawEntities) ? rawEntities : [];
+  const preEntities = [];
+  const seenKeys = new Set();
+
+  for (let index = 0; index < source.length; index += 1) {
+    const entry = source[index];
+    const entryPath = `${path}[${index}]`;
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      pushIssue(errors, entryPath, "Shared entity definition must be an object.");
+      continue;
+    }
+
+    const rawEntityKey = normalizeString(entry.entityKey || entry.key || entry.name);
+    const entityKey = normalizeEntityKey(rawEntityKey);
+    if (!entityKey) {
+      pushIssue(errors, `${entryPath}.entityKey`, "sharedData entityKey is required.");
+      continue;
+    }
+    if (!isValidEntityKey(entityKey)) {
+      pushIssue(
+        errors,
+        `${entryPath}.entityKey`,
+        `Invalid shared entityKey '${rawEntityKey}'. Expected [a-z0-9][a-z0-9._-]{1,63}.`,
+      );
+      continue;
+    }
+    if (seenKeys.has(entityKey)) {
+      pushIssue(errors, `${entryPath}.entityKey`, `Duplicate shared entityKey '${entityKey}'.`);
+      continue;
+    }
+
+    let tableName = normalizeString(entry.tableName);
+    if (!tableName) {
+      tableName = toDefaultSharedTableName(entityKey);
+    }
+    if (!isValidTableName(tableName)) {
+      pushIssue(
+        errors,
+        `${entryPath}.tableName`,
+        `Invalid tableName '${tableName}'. Expected lowercase SQL identifier [a-z][a-z0-9_]{1,62}.`,
+      );
+      tableName = toDefaultSharedTableName(entityKey);
+    }
+
+    const fields = normalizeSharedEntityFields(entry.fields, `${entryPath}.fields`, errors);
+    if (fields.length === 0) {
+      pushIssue(errors, `${entryPath}.fields`, "Shared entity must define at least one field.");
+    }
+
+    seenKeys.add(entityKey);
+    preEntities.push({
+      entityKey,
+      displayName: normalizeString(entry.displayName || entry.title || entityKey) || entityKey,
+      tableName,
+      fields: fields.length > 0
+        ? fields
+        : [{
+            name: "value",
+            type: "JSON",
+            required: false,
+            indexed: false,
+            unique: false,
+          }],
+      rawRelations: Array.isArray(entry.relations) ? entry.relations : [],
+    });
+  }
+
+  const knownEntityKeys = new Set(preEntities.map((entry) => entry.entityKey));
+  const entities = preEntities.map((entry, index) => ({
+    entityKey: entry.entityKey,
+    displayName: entry.displayName,
+    tableName: entry.tableName,
+    fields: entry.fields,
+    relations: normalizeSharedEntityRelations(
+      entry.rawRelations,
+      `${path}[${index}].relations`,
+      errors,
+      entry,
+      knownEntityKeys,
+    ),
+  }));
+
+  return entities;
+}
+
+function validateSharedDataReferences({ activities, sharedEntitiesByKey, errors, warnings }) {
+  const sharedEntityKeys = new Set(Array.from(sharedEntitiesByKey.keys()));
+  for (const [activityId, activity] of Object.entries(activities)) {
+    const inputSources = Array.isArray(activity?.input?.sources) ? activity.input.sources : [];
+    for (let index = 0; index < inputSources.length; index += 1) {
+      const source = inputSources[index];
+      if (source.sourceType !== "SHARED_DATA") {
+        continue;
+      }
+
+      const inferredEntityKey = inferSharedEntityKeyFromSource(source.sourceRef);
+      if (!inferredEntityKey) {
+        pushIssue(
+          errors,
+          `activities.${activityId}.input.sources[${index}].sourceRef`,
+          "SHARED_DATA source requires a sourceRef that points to a shared entity.",
+        );
+        continue;
+      }
+
+      if (sharedEntityKeys.size > 0 && !sharedEntityKeys.has(inferredEntityKey)) {
+        pushIssue(
+          errors,
+          `activities.${activityId}.input.sources[${index}].sourceRef`,
+          `Shared entity '${inferredEntityKey}' was not modeled in sharedData.entities.`,
+        );
+      }
+    }
+
+    const outputStorage = normalizeString(activity?.output?.storage).toUpperCase();
+    const outputMappings = Array.isArray(activity?.output?.mappings) ? activity.output.mappings : [];
+    if ((outputStorage === "SHARED" || outputStorage === "BOTH") && outputMappings.length === 0) {
+      pushIssue(
+        warnings,
+        `activities.${activityId}.output.mappings`,
+        "Output storage targets shared data but no output mappings were configured.",
+      );
+    }
+
+    if (outputStorage !== "SHARED" && outputStorage !== "BOTH") {
+      continue;
+    }
+
+    for (let index = 0; index < outputMappings.length; index += 1) {
+      const mapping = outputMappings[index];
+      const target = resolveSharedTargetPath(mapping?.to);
+      if (!target) {
+        pushIssue(
+          errors,
+          `activities.${activityId}.output.mappings[${index}].to`,
+          "Shared output mappings must target paths prefixed with shared., shared_data., or shareddata.",
+        );
+        continue;
+      }
+      if (sharedEntityKeys.size > 0 && !sharedEntityKeys.has(target.entityKey)) {
+        pushIssue(
+          errors,
+          `activities.${activityId}.output.mappings[${index}].to`,
+          `Shared entity '${target.entityKey}' was not modeled in sharedData.entities.`,
+        );
+      }
+    }
+  }
 }
 
 function normalizeActivitySpec(rawActivitySpec, defaults, context) {
@@ -652,6 +1135,9 @@ function generateDefaultProcessSpecificationV1({ bpmnXml } = {}) {
     monitors: {
       monitorRoles: ["PROCESS_MONITOR"],
     },
+    sharedData: {
+      entities: [],
+    },
     activities,
   };
 }
@@ -723,6 +1209,18 @@ function validateProcessSpecificationV1(rawSpecification, options = {}) {
     ),
   };
 
+  const sharedDataSource = source.sharedData && typeof source.sharedData === "object" && !Array.isArray(source.sharedData)
+    ? source.sharedData
+    : {};
+  const sharedData = {
+    entities: normalizeSharedDataEntities(
+      sharedDataSource.entities,
+      "sharedData.entities",
+      errors,
+    ),
+  };
+  const sharedEntitiesByKey = new Map(sharedData.entities.map((entry) => [entry.entityKey, entry]));
+
   const rawActivities = source.activities && typeof source.activities === "object" && !Array.isArray(source.activities)
     ? source.activities
     : {};
@@ -780,10 +1278,18 @@ function validateProcessSpecificationV1(rawSpecification, options = {}) {
     );
   }
 
+  validateSharedDataReferences({
+    activities: normalizedActivities,
+    sharedEntitiesByKey,
+    errors,
+    warnings,
+  });
+
   const normalizedSpecification = {
     schemaVersion: SPECIFICATION_SCHEMA_VERSION,
     start,
     monitors,
+    sharedData,
     activities: normalizedActivities,
   };
 
@@ -829,6 +1335,9 @@ function summarizeProcessSpecificationV1(specification) {
     activityCount: activityEntries.length,
     manualActivityCount,
     automaticActivityCount,
+    sharedDataEntityCount: Array.isArray(specification?.sharedData?.entities)
+      ? specification.sharedData.entities.length
+      : 0,
   };
 }
 
@@ -840,6 +1349,7 @@ module.exports = {
   AUTOMATIC_TRIGGER_MODE_VALUES,
   INPUT_SOURCE_TYPE_VALUES,
   OUTPUT_STORAGE_VALUES,
+  SHARED_ENTITY_FIELD_TYPE_VALUES,
   DEFAULT_AUTOMATIC_TASK_TYPE_KEY,
   BPMN_ACTIVITY_TAGS,
   generateDefaultProcessSpecificationV1,

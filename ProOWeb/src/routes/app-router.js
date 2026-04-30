@@ -1,5 +1,9 @@
 const path = require("node:path");
 const { URL } = require("node:url");
+const {
+  isWorkspacePageRoute,
+  resolveLegacyWorkspaceRedirect,
+} = require("./workspace-pages");
 
 function createAppRouter({
   workspaceController,
@@ -427,19 +431,52 @@ function createAppRouter({
       return;
     }
 
-    if (method === "GET" && url.pathname === "/dashboard") {
+    if (method === "GET" && isWorkspacePageRoute(url.pathname)) {
       publicFileHandler.sendFile(response, path.join(publicFileHandler.resolvedPublicDir, "dashboard.html"));
       return;
     }
 
+    if (method === "GET" && url.pathname === "/favicon.ico") {
+      publicFileHandler.sendFile(
+        response,
+        path.join(publicFileHandler.resolvedPublicDir, "assets", "icons", "prooweb-mark.svg"),
+      );
+      return;
+    }
+
+    if (method === "GET") {
+      const target = resolveLegacyWorkspaceRedirect(url.pathname);
+      if (target) {
+        response.writeHead(302, { Location: target });
+        response.end();
+        return;
+      }
+    }
+
     if (
       method === "GET"
-      && /^\/dashboard\/(overview|platform|process|developer)$/.test(url.pathname)
+      && (url.pathname === "/project" || url.pathname === "/project/")
     ) {
-      const page = url.pathname.split("/")[2];
-      response.writeHead(302, {
-        Location: `/dashboard?page=${encodeURIComponent(page)}`,
-      });
+      response.writeHead(302, { Location: "/project/dashboard" });
+      response.end();
+      return;
+    }
+
+    if (method === "GET" && (url.pathname === "/data" || url.pathname === "/data/")) {
+      response.writeHead(302, { Location: "/data/shared-entities" });
+      response.end();
+      return;
+    }
+
+    if (method === "GET" && (url.pathname === "/processes" || url.pathname === "/processes/")) {
+      response.writeHead(302, { Location: "/processes/process-models" });
+      response.end();
+      return;
+    }
+
+    if (method === "GET" && (url.pathname === "/help" || url.pathname === "/help/")) {
+      const target = "/help/about";
+      response.writeHead(302, { Location: target });
       response.end();
       return;
     }

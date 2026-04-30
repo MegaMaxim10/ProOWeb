@@ -1,0 +1,360 @@
+/* ============================================================
+   ProOWeb Studio — custom.css
+   Non-Tailwind rules: fonts, gradients, page visibility,
+   Monaco/BPMN canvas sizing, and misc Tailwind-incompatible rules.
+   All theming via .dark class (Tailwind darkMode: 'class').
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+
+/* --- Reset & base --- */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; font-family: "IBM Plex Sans", Aptos, "Segoe UI", sans-serif; }
+code, pre { font-family: "IBM Plex Mono", "Cascadia Code", Consolas, monospace; }
+kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 1.35rem; min-width: 1.35rem;
+  padding: 0 0.35rem; border-radius: 6px;
+  border: 1px solid #c7d5e3; background: #e9f3ff;
+  color: #122234; font-size: 0.75rem; font-weight: 600;
+  font-family: "IBM Plex Mono", Consolas, monospace;
+}
+.dark kbd { border-color: #2c3f57; background: #17314f; color: #d9e7f8; }
+::selection { background: rgba(97, 181, 255, 0.35); }
+input, select, button, textarea { font: inherit; }
+
+/* --- Body background gradient --- */
+body {
+  min-height: 100vh;
+  background: radial-gradient(circle at 75% 0%, #d7ebe3 0%, #edf2f7 55%, #c8d8ef 100%);
+}
+.dark body {
+  background: radial-gradient(circle at 75% 0%, #142136 0%, #0d1420 60%, #040a14 100%);
+}
+
+/* --- Skip link --- */
+.skip-link {
+  position: absolute; left: -9999px; top: 0; z-index: 30;
+  padding: 0.65rem 0.8rem; border-radius: 8px;
+  background: #136e59; color: #fff; text-decoration: none;
+}
+.skip-link:focus { left: 0.8rem; top: 0.8rem; }
+
+/* ============================================================
+   Page section visibility (data-workspace-page routing)
+   ============================================================ */
+[data-workspace-page] .dashboard-page main > section[id] { display: none; }
+
+[data-workspace-page="project-dashboard"]        .dashboard-page #workspace-dashboard     { display: grid; }
+[data-workspace-page="project-platform-info"]    .dashboard-page #workspace-platform-info { display: block; }
+[data-workspace-page="project-platform-settings"].dashboard-page #reconfigure             { display: block; }
+[data-workspace-page="project-migration-center"] .dashboard-page #management              { display: block; }
+[data-workspace-page="data-new-shared-entity"]   .dashboard-page #process-model           { display: block; }
+[data-workspace-page="data-shared-entities"]     .dashboard-page #process-model           { display: block; }
+[data-workspace-page="processes-new-process-model"].dashboard-page #process-model         { display: block; }
+[data-workspace-page="processes-process-models"] .dashboard-page #process-model           { display: block; }
+[data-workspace-page="templates-home"]           .dashboard-page #template-governance     { display: block; }
+[data-workspace-page="help-project-layout"]      .dashboard-page #deployment              { display: block; }
+[data-workspace-page="help-build-run"]           .dashboard-page #codegen                 { display: block; }
+[data-workspace-page="help-check-updates"]       .dashboard-page #help-check-updates      { display: block; }
+[data-workspace-page="help-about"]               .dashboard-page #help-about              { display: block; }
+
+[data-workspace-page] .dashboard-page main > section.hidden { display: none !important; }
+main > section[id] { scroll-margin-top: 0.85rem; }
+
+/* --- Process model page-mode visibility --- */
+[data-workspace-page="data-new-shared-entity"] #process-model .process-studio:not(.process-shared-entity-studio),
+[data-workspace-page="data-new-shared-entity"] #process-model .process-grid,
+[data-workspace-page="data-new-shared-entity"] #process-model #process-model-catalog,
+[data-workspace-page="data-new-shared-entity"] #process-model #process-model-report,
+[data-workspace-page="data-new-shared-entity"] #process-model .process-mode-nav,
+[data-workspace-page="data-shared-entities"] #process-model .process-studio:not(.process-shared-entity-studio),
+[data-workspace-page="data-shared-entities"] #process-model .process-grid,
+[data-workspace-page="data-shared-entities"] #process-model #process-model-catalog,
+[data-workspace-page="data-shared-entities"] #process-model #process-model-report,
+[data-workspace-page="data-shared-entities"] #process-model .process-mode-nav { display: none !important; }
+
+[data-workspace-page="processes-new-process-model"] #process-model .process-mode-operations { display: none !important; }
+
+/* --- Section collapse --- */
+section.is-collapsed > :not(.section-heading-row) { display: none !important; }
+.section-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.55rem; }
+.section-heading-row h2, .section-heading-row h3, .section-heading-row h4 { margin: 0; }
+
+/* --- Wizard step visibility --- */
+.wizard-step { display: none; }
+.wizard-step.is-active { display: grid; gap: 0.9rem; }
+
+/* --- Wizard breadcrumb separators --- */
+.wizard-breadcrumb::after { content: "/"; color: #73859a; margin: 0 0.25rem; }
+.wizard-breadcrumb:last-child::after { content: ""; margin: 0; }
+
+/* --- Wizard step-track dot indicators --- */
+.wizard-step-track button::before {
+  content: ""; position: absolute;
+  left: 0.7rem; top: calc(50% - 0.28rem);
+  width: 0.56rem; height: 0.56rem;
+  border-radius: 50%; border: 2px solid #8da8c7; background: #fff;
+}
+.wizard-step-track button.is-active::before  { border-color: #187c64; background: #d7f0e6; }
+.wizard-step-track button.is-complete::before { border-color: #15906f; background: #15906f; }
+.dark .wizard-step-track button::before      { border-color: #4d6e90; background: #111c2c; }
+.dark .wizard-step-track button.is-active::before  { border-color: #26a881; background: #1e4a3e; }
+.dark .wizard-step-track button.is-complete::before { border-color: #26a881; background: #26a881; }
+
+/* Draft saved badge */
+.wizard-step-track button[data-draft-status="saved"]::after {
+  content: "Draft"; position: absolute; top: 0.3rem; right: 0.45rem;
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em; color: #0d6d57;
+}
+.dark .wizard-step-track button[data-draft-status="saved"]::after { color: #4ac08f; }
+
+/* ============================================================
+   Monaco / BPMN canvas sizing (fixed heights)
+   ============================================================ */
+.process-bpmn-canvas { min-height: 360px; overflow: hidden; border-radius: 12px; }
+.process-bpmn-editor,
+#process-bpmn-editor-shell > .process-bpmn-editor { height: 360px; min-height: 360px; border-radius: 12px; }
+.process-spec-editor { min-height: 320px; height: 320px; border-radius: 12px; }
+.process-auto-catalog-grid .process-spec-editor { min-height: 280px; height: 280px; }
+#process-auto-task-source-editor { min-height: 300px; height: 300px; border-radius: 12px; }
+
+/* --- Menu open/close (details/summary) --- */
+.menu-group { position: relative; }
+.menu-group:not([open]) > .menu-dropdown { display: none; }
+.menu-group[open] > .menu-dropdown { display: flex; flex-direction: column; gap: 0.2rem; }
+
+/* Active summary styling when open */
+.menu-group[open] > summary { background: #e8f2ff; border-color: #99b7db; }
+.dark .menu-group[open] > summary { background: #274a71; border-color: #5078a7; }
+
+/* Remove default triangle on summary */
+.menu-group > summary::-webkit-details-marker { display: none; }
+.menu-group > summary { list-style: none; }
+
+/* --- Tooltip layer --- */
+.prooweb-tooltip-layer {
+  position: fixed; z-index: 1200;
+  max-width: min(360px, calc(100vw - 1.5rem));
+  padding: 0.58rem 0.66rem; border-radius: 10px;
+  border: 1px solid #c7d5e3; background: #fff; color: #122234;
+  box-shadow: 0 16px 34px rgba(18, 34, 52, 0.12);
+  font-size: 0.82rem; line-height: 1.4; white-space: pre-line;
+  pointer-events: none; opacity: 0; visibility: hidden;
+  transform: translateY(3px);
+  transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s ease;
+}
+.dark .prooweb-tooltip-layer {
+  border-color: #2c3f57; background: #111c2c; color: #d9e7f8;
+  box-shadow: 0 18px 36px rgba(2, 8, 16, 0.48);
+}
+.prooweb-tooltip-layer.is-visible { opacity: 1; visibility: visible; transform: translateY(0); }
+
+/* --- Command center results (buttons injected by JS) --- */
+#command-center-results button {
+  width: 100%; text-align: left; margin: 0; font-weight: 500;
+  border: 1px solid #c7d5e3; border-radius: 10px;
+  background: #f7fbff; color: #122234;
+  padding: 0.52rem 0.7rem; font-size: 0.88rem;
+  box-shadow: none; cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+#command-center-results button:hover {
+  border-color: #98b9df; background: #edf5ff;
+}
+.dark #command-center-results button {
+  background: #162538; color: #d9e7f8; border-color: #2c3f57;
+}
+.dark #command-center-results button:hover {
+  background: #244260; border-color: #4d7aa8;
+}
+
+/* --- UX hints --- */
+.ux-hints-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.35rem; }
+
+/* --- Scroll snap behavior on mobile menu --- */
+@media (max-width: 820px) {
+  .menu-bar { overflow-x: auto; padding-bottom: 0.25rem; scrollbar-width: thin; }
+  .menu-bar .menu-group { flex: 0 0 auto; }
+  .menu-bar .menu-group > .menu-dropdown {
+    position: fixed; left: 0.75rem; right: 0.75rem; top: 4.5rem;
+    min-width: auto; max-height: min(56vh, 360px); overflow: auto; border-radius: 14px; z-index: 2100;
+  }
+}
+
+/* --- Command center overlay --- */
+.command-center { position: fixed; inset: 0; z-index: 25; padding: 1rem;
+  background: rgba(9, 18, 31, 0.52);
+  display: grid; place-items: start center; }
+.dark .command-center { background: rgba(0, 0, 0, 0.62); }
+.command-center.hidden { display: none; }
+
+/* --- Back to top button --- */
+#back-to-top-button { position: fixed; right: 1rem; bottom: 1rem; z-index: 22; }
+
+/* ============================================================
+   pw-label: block layout (overrides Tailwind @layer components)
+   Fixes asterisk/badge ending up as separate grid rows.
+   ============================================================ */
+.pw-label { display: block; position: relative; }
+.pw-label > input,
+.pw-label > select,
+.pw-label > textarea { display: block; margin-top: 0.375rem; }
+.pw-label > small { display: block; margin-top: 0.2rem; }
+
+/* ============================================================
+   Info tooltip badge  ("i" circle injected by ux-hints.js)
+   ============================================================ */
+.info-tooltip-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1rem; height: 1rem; border-radius: 50%;
+  border: 1px solid #b5cfea; background: #e4f0fb; color: #2a6099;
+  font-size: 0.6rem; font-weight: 700; font-style: italic;
+  line-height: 1; cursor: pointer; user-select: none;
+  vertical-align: middle; flex-shrink: 0; margin-left: 0.3rem;
+  transition: background 0.12s, border-color 0.12s;
+}
+.dark .info-tooltip-badge { border-color: #3a6080; background: #192f4a; color: #7ab4e8; }
+.info-tooltip-badge:hover, .info-tooltip-badge:focus-visible {
+  background: #cce5f8; border-color: #8abcd8; outline: none;
+}
+.dark .info-tooltip-badge:hover, .dark .info-tooltip-badge:focus-visible {
+  background: #213f60; border-color: #5a8fba;
+}
+
+/* ============================================================
+   Required indicator asterisk (injected by ux-hints.js)
+   ============================================================ */
+.required-indicator {
+  display: inline; color: #b42318; font-weight: 700;
+  font-size: 0.85em; margin-left: 0.15rem; vertical-align: baseline;
+}
+.dark .required-indicator { color: #ff6d6d; }
+
+/* ============================================================
+   Platform Settings sidebar: active link + panel visibility
+   ============================================================ */
+.settings-sidebar-link.is-active {
+  background: linear-gradient(135deg, #eaf3ff 0%, #e8f8f0 100%);
+  border-color: #136e59 !important; color: #0a4c36; font-weight: 600;
+}
+.dark .settings-sidebar-link.is-active {
+  background: linear-gradient(135deg, #1e3a5a 0%, #1a3d33 100%);
+  border-color: #26a881 !important; color: #a8dfc0;
+}
+[data-settings-panel] { display: none; }
+[data-settings-panel].is-active { display: block; }
+
+/* ============================================================
+   Process studio toolbar: horizontal groups + separators
+   ============================================================ */
+.process-studio-toolbar {
+  flex-wrap: nowrap; overflow-x: auto; align-items: center;
+  scrollbar-width: thin; padding-bottom: 0.35rem;
+}
+.toolbar-group {
+  display: inline-flex; align-items: center; gap: 0.3rem; flex-shrink: 0;
+}
+.toolbar-sep {
+  display: inline-block; width: 1px; min-height: 1.75rem;
+  background: #d0deed; margin: 0 0.35rem; flex-shrink: 0;
+  align-self: center;
+}
+.dark .toolbar-sep { background: #2e4a64; }
+
+/* ============================================================
+   Studio menubar: always a single-row IDE-style bar
+   ============================================================ */
+.studio-menubar {
+  padding: 0 !important;
+  min-height: 46px;
+  position: sticky;
+  top: 0 !important;
+  z-index: 2000 !important;
+  overflow: visible !important;
+}
+.menubar-brand {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0 0.85rem; flex-shrink: 0;
+  border-right: 1px solid #d0deed;
+  min-height: 46px;
+}
+.dark .menubar-brand { border-right-color: #2c3f57; }
+.menubar-nav {
+  display: flex; align-items: center; gap: 0.15rem;
+  padding: 0 0.4rem; flex: 1 1 0%; min-width: 0;
+  overflow: visible;
+  min-height: 46px;
+}
+.menubar-nav::-webkit-scrollbar { display: none; }
+.menubar-actions {
+  display: flex; align-items: center; gap: 0.2rem;
+  padding: 0 0.5rem; flex-shrink: 0;
+  border-left: 1px solid #d0deed;
+  min-height: 46px;
+}
+.dark .menubar-actions { border-left-color: #2c3f57; }
+
+/* Compact menu-summary inside the ide-style bar */
+.menubar-nav .menu-summary {
+  padding: 0.3rem 0.65rem !important;
+  font-size: 0.8rem !important;
+}
+.menubar-nav .menu-summary svg:first-child { width: 0.875rem; height: 0.875rem; }
+.menubar-nav .menu-nav-text { display: none; }
+@media (min-width: 540px) {
+  .menubar-nav .menu-nav-text { display: inline; }
+}
+
+/* Keep desktop dropdowns above all cards/panels */
+.menu-group > .menu-dropdown {
+  z-index: 2100 !important;
+  top: calc(100% + 2px) !important;
+}
+.menu-group { overflow: visible; }
+.menu-group[open] { z-index: 2200; }
+
+/* Tablet/mobile: keep submenu usable without clipping */
+@media (max-width: 1024px) {
+  .studio-menubar {
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+  .menubar-brand {
+    border-right: 0;
+    border-bottom: 1px solid #d0deed;
+    min-height: 40px;
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+  }
+  .dark .menubar-brand { border-bottom-color: #2c3f57; }
+  .menubar-actions {
+    border-left: 0;
+    border-top: 1px solid #d0deed;
+    min-height: 40px;
+    justify-content: flex-end;
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+  }
+  .dark .menubar-actions { border-top-color: #2c3f57; }
+  .menubar-nav {
+    width: 100%;
+    flex-wrap: wrap;
+    row-gap: 0.3rem;
+    column-gap: 0.3rem;
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+    min-height: auto;
+    overflow: visible;
+  }
+}
+
+/* Menubar responsive: dropdown from fixed position on small screens */
+@media (max-width: 539px) {
+  .menubar-nav .menu-group > .menu-dropdown {
+    position: fixed; left: 0.75rem; right: 0.75rem; top: 48px !important;
+    min-width: auto; max-height: min(56vh, 360px); overflow-y: auto;
+    border-radius: 14px; z-index: 2100;
+  }
+}
